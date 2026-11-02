@@ -10,7 +10,22 @@ final class RefreshPolicy {
     /** ...but at most once in this long. */
     static final long MIN_KICK_GAP_MS = 10 * 60_000L;
 
+    /** The background job runs only while a reader has queried the provider within this long. */
+    static final long IN_USE_MS = 24 * 60 * 60_000L;
+    /** The time of the last query is saved at most this often. */
+    static final long NOTE_QUERY_GAP_MS = 5 * 60_000L;
+
     private RefreshPolicy() { }
+
+    /** Whether a reader queried recently enough to keep reading the weather in the background (0: never). */
+    static boolean inUse(long nowMs, long lastQueryMs) {
+        return lastQueryMs > 0 && lastQueryMs <= nowMs && nowMs - lastQueryMs <= IN_USE_MS;
+    }
+
+    /** Whether a query should save its time now: the first one, after a clock reset, or after the gap. */
+    static boolean shouldNoteQuery(long nowMs, long lastQueryMs) {
+        return lastQueryMs <= 0 || nowMs < lastQueryMs || nowMs - lastQueryMs >= NOTE_QUERY_GAP_MS;
+    }
 
     /** A saved interval if it is one of the choices, else the default. */
     static int minutes(int saved) {

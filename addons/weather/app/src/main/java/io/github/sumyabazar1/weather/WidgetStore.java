@@ -8,6 +8,7 @@ final class WidgetStore {
     private static final String PREFS = "widget";
     private static final String KEY_SNAPSHOT = "snapshot";
     private static final String KEY_LAST_KICK = "last_kick_ms";
+    private static final String KEY_LAST_QUERY = "last_query_ms";
 
     private WidgetStore() { }
 
@@ -45,6 +46,15 @@ final class WidgetStore {
         if (s == null || !hasPlace(c)) return null;
         if (Double.compare(s.latitude, latitude(c)) != 0 || Double.compare(s.longitude, longitude(c)) != 0) return null;
         return s;
+    }
+
+    /** When a reader last queried the provider (0: never). */
+    static long lastQuery(Context c) {
+        return prefs(c).getLong(KEY_LAST_QUERY, 0);
+    }
+
+    static void setLastQuery(Context c, long ms) {
+        prefs(c).edit().putLong(KEY_LAST_QUERY, ms).apply();
     }
 
     static long lastKick(Context c) {

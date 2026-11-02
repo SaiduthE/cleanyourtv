@@ -31,9 +31,12 @@ final class WidgetRows {
         }
     }
 
-    /** The single /current row, in {@link #CURRENT_COLUMNS} order. */
+    /**
+     * The single /current row, in {@link #CURRENT_COLUMNS} order. The provider has no permission, so any app can read
+     * it: the city's name (a coarse location) is in the row only when the owner turned on "Show place on Home".
+     */
     static Object[] current(Snapshot s, Display d) {
-        return new Object[] {SPEC, s.updatedMs, place(s.place), round1(s.tempC), round1(s.feelsC), round1(s.highC),
+        return new Object[] {SPEC, s.updatedMs, d.showPlace ? place(s.place) : "", round1(s.tempC), round1(s.feelsC), round1(s.highC),
                 round1(s.lowC), clamp(s.code, 0, 99), s.day ? 1 : 0, clamp(s.humidity, 0, 100), Math.max(0, s.windKmh),
                 s.aqi < 0 ? -1 : Math.min(s.aqi, 500), d.fahrenheit ? "f" : "c", d.showPlace ? 1 : 0, d.animated ? 1 : 0};
     }

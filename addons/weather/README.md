@@ -30,8 +30,10 @@ for weather that is more than 35 minutes old it requests one extra refresh (at m
 launcher opens Weather settings with the action `io.github.sumyabazar1.weather.action.SETTINGS`. The exact
 contract, and what the launcher must do with it, is in [`docs/specs/weather-widget.md`](../../docs/specs/weather-widget.md).
 
-Only public weather for your city is published: no links, no account, nothing private. The city has to be chosen in
-the add-on once; the launcher shows nothing until then.
+Only public weather is published: no links, no account, no coordinates. The city's name is published only if you turn
+on **Show place on Home** (off by default), because the provider needs no permission and any app could read it. The
+city has to be chosen in the add-on once; the launcher shows nothing until then. The background job starts only once
+the launcher has asked for the weather, and stops again if it has not asked for 24 hours.
 
 ## Options
 
@@ -53,7 +55,7 @@ Saved choices override these defaults. With no saved choices the page is as abov
 | `show_wind` | `false` | The wind speed now in km/h, after "Feels like" (mph with `temperature_unit` `f`). |
 | `temperature_unit` | `c` | `f` shows degrees Fahrenheit for the temperature now, feels-like and the days' highs and lows, converted from the reading before rounding. |
 | `show_both_units` | `false` | The temperature now in the other unit too, at the start of the "Feels like" line ("22°C · Feels like 70°"). |
-| `widget_show_place` | `false` | **Show place on Home**: tells the launcher it may show the city's name (it can appear on the screensaver). |
+| `widget_show_place` | `false` | **Show place on Home**: publishes the city's name to the launcher (otherwise the name is left out, as any app can read the provider; it can appear on the screensaver). |
 | `widget_animated` | `true` | **Animated weather art**: tells the launcher to move the clouds, rain and snow. |
 | `refresh_minutes` | `30` | **Refresh every 15/30/60 min**: how often the background job reads the weather for the launcher. Selecting the row cycles through the three. |
 
@@ -70,7 +72,8 @@ The last three only matter to the launcher's widget; the page ignores them. The 
 
 That is all. What is sent: the city name you type in the search, then that place's latitude and longitude. No
 account, no telemetry, no ads, no location permission. The only background work is the system-scheduled refresh job
-for the launcher's widget. The chosen city stays in the app's own storage (backups are off).
+for the launcher's widget, which sends that latitude and longitude to Open-Meteo every 30 minutes, and only while the
+launcher is asking for the weather. The chosen city stays in the app's own storage (backups are off).
 
 ## Build and install
 

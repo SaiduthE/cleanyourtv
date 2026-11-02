@@ -23,6 +23,8 @@ After every refresh the add-on calls `ContentResolver.notifyChange` on both URIs
 changes the units, "Show place on Home" or "Animated weather art". The returned cursors have a notification URI
 set, so `registerContentObserver` on either URI works.
 
+The city's coordinates are never published, and the name only on the owner's opt-in (see `place`).
+
 Without a chosen city, or with a snapshot of a city the owner has since replaced, both URIs return an empty
 cursor.
 
@@ -34,7 +36,7 @@ One row (or none).
 | :- | :- | :- |
 | `spec` | integer | `1`. Ignore the row for any other value. |
 | `updated_ms` | integer | Epoch milliseconds when the weather was read from Open-Meteo. |
-| `place` | text | The city's name, at most 40 characters, no control characters. Empty if unknown. |
+| `place` | text | The city's name, at most 40 characters, no control characters. **Empty unless `show_place` is `1`**: the provider has no permission, so the name (a coarse location) is published only when the owner turned on "Show place on Home". Coordinates are never published. |
 | `temp_c` | real | Air temperature now in degrees Celsius, one decimal. |
 | `feels_c` | real | Feels-like temperature, degrees Celsius. |
 | `high_c`, `low_c` | real | Today's high and low, degrees Celsius. |
@@ -44,12 +46,12 @@ One row (or none).
 | `wind_kmh` | integer | Wind speed, km/h. |
 | `aqi` | integer | US air quality index, `-1` when unknown. |
 | `unit` | text | `c` or `f`: the owner's choice in the add-on's settings. The numbers above are always Celsius; the consumer converts for display. |
-| `show_place` | integer | `1` if the owner wants the place name shown on Home, `0` if not (the default). |
+| `show_place` | integer | `1` if the owner opted in to the place name on Home (and `place` is filled), `0` if not (the default; `place` is empty). |
 | `animated` | integer | `1` if the owner wants the animated weather art (the default), `0` for still art. |
 
 ## `content://io.github.sumyabazar1.weather.widget/daily`
 
-Up to 7 rows, today first, then the days after it, sorted by date. Fewer or none when the read gave fewer.
+Up to 7 rows, today first, then the days after it, sorted by date. Fewer or none when the read gave fewer. Exception: if the model returned no values for today, that row is left out and the list starts tomorrow; `/current`'s `high_c` and `low_c` then repeat `temp_c`. A consumer must not assume the first row is today: compare `date` with the city's date.
 
 | Column | Type | What |
 | :- | :- | :- |
@@ -102,6 +104,9 @@ asks for one first.
 
 - A persisted periodic job (default every 30 minutes, 15 or 60 in settings, network required) reads Open-Meteo
   for the chosen city and replaces the snapshot. A boot receiver puts the job back after a restart or an update.
+  The job is scheduled only after a reader has queried the provider (nothing is read in the background for an owner
+  whose launcher does not use the widget) and cancels itself when no query has arrived for 24 hours; the next query
+  schedules it again.
 - Choosing another city or changing the units notifies readers at once and starts a one-shot refresh.
 - A failed read keeps the last snapshot (its `updated_ms` ages, so the consumer's staleness rules apply) and
   is retried by the system with backoff.

@@ -49,6 +49,7 @@ public final class WeatherProvider extends ContentProvider {
                 for (Object[] row : WidgetRows.daily(snapshot)) cursor.addRow(WidgetRows.pick(all, row, columns));
             }
         }
+        Refresher.noteQuery(c);
         Refresher.kickIfStale(c, snapshot);
         cursor.setNotificationUri(c.getContentResolver(), uri);
         return cursor;

@@ -94,6 +94,8 @@ public class WidgetTest {
         assertArrayEquals(new Object[] {1, 1_700_000_000_000L, "Ulaanbaatar", -5.8, -9.0, 5.9, -5.8, 3, 1, 61, 14, 42,
                 "c", 1, 0}, row);
         Object[] f = WidgetRows.current(sample(3), new WidgetRows.Display(true, false, true));
+        // The city's name is published only when the owner opted in.
+        assertEquals("", f[2]);
         assertEquals("f", f[12]);
         assertEquals(0, f[13]);
         assertEquals(1, f[14]);
@@ -172,6 +174,27 @@ public class WidgetTest {
         assertTrue(RefreshPolicy.shouldKick(now, old, now - 10 * min, true));
         assertTrue(RefreshPolicy.shouldKick(now, old, now + 5 * min, true));   // the clock was set back
         assertTrue(RefreshPolicy.shouldKick(now, now + 120 * min, 0, true));  // data from the future is not fresh
+    }
+
+    @Test
+    public void backgroundReadingRunsOnlyWithinADayOfTheLastQuery() {
+        long now = 10_000_000_000L;
+        long hour = 3_600_000L;
+        assertFalse(RefreshPolicy.inUse(now, 0));                    // no reader has ever asked
+        assertTrue(RefreshPolicy.inUse(now, now - 23 * hour));
+        assertTrue(RefreshPolicy.inUse(now, now - 24 * hour));
+        assertFalse(RefreshPolicy.inUse(now, now - 24 * hour - 1));
+        assertFalse(RefreshPolicy.inUse(now, now + hour));           // the clock was set back
+    }
+
+    @Test
+    public void aQuerySavesItsTimeAtMostEveryFiveMinutes() {
+        long now = 10_000_000_000L;
+        long min = 60_000L;
+        assertTrue(RefreshPolicy.shouldNoteQuery(now, 0));
+        assertFalse(RefreshPolicy.shouldNoteQuery(now, now - 4 * min));
+        assertTrue(RefreshPolicy.shouldNoteQuery(now, now - 5 * min));
+        assertTrue(RefreshPolicy.shouldNoteQuery(now, now + min));
     }
 
     @Test

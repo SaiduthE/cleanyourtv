@@ -6,6 +6,8 @@
 
     <!-- The only permission: Open-Meteo, for the place search, the weather and the air quality. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Puts the periodic widget refresh back after a restart. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
     <application
         android:allowBackup="false"
@@ -29,6 +31,33 @@
                 <category android:name="com.gathin.tvhome.category.DOCK_CARD" />
             </intent-filter>
             <meta-data android:name="com.gathin.tvhome.card" android:resource="@xml/module_card" />
+            <!-- The launcher opens the settings with this fixed action and setPackage (docs/specs/weather-widget.md). -->
+            <intent-filter>
+                <action android:name="io.github.sumyabazar1.weather.action.SETTINGS" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
         </activity>
+
+        <!-- The weather for the launcher's Home (docs/specs/weather-widget.md): read-only public weather from the saved
+             snapshot, so no permission is asked of the reader. Never touches the network. -->
+        <provider
+            android:name=".WeatherProvider"
+            android:authorities="${applicationId}.widget"
+            android:exported="true" />
+
+        <!-- Reads Open-Meteo for the provider every 15, 30 or 60 minutes (default 30), and once when the city or units change. -->
+        <service
+            android:name=".RefreshJobService"
+            android:exported="true"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

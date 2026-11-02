@@ -12,4 +12,11 @@
     <string name="temperature_unit" translatable="false">c</string>
     <!-- The temperature now in the other unit too, at the start of the "Feels like" line ("22°C · Feels like 70°"). -->
     <bool name="show_both_units">false</bool>
+    <!-- For the Clean Your TV launcher's Home: its weather widget shows the city's name. Off by default, as the name
+         can appear on the screensaver. -->
+    <bool name="widget_show_place">false</bool>
+    <!-- For the launcher's Home: the weather art moves (clouds, rain, snow). -->
+    <bool name="widget_animated">true</bool>
+    <!-- Minutes between background reads for the launcher's widget: 15, 30 or 60. -->
+    <integer name="refresh_minutes">30</integer>
 </resources>

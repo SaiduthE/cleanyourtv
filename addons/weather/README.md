@@ -15,8 +15,23 @@ sky-blue glow; on any other Android TV home it is an ordinary app.
 - **Snow, not rain, near freezing.** The models type precipitation by the air temperature and call snow
   "light rain" at 1 °C (ICON and GFS did, in a Ulaanbaatar blizzard). The app decides by the wet-bulb
   temperature instead, which counts how dry the air is: at 1 °C or below, rain and drizzle are shown as snow.
-- It reads Open-Meteo only while the page is on screen, every 30 minutes, or 5 minutes after a failure.
+- The page reads Open-Meteo only while it is on screen, every 30 minutes, or 5 minutes after a failure. Separately, a
+  background job reads it for the launcher's widget (below).
 - Degrees Celsius by default (Fahrenheit is an option below); English or French words, with the TV's language; day names follow the TV's language.
+
+## Weather for the launcher's Home
+
+The launcher has no network permission, so this add-on hands it the weather instead: a read-only content provider,
+`io.github.sumyabazar1.weather.widget`, with `/current` (one row: temperature, feels-like, today's high and low,
+WMO code, day or night, humidity, wind, air quality, the owner's unit) and `/daily` (up to 7 days). It answers from
+a saved snapshot and never reads the network itself. A background job refreshes the snapshot every 30 minutes (15
+or 60 in settings), only with a network, and again at once when you change the city or the units; if something asks
+for weather that is more than 35 minutes old it requests one extra refresh (at most one in 10 minutes). The
+launcher opens Weather settings with the action `io.github.sumyabazar1.weather.action.SETTINGS`. The exact
+contract, and what the launcher must do with it, is in [`docs/specs/weather-widget.md`](../../docs/specs/weather-widget.md).
+
+Only public weather for your city is published: no links, no account, nothing private. The city has to be chosen in
+the add-on once; the launcher shows nothing until then.
 
 ## Options
 
@@ -38,6 +53,11 @@ Saved choices override these defaults. With no saved choices the page is as abov
 | `show_wind` | `false` | The wind speed now in km/h, after "Feels like" (mph with `temperature_unit` `f`). |
 | `temperature_unit` | `c` | `f` shows degrees Fahrenheit for the temperature now, feels-like and the days' highs and lows, converted from the reading before rounding. |
 | `show_both_units` | `false` | The temperature now in the other unit too, at the start of the "Feels like" line ("22°C · Feels like 70°"). |
+| `widget_show_place` | `false` | **Show place on Home**: tells the launcher it may show the city's name (it can appear on the screensaver). |
+| `widget_animated` | `true` | **Animated weather art**: tells the launcher to move the clouds, rain and snow. |
+| `refresh_minutes` | `30` | **Refresh every 15/30/60 min**: how often the background job reads the weather for the launcher. Selecting the row cycles through the three. |
+
+The last three only matter to the launcher's widget; the page ignores them. The widget also follows the temperature unit.
 
 ![A week, with humidity and wind](https://raw.githubusercontent.com/majnioui/cleanyourtv-contrib/pr-assets/addon-weather-week/weather-options.png)
 
@@ -46,10 +66,11 @@ Saved choices override these defaults. With no saved choices the page is as abov
 | Permission | Why |
 |---|---|
 | `INTERNET` | Open-Meteo: the place search, the weather and the air quality. |
+| `RECEIVE_BOOT_COMPLETED` | Puts the background refresh for the launcher's widget back after the TV restarts. |
 
 That is all. What is sent: the city name you type in the search, then that place's latitude and longitude. No
-account, no telemetry, no ads, no background service, no location permission. The chosen city stays in the
-app's own storage (backups are off).
+account, no telemetry, no ads, no location permission. The only background work is the system-scheduled refresh job
+for the launcher's widget. The chosen city stays in the app's own storage (backups are off).
 
 ## Build and install
 

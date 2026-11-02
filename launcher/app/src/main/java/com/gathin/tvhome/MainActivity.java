@@ -3695,6 +3695,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             addInputRow(rows, popup, R.drawable.ic_settings, getString(R.string.settings), -1,
                     () -> open(systemIntent(Settings.ACTION_SETTINGS)));
         }
+        // Module cards, Edit dock, vendor settings and the power menu live in the gear menu; with one gear they
+        // would otherwise be unreachable. Holding the gear still opens Android TV settings.
+        addInputRow(rows, popup, R.drawable.ic_apps, getString(R.string.menu_more), -1, () -> root.post(this::showSettingsMenu));
         panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         popup.setWidth(Math.max((int) (220 * density), Math.min(panel.getMeasuredWidth(), (int) (360 * density))));
         dropIn(popup, panel, anchor, getResources().getBoolean(R.bool.rtl_menu_bar) ? Gravity.START : Gravity.END);

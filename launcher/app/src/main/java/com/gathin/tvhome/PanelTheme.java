@@ -89,7 +89,9 @@ final class PanelTheme {
         String theme = revision != null && revision.isFile() ? revision.length() + "/" + revision.lastModified() : "-";
         long settings = ctx.getSharedPreferences(Config.SETTINGS_NAME, Context.MODE_PRIVATE)
                 .getLong(Config.SETTINGS_REVISION_KEY, 0);
-        return theme + ":" + settings;
+        File wallpaper = dir == null ? null : new File(dir, Config.WALLPAPER_NAME);
+        String picture = wallpaper != null && wallpaper.isFile() ? wallpaper.length() + "/" + wallpaper.lastModified() : "-";
+        return theme + ":" + settings + ":" + picture;
     }
 
     private static PanelTheme build(Context ctx) {

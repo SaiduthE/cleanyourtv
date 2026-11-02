@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="menu_more" translatable="false">More…</string>
     <string name="styles_title" translatable="false">Clean Look · Styles</string>
     <string name="styles_note" translatable="false">Pick a style. Your dock apps, columns, remote buttons, VPN button and weather settings are kept, so a style only changes how things look. Home restarts to apply it.</string>
     <string name="styles_apply" translatable="false">Apply this style</string>

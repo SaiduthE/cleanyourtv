@@ -3173,9 +3173,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 // An open lock on the plain glass button, or the closed lock outlined in green like the pill (solid
                 // while focused); the words go to talkback.
                 btnVpn.setContentDescription(getString(up ? R.string.vpn : R.string.vpn_off));
-                btnVpn.setBackground(up ? VpnBadge.pillBackground(true, density) : vpnPlainBackground.newDrawable());
+                // Both states are outlined in their colour, green closed lock or red open lock, so a dropped VPN reads
+                // at a glance (it used to fall back to the plain white button here).
+                btnVpn.setBackground(VpnBadge.pillBackground(up, density));
                 btnVpn.setCompoundDrawablesRelativeWithIntrinsicBounds(VpnBadge.iconOnlyLock(up), 0, 0, 0);
-                btnVpn.setCompoundDrawableTintList(up ? ink : vpnPlainInk);
+                btnVpn.setCompoundDrawableTintList(ink);
                 btnVpn.setVisibility(View.VISIBLE);
                 return;
             }

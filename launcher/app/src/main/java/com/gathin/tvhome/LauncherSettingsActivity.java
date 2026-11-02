@@ -50,6 +50,7 @@ public final class LauncherSettingsActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         setContentView(R.layout.activity_launcher_settings);
+        SettingsPanel.apply(this);
         choices = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
         Config config = Config.load(this);
         View reorderChoice = findViewById(R.id.reorderChoice);
@@ -168,6 +169,10 @@ public final class LauncherSettingsActivity extends Activity {
             changed();
             refresh();
         });
+        findViewById(R.id.themesChoice).setOnClickListener(v ->
+                open(new Intent(this, ThemesActivity.class)));
+        findViewById(R.id.remoteButtonsChoice).setOnClickListener(v ->
+                open(new Intent(this, RemoteKeysActivity.class)));
         findViewById(R.id.defaultHomeChoice).setOnClickListener(v ->
                 open(new Intent(this, HomeSettingsActivity.class)));
         findViewById(R.id.tvSettingsChoice).setOnClickListener(v ->

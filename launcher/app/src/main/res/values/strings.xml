@@ -158,4 +158,8 @@
     <string name="clock_format_system">System</string>
     <string name="clock_format_12">12-hour</string>
     <string name="clock_format_24">24-hour</string>
+    <string name="remote_buttons" translatable="false">Remote buttons</string>
+    <string name="remote_buttons_help" translatable="false">Map any remote button to an app or an action: on press, hold or double press.</string>
+    <string name="themes_label" translatable="false">Themes</string>
+    <string name="themes_help" translatable="false">Switch the look from the TV: Cinematic, Glass, Aurora, Minimal and more. Your dock, buttons and columns are kept.</string>
 </resources>

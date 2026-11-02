@@ -186,6 +186,10 @@ public class RemoteKeysTest {
             presses.up(button, at, downTime, false, app, holdApp, opened::add);
         }
 
+        void upDouble(String button, long at, long downTime, String app, String holdApp, String doubleApp) {
+            presses.up(button, at, downTime, false, app, holdApp, doubleApp, opened::add);
+        }
+
         /** HOLD_MS has passed: every hold still pending fires. */
         void holdTimeout() {
             for (Runnable hold : new ArrayList<>(holds)) hold.run();
@@ -320,5 +324,59 @@ public class RemoteKeysTest {
         assertFalse(RemoteKeys.menuReleased(1, 0x20));
         assertFalse(RemoteKeys.menuReleased(1, 0x20 | 0x100 | 0x8));
         assertFalse(RemoteKeys.menuReleased(1, RemoteKeys.XIAOMI_SHORT_MENU_FLAGS & ~0x4000));
+    }
+
+    @Test public void doubleEntriesAreReadApartFromTheRest() {
+        List<String> entries = Arrays.asList("199:a.tap", "hold:199:a.hold", "dbl:199:a.double", "dbl:scan:393:b.double");
+        assertEquals("a.tap", RemoteKeys.parseAppKeys(entries, RemoteKeysTest::keyCode).get(199));
+        assertEquals("a.double", RemoteKeys.parseAppKeys(
+                Arrays.asList("dbl:199:a.double".substring(4)), RemoteKeysTest::keyCode).get(199));
+        assertEquals("b.double", RemoteKeys.parseDoubleAppScancodes(entries).get(393));
+        assertTrue(RemoteKeys.parseAppScancodes(entries).isEmpty());
+    }
+
+    @Test public void aTapWithoutADoubleEntryAnswersAtOnce() {
+        Remote remote = new Remote();
+        remote.down("1:199:0", 1000, null);
+        remote.up("1:199:0", 1100, 1000, "tap", null);
+        assertEquals(Arrays.asList("tap"), remote.opened);
+        assertTrue(remote.holds.isEmpty());
+    }
+
+    @Test public void aSingleTapOnADoubleButtonWaitsThenAnswers() {
+        Remote remote = new Remote();
+        remote.down("1:199:0", 1000, null);
+        remote.upDouble("1:199:0", 1100, 1000, "tap", null, "double");
+        assertTrue("the tap waits for a possible second press", remote.opened.isEmpty());
+        remote.holdTimeout();   // DOUBLE_MS passes with no second press
+        assertEquals(Arrays.asList("tap"), remote.opened);
+    }
+
+    @Test public void twoQuickTapsAnswerOnlyTheDoublePress() {
+        Remote remote = new Remote();
+        remote.down("1:199:0", 1000, null);
+        remote.upDouble("1:199:0", 1100, 1000, "tap", null, "double");
+        remote.down("1:199:0", 1200, null);
+        remote.upDouble("1:199:0", 1300, 1200, "tap", null, "double");
+        assertEquals(Arrays.asList("double"), remote.opened);
+        remote.holdTimeout();   // the first tap's timer was cancelled, so nothing fires late
+        assertEquals(Arrays.asList("double"), remote.opened);
+    }
+
+    @Test public void aHoldOnADoubleButtonAnswersTheHoldAtOnce() {
+        Remote remote = new Remote();
+        remote.down("1:199:0", 1000, "hold");
+        remote.holdTimeout();
+        assertEquals(Arrays.asList("hold"), remote.opened);
+        remote.upDouble("1:199:0", 1700, 1000, "tap", "hold", "double");
+        assertEquals("the hold already answered, so its release opens nothing", Arrays.asList("hold"), remote.opened);
+    }
+
+    @Test public void aButtonWithOnlyADoubleEntryIsStillConsumed() {
+        Remote remote = new Remote();
+        remote.down("1:199:0", 1000, null);
+        remote.upDouble("1:199:0", 1100, 1000, null, null, "double");
+        remote.holdTimeout();
+        assertEquals("a lone tap has no answer and opens nothing", Arrays.asList((String) null), remote.opened);
     }
 }

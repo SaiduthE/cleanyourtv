@@ -34,13 +34,22 @@ import java.util.regex.Pattern;
  * so both may call handle() for one event, and it answers each press once.
  * A target of "input:<input id>" switches to that TV input (an HDMI port) instead of opening an app, a target
  * of "inputs" opens the input switcher, for a remote whose source button sends a key Android does not map,
- * one of the action words (back, home, recents, mute, sleep, screensaver, settings, wifi, library) does that action, and
+ * one of the action words (back, home, recents, mute, sleep, screensaver, settings, wifi, library, launcher_settings) does that action, and
  * "package/.Activity" opens that activity rather than the app's launcher entry (an add-on's quick bar, say).
  */
 final class RemoteKeys {
 
     /** How long a button is held before its "hold:" entry wins (Android's long-press timeout). */
     static final long HOLD_MS = 500;
+
+    /**
+     * How long a tap waits for a second one on a button that has a "dbl:" entry. Buttons without one answer at once,
+     * so only a button given a double press pays this delay.
+     */
+    static final long DOUBLE_MS = 300;
+
+    /** Set while Launcher settings waits for the owner to press a button to map: the helper hands it the DOWN. */
+    static volatile Consumer<KeyEvent> capture;
 
     /** The app_keys target that opens the input switcher, as "scan:365:inputs". */
     static final String INPUTS = "inputs";
@@ -162,6 +171,15 @@ final class RemoteKeys {
         return found;
     }
 
+    /** keycode -> target from the "dbl:" entries, answered when the button is pressed twice within DOUBLE_MS. */
+    static Map<Integer, String> parseDoubleAppKeys(Iterable<String> entries) {
+        return parseAppKeys(prefixed(entries, "dbl:"), KeyEvent::keyCodeFromString);
+    }
+
+    static Map<Integer, String> parseDoubleAppScancodes(Iterable<String> entries) {
+        return parseAppScancodes(prefixed(entries, "dbl:"));
+    }
+
     /** The package of a "guide:<package>" target, or null for any other target. */
     static String guidePackage(String target) {
         if (target == null || !target.startsWith("guide:")) return null;
@@ -187,7 +205,12 @@ final class RemoteKeys {
      * normal one on an earlier release. False means neither list has this key, so the caller can pass it on.
      */
     static boolean handle(Context ctx, KeyEvent event, String app, String holdApp) {
-        if (app == null && holdApp == null) return false;
+        return handle(ctx, event, app, holdApp, null);
+    }
+
+    /** As above, with a "dbl:" target for a button pressed twice in quick succession. */
+    static boolean handle(Context ctx, KeyEvent event, String app, String holdApp, String doubleApp) {
+        if (app == null && holdApp == null && doubleApp == null) return false;
         if (presses == null) {
             Handler handler = new Handler(Looper.getMainLooper());
             presses = new Presses(new Presses.Timer() {
@@ -200,7 +223,7 @@ final class RemoteKeys {
             presses.down(button, event.getEventTime(), event.getRepeatCount(), holdApp, ctx,
                     target -> launch(ctx, target));
         } else if (event.getAction() == KeyEvent.ACTION_UP) {
-            presses.up(button, event.getEventTime(), event.getDownTime(), event.isCanceled(), app, holdApp,
+            presses.up(button, event.getEventTime(), event.getDownTime(), event.isCanceled(), app, holdApp, doubleApp,
                     target -> launch(ctx, target));
         }
         return true;
@@ -231,6 +254,8 @@ final class RemoteKeys {
             long downAt = -1, upAt = -1;
             boolean fired;
             Runnable hold;
+            /** A tap waiting DOUBLE_MS for a second one; null when none is pending. */
+            Runnable pendingTap;
             /** The helpers that saw this DOWN while its hold is pending, each with the way it opens a target. */
             final Map<Object, Consumer<String>> owners = new LinkedHashMap<>();
         }
@@ -280,6 +305,11 @@ final class RemoteKeys {
 
         void up(String button, long eventTime, long downTime, boolean canceled, String app, String holdApp,
                 Consumer<String> open) {
+            up(button, eventTime, downTime, canceled, app, holdApp, null, open);
+        }
+
+        void up(String button, long eventTime, long downTime, boolean canceled, String app, String holdApp,
+                String doubleApp, Consumer<String> open) {
             Press press = buttons.computeIfAbsent(button, b -> new Press());
             if (press.upAt == eventTime) return;
             boolean sawDown = press.downAt > press.upAt;
@@ -291,7 +321,30 @@ final class RemoteKeys {
             }
             if (canceled || (sawDown && press.fired)) return;
             // Without its DOWN (the service started while the button was held), the event's own down time will do.
-            open.accept(target(app, holdApp, eventTime - (sawDown ? press.downAt : downTime)));
+            long heldMs = eventTime - (sawDown ? press.downAt : downTime);
+            boolean isHold = heldMs >= HOLD_MS && holdApp != null;
+            if (doubleApp == null || isHold) {
+                if (press.pendingTap != null) {   // a hold after a first tap: that tap is dropped with the hold's answer
+                    timer.cancel(press.pendingTap);
+                    press.pendingTap = null;
+                }
+                open.accept(target(app, holdApp, heldMs));
+                return;
+            }
+            if (press.pendingTap != null) {
+                // The second tap: the double press answers, and the first tap never does.
+                timer.cancel(press.pendingTap);
+                press.pendingTap = null;
+                open.accept(doubleApp);
+                return;
+            }
+            // The first tap waits for a possible second one before it answers.
+            final Press waiting = press;
+            press.pendingTap = () -> {
+                waiting.pendingTap = null;
+                open.accept(app);
+            };
+            timer.post(press.pendingTap, DOUBLE_MS);
         }
     }
 
@@ -344,6 +397,7 @@ final class RemoteKeys {
         switch (target) {
             case "back": case "home": case "recents": case "mute": case "sleep":
             case "screensaver": case "settings": case "wifi": case "library": case "ignore":
+            case "launcher_settings":
                 return true;
             default:
                 return false;
@@ -378,6 +432,10 @@ final class RemoteKeys {
                 break;
             case "wifi":
                 start(ctx, SystemSettings.intent(ctx, Settings.ACTION_WIFI_SETTINGS));
+                break;
+            case "launcher_settings":
+                // This launcher's own settings panel (Remote buttons, Themes, columns, ...), from any app.
+                start(ctx, new Intent(ctx, LauncherSettingsActivity.class));
                 break;
             case "library":
                 // Home with the App library open on top; Home does nothing when app_library is off.

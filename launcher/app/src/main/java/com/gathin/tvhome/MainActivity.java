@@ -350,6 +350,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private boolean dockEditing;
     /** Dock place being changed in edit-dock mode, or -1 while the place is still being chosen. */
     private int dockEditSlot = -1;
+    /** On-screen cue for reorder and edit-dock mode; never takes focus. */
+    private final ReorderIndicator reorderIndicator = new ReorderIndicator(this);
     /** Tile menu's "Add to dock": the app waiting for a dock place in edit-dock mode, or null. */
     private String dockEditAppKey;
     private AppLibraryDialog appLibrary;
@@ -826,11 +828,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             ((TextView) btnSettings).setText(R.string.launcher_settings);
             ((TextView) btnSettings).setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_home_settings_pill, 0, 0, 0);
         }
-        btnSettings.setOnClickListener(v -> {
-            if (launcherSettingsButton) startActivityForResult(
-                    new Intent(this, LauncherSettingsActivity.class), LAUNCHER_SETTINGS_REQUEST);
-            else open(systemIntent(Settings.ACTION_SETTINGS));
-        });
+        // Short press: the gear menu (Launcher settings, TV settings, ...). Holding it opens Android TV settings.
+        btnSettings.setOnClickListener(v -> showSettingsMenu());
         btnReorder = findViewById(R.id.btnReorder);
         btnReorder.setOnClickListener(v -> toggleReorder());
         btnReorder.setVisibility(cfg.reorderButton ? View.VISIBLE : View.GONE);
@@ -886,7 +885,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             makeIconOnly(btnVpn);
         }
         btnSettings.setOnLongClickListener(v -> {
-            showSettingsMenu();
+            open(systemIntent(Settings.ACTION_SETTINGS));
             return true;
         });
 
@@ -1503,6 +1502,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     /** The start shared by reorder and edit-dock mode. False when there is nothing to move. */
     private boolean beginReorder() {
+        return beginReorder(false);
+    }
+
+    private boolean beginReorder(boolean dockEdit) {
         if (adapter.movableCount() < 2) return false;
         // Before the reload below: once it has dropped the empty slots, the dock row also shows grid apps.
         dockInSession = new HashSet<>();
@@ -1514,13 +1517,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         orderAtStart = adapter.movableKeys();
         glass.setAccent(REORDER_ACCENT);
         btnReorder.setActivated(true);
+        reorderIndicator.onEnter(dockEdit);
         return true;
     }
 
     /** Edit dock (Settings menu): focus goes to the first dock place, which OK then chooses. */
     private void startDockEdit() {
         if (reordering) endReorder();
-        if (!beginReorder()) return;
+        if (!beginReorder(true)) return;
         dockEditing = true;
         dockEditSlot = -1;
         focusTile(0);
@@ -1566,6 +1570,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 } else if (dockEditSlot < 0) {
                     if (pos < Math.min(COLUMNS, n)) {
                         dockEditSlot = pos;
+                        reorderIndicator.onDockSlotChosen(pos);
                         dimOthers();
                         focusTile(Math.min(COLUMNS, n - 1));
                         Toast.makeText(this, R.string.dock_edit_pick_app, Toast.LENGTH_LONG).show();
@@ -1585,7 +1590,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      */
     private void startDockEditFor(String key, boolean inDock) {
         if (reordering) endReorder();
-        if (!beginReorder()) return;
+        if (!beginReorder(true)) return;
         dockEditing = true;
         int pos = adapter.positionOf(key);   // beginReorder can rebuild the tiles
         int n = adapter.movableCount();
@@ -1593,6 +1598,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             endReorder();
         } else if (inDock) {
             dockEditSlot = pos;
+            reorderIndicator.onDockSlotChosen(pos);
             dimOthers();
             focusTile(Math.min(COLUMNS, n - 1));
             Toast.makeText(this, R.string.dock_edit_pick_app, Toast.LENGTH_LONG).show();
@@ -1623,12 +1629,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (pos >= adapter.movableCount()) return;   // the "Default home" tile stays put
         movingKey = adapter.keyAt(pos);
         dimOthers();
+        reorderIndicator.onCarry(movingKey, pos);
     }
 
     /** Puts the carried tile down where it is; the mode stays on. */
     private void drop() {
+        boolean carrying = movingKey != null;
         movingKey = null;
         dimOthers();
+        if (carrying) reorderIndicator.onDrop();
     }
 
     /** While a tile is carried, every other tile is dimmed so the carried one stands out; otherwise all are full. */
@@ -1659,6 +1668,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         adapter.setReordering(false);
         glass.setAccent(festive ? festival.accentColor() : 0);
         btnReorder.setActivated(false);
+        reorderIndicator.onExit();
         List<String> keys = adapter.movableKeys();
         List<String> before = orderAtStart;
         orderAtStart = null;
@@ -1706,6 +1716,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // The owner carries this tile: where it lands decides whether it is in the dock, not dock_apps (#499).
         if (to < COLUMNS) dockInSession.add(movingKey);
         else dockInSession.remove(movingKey);
+        reorderIndicator.onMoved(to);
         refocusAfterLayout(to);
     }
 
@@ -3690,14 +3701,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         rows.getChildAt(0).requestFocus();
     }
 
-    /** The header opens launcher settings directly; hold OK keeps the extra home actions available. */
+    /** The gear's short press: Launcher settings, TV settings, then the extra home actions. Holding the gear opens TV settings. */
     private void showSettingsMenu() {
         View anchor = findViewById(R.id.btnSettings);
         View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
         LinearLayout rows = panel.findViewById(R.id.rows);
         PopupWindow popup = glassPopup(panel, (int) (200 * density));
-        if (!launcherSettingsButton) addSettingsMenuRow(rows, popup, R.string.launcher_settings, () -> startActivityForResult(
+        addSettingsMenuRow(rows, popup, R.string.launcher_settings, () -> startActivityForResult(
                 new Intent(this, LauncherSettingsActivity.class), LAUNCHER_SETTINGS_REQUEST));
+        addSettingsMenuRow(rows, popup, R.string.tv_settings, () -> open(systemIntent(Settings.ACTION_SETTINGS)));
         // Firmware that ships its own settings app next to the AOSP one (Xiaomi China is one): the
         // vendor app holds pages the AOSP settings has no row for, such as Account & Security with
         // the ADB switch. Offered here only while one of them is installed.

@@ -42,7 +42,7 @@ final class PanelUi {
     static TextView title(Context ctx, String text) {
         TextView t = new TextView(ctx);
         t.setText(text);
-        t.setTextColor(0xFFFFFFFF);
+        t.setTextColor(PanelTheme.get(ctx).textPrimary);
         t.setTextSize(28);
         return t;
     }
@@ -51,7 +51,7 @@ final class PanelUi {
     static TextView note(Context ctx, String text) {
         TextView t = new TextView(ctx);
         t.setText(text);
-        t.setTextColor(0xFFACB8C1);
+        t.setTextColor(PanelTheme.get(ctx).textSecondary);
         t.setTextSize(14);
         t.setPadding(0, dp(ctx, 8), 0, 0);
         return t;
@@ -61,7 +61,7 @@ final class PanelUi {
     static TextView section(Context ctx, String text) {
         TextView t = new TextView(ctx);
         t.setText(text);
-        t.setTextColor(0xFF9AD0AE);
+        t.setTextColor(PanelTheme.get(ctx).heading);
         t.setTextSize(14);
         t.setAllCaps(true);
         t.setLetterSpacing(0.08f);
@@ -72,6 +72,7 @@ final class PanelUi {
     /** A focusable settings row, one line, with an optional icon on the left. */
     static TextView row(Context ctx, String label, Drawable icon) {
         TextView t = new TextView(ctx, null, 0, R.style.SettingsRow);
+        t.setBackground(PanelTheme.get(ctx).rowBackground());
         t.setText(label);
         t.setSingleLine(true);
         t.setEllipsize(TextUtils.TruncateAt.END);

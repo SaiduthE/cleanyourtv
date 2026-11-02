@@ -1,4 +1,5 @@
 {
+  "panel_accent": "#4DAE6D",
   "columns": 6,
   "rows_below_dock": 1,
   "background_color": "#000000",

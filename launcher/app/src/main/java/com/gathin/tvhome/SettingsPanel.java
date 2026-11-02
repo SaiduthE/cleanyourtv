@@ -25,7 +25,7 @@ final class SettingsPanel {
         int width = Math.max(Math.round(dm.widthPixels * WIDTH_FRACTION), Math.round(MIN_DP * dm.density));
         window.setLayout(Math.min(width, dm.widthPixels), WindowManager.LayoutParams.MATCH_PARENT);
         window.setGravity(Gravity.END);
-        window.setBackgroundDrawableResource(R.drawable.settings_panel_bg);
+        window.setBackgroundDrawable(PanelTheme.get(activity).panelBackground());
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
         window.setDimAmount(DIM);
     }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="styles_title" translatable="false">Clean Look · Styles</string>
+    <string name="styles_note" translatable="false">Pick a style. Your dock apps, columns, remote buttons, VPN button and weather settings are kept, so a style only changes how things look. Home restarts to apply it.</string>
+    <string name="styles_apply" translatable="false">Apply this style</string>
+    <string name="styles_back" translatable="false">Back</string>
+    <string name="styles_other" translatable="false">Other</string>
+    <string name="styles_builtin" translatable="false">Built-in look (no style)</string>
+    <string name="styles_active" translatable="false">In use</string>
+    <string name="styles_hint" translatable="false">More looks (wallpaper collections, seasonal skins) can still be pushed from a computer with tools/theme.sh.</string>
+</resources>

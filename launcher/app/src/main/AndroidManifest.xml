@@ -68,6 +68,12 @@
         <!-- Coocaa OS sources for the Inputs menu (coocaa_sources); see CoocaaSources. -->
         <provider android:authorities="com.skyworth.tv.provider" />
         <provider android:authorities="com.skyworth.tv.sdk.provider" />
+        <!-- Weather add-on (WeatherSource): its read-only widget provider, its package, and the action that opens its settings. -->
+        <provider android:authorities="io.github.sumyabazar1.weather.widget" />
+        <package android:name="io.github.sumyabazar1.weather" />
+        <intent>
+            <action android:name="io.github.sumyabazar1.weather.action.SETTINGS" />
+        </intent>
     </queries>
 
     <application

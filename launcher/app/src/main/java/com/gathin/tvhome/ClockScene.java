@@ -15,6 +15,7 @@ import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.view.View;
 import android.widget.ImageView;
+import android.widget.LinearLayout;
 
 import java.io.File;
 import java.time.LocalDateTime;
@@ -45,6 +46,8 @@ final class ClockScene {
     private final View content;
     private final ClockRefresh clockRefresh;
     private final ImageView ambient;
+    /** Weather under the date, from the Weather add-on; null without it (WeatherScreensaver). */
+    private WeatherScreensaver weather;
     private final GradientDrawable glow;
     private int colorIndex;
     private int glowColor;
@@ -97,12 +100,17 @@ final class ClockScene {
         handler.removeCallbacks(tick);
         handler.postDelayed(tick, MOVE_MS);
         clockRefresh.start();
+        if (weather == null && content instanceof LinearLayout) {
+            weather = WeatherScreensaver.create((LinearLayout) content, this::placeClock);
+        }
+        if (weather != null) weather.start();
         if (wallpaperFile != null && !wallpaperShown) loadWallpaper();
     }
 
     void stop() {
         handler.removeCallbacksAndMessages(null);   // the tick and any glow steps still queued
         clockRefresh.stop();
+        if (weather != null) weather.stop();
         content.animate().cancel();
         wallpaperGeneration++;   // a decode still running must not attach its picture to a stopped scene
     }

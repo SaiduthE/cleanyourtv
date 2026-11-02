@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Weather chip beside the clock and on the clock screensaver (WeatherWidget, WeatherScreensaver). English only. -->
+<resources>
+    <string name="weather_clear" translatable="false">Clear</string>
+    <string name="weather_partly" translatable="false">Partly cloudy</string>
+    <string name="weather_cloudy" translatable="false">Cloudy</string>
+    <string name="weather_fog" translatable="false">Fog</string>
+    <string name="weather_drizzle" translatable="false">Drizzle</string>
+    <string name="weather_rain" translatable="false">Rain</string>
+    <string name="weather_snow" translatable="false">Snow</string>
+    <string name="weather_sleet" translatable="false">Sleet</string>
+    <string name="weather_thunder" translatable="false">Thunderstorm</string>
+    <!-- %1$d: hours since the reading (shown in place of the high and low once it is stale). -->
+    <string name="weather_updated_ago" translatable="false">Updated %1$d h ago</string>
+    <!-- %1$s: the temperature with its unit, %2$s: the condition. Read by TalkBack on the chip. -->
+    <string name="weather_chip_description" translatable="false">Weather, %1$s, %2$s. Opens the weather settings.</string>
+</resources>

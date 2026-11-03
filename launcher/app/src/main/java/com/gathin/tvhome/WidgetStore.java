@@ -34,7 +34,7 @@ final class WidgetStore implements WidgetOption.Values {
             if (text != null) edit.putString(PLACEMENTS_KEY, text);
             edit.apply();
         }
-        return WidgetPlacements.parse(text, WidgetRegistry.defaults());
+        return WidgetPlacements.parse(text, WidgetRegistry.defaults(), WidgetRegistry.RULES);
     }
 
     void save(WidgetPlacements placements) {

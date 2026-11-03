@@ -279,6 +279,7 @@ final class WidgetOverlays {
         private int selected;      // index into order; -1 is the Remove button
         private int lastSlot;
         private ViewTreeObserver.OnGlobalLayoutListener layout;
+        private boolean outlinesFocused;
 
         Slots(WidgetsFlow flow, WidgetDef def) {
             super(flow, 0x99000000);
@@ -387,12 +388,9 @@ final class WidgetOverlays {
         void opened() {
             super.opened();
             ViewTreeObserver observer = layer().getViewTreeObserver();
-            layout = () -> {
-                if (layer().getViewTreeObserver().isAlive()) {
-                    layer().getViewTreeObserver().removeOnGlobalLayoutListener(layout);
-                }
-                placeOutlines();
-            };
+            // Kept for as long as the picker is open: the preview's clock ticks and its boxes are sized after the first
+            // layout, so the outlines follow wherever the boxes end up (placeOutlines changes nothing once they match).
+            layout = this::placeOutlines;
             observer.addOnGlobalLayoutListener(layout);
             layer().requestLayout();
             focusSelected();
@@ -400,31 +398,58 @@ final class WidgetOverlays {
 
         private void placeOutlines() {
             int screenW = layer().getWidth();
+            if (screenW <= 0) return;
+            int pad = dp(activity, 4);
+            List<WidgetSlot> placed = new ArrayList<>();
+            List<Rect> rects = new ArrayList<>();
+            int captionTop = 0;
             for (WidgetSlot slot : order) {
                 View target = preview.slotView(slot);
                 if (target == null || target.getWidth() == 0) continue;
                 Rect r = WidgetMount.boundsIn(layer(), target);
-                int pad = dp(activity, 4);
+                placed.add(slot);
+                rects.add(r);
+                captionTop = Math.max(captionTop, r.bottom + pad + dp(activity, 8));
                 View outline = outlines.get(slot);
                 FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) outline.getLayoutParams();
-                lp.width = r.width() + 2 * pad;
-                lp.height = r.height() + 2 * pad;
-                lp.leftMargin = r.left - pad;
-                lp.topMargin = r.top - pad;
-                outline.setLayoutParams(lp);
-                outline.setVisibility(View.VISIBLE);
-                TextView caption = captions.get(slot);
-                FrameLayout.LayoutParams cp = (FrameLayout.LayoutParams) caption.getLayoutParams();
-                // No wider than its own outline, so the captions of two chips side by side never overlap.
-                cp.width = Math.min(cp.width, r.width() + 2 * pad);
-                int center = r.centerX();
-                cp.leftMargin = Math.max(dp(activity, 8), Math.min(center - cp.width / 2,
-                        screenW - cp.width - dp(activity, 8)));
-                cp.topMargin = r.bottom + pad + dp(activity, 8);
-                caption.setLayoutParams(cp);
-                caption.setVisibility(View.VISIBLE);
+                int w = r.width() + 2 * pad, h = r.height() + 2 * pad;
+                if (lp.width != w || lp.height != h || lp.leftMargin != r.left - pad || lp.topMargin != r.top - pad) {
+                    lp.width = w;
+                    lp.height = h;
+                    lp.leftMargin = r.left - pad;
+                    lp.topMargin = r.top - pad;
+                    outline.setLayoutParams(lp);
+                }
+                if (outline.getVisibility() != View.VISIBLE) outline.setVisibility(View.VISIBLE);
             }
-            focusSelected();
+            // The captions share one line under the header, side by side: each under its own box, pushed aside only as
+            // far as its neighbour needs, so two never overlap whatever the boxes' widths.
+            int margin = dp(activity, 8), gap = dp(activity, 6);
+            int n = placed.size();
+            if (n > 0) {
+                int width = Math.min(dp(activity, 190), (screenW - 2 * margin - gap * (n - 1)) / n);
+                int[] centers = new int[n], widths = new int[n];
+                for (int i = 0; i < n; i++) {
+                    centers[i] = rects.get(i).centerX();
+                    widths[i] = width;
+                }
+                int[] lefts = ClockRowLayout.captionLefts(centers, widths, margin, screenW - margin, gap);
+                for (int i = 0; i < n; i++) {
+                    TextView caption = captions.get(placed.get(i));
+                    FrameLayout.LayoutParams cp = (FrameLayout.LayoutParams) caption.getLayoutParams();
+                    if (cp.width != widths[i] || cp.leftMargin != lefts[i] || cp.topMargin != captionTop) {
+                        cp.width = widths[i];
+                        cp.leftMargin = lefts[i];
+                        cp.topMargin = captionTop;
+                        caption.setLayoutParams(cp);
+                    }
+                    if (caption.getVisibility() != View.VISIBLE) caption.setVisibility(View.VISIBLE);
+                }
+            }
+            if (!outlinesFocused) {
+                outlinesFocused = true;
+                focusSelected();
+            }
         }
 
         private void focusSelected() {

@@ -40,6 +40,15 @@ final class WidgetPlacements {
 
     /** Placements from the stored text; {@code defaults} are the slots of widgets not mentioned in it. */
     static WidgetPlacements parse(String text, Map<String, WidgetSlot> defaults) {
+        return parse(text, defaults, null);
+    }
+
+    /**
+     * As above, and a stored claim that can never be shown is dropped so it cannot hold a slot for good: a widget the
+     * app no longer lists (when {@code defaults} names the widgets there are) or a slot the widget no longer docks in
+     * (when {@code rules} says so). Left in, such a ghost keeps its slot "taken" and nothing can be placed there.
+     */
+    static WidgetPlacements parse(String text, Map<String, WidgetSlot> defaults, SlotRules rules) {
         WidgetPlacements out = new WidgetPlacements();
         Map<String, WidgetSlot> stored = new LinkedHashMap<>();
         if (text != null) {
@@ -59,7 +68,9 @@ final class WidgetPlacements {
             }
         }
         for (Map.Entry<String, WidgetSlot> e : stored.entrySet()) {
+            if (defaults != null && !defaults.isEmpty() && !defaults.containsKey(e.getKey())) continue;
             WidgetSlot slot = e.getValue();
+            if (slot != null && rules != null && !rules.supports(e.getKey(), slot)) slot = null;
             // A second claim on one slot loses it: one widget per slot, whatever the stored text says.
             if (slot != null && out.widgetIn(slot) != null) slot = null;
             out.placed.put(e.getKey(), slot);

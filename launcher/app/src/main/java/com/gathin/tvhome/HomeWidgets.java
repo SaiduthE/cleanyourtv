@@ -51,7 +51,8 @@ final class HomeWidgets implements WidgetOverlays.Host {
         this.nav = nav;
         this.store = new WidgetStore(activity);
         for (WidgetSlot slot : WidgetSlot.values()) {
-            WidgetMount mount = WidgetMount.create(activity, slot, topMenu, mounts.get(WidgetSlot.CLOCK_SIDE));
+            WidgetSlot lead = slot.groupLead();
+            WidgetMount mount = WidgetMount.create(activity, slot, topMenu, lead == slot ? null : mounts.get(lead));
             if (mount != null) mounts.put(slot, mount);
         }
         rebuild();

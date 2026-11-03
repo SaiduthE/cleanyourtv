@@ -28,13 +28,27 @@ import java.util.function.Predicate;
  * Home has it by default) the clock row is the time and then the chips, 16 dp after the time, and the date is a
  * small line under it with no divider; otherwise a widget in the clock row takes the room after the date (and a
  * second line before it). {@link WidgetMount} makes the same on Home.
+ *
+ * Each slot is one transparent box: the slot picker draws exactly one outline over it, so a slot is never drawn
+ * twice. The boxes are sized to fit: the clock row's shrink to the room the buttons leave (see
+ * {@link ClockRowLayout#shrinkToFit}) and the top bar's are a small fixed chip, so no box lands on another or on the
+ * buttons. The buttons are drawn as Home draws them: the same set, and the owner's icon / text / both styles.
  */
 final class HomePreview extends FrameLayout {
 
-    static final int CLOCK_SLOT_W_DP = 220, CLOCK_SLOT_H_DP = 52;
-    static final int BAR_SLOT_W_DP = 132, BAR_SLOT_H_DP = 42;
+    /** A clock-row box would like this much room; it shrinks (to the minimum) when the row is short of it. */
+    static final int CLOCK_SLOT_W_DP = 160, CLOCK_SLOT_MIN_W_DP = 48, CLOCK_SLOT_H_DP = 52;
+    static final int BAR_SLOT_W_DP = 72, BAR_SLOT_H_DP = 42;
+    /** A box this wide or wider has room for the widget's name beside its icon. */
+    private static final int NAME_MIN_W_DP = 110;
+    private static final int DATE_MAX_W_DP = 240, DATE_MIN_W_DP = 40;
 
     private final Map<WidgetSlot, View> slotViews = new EnumMap<>(WidgetSlot.class);
+    /** The clock row's boxes, left to right, and the row and date they have to fit beside. */
+    private final List<View> clockBoxes = new java.util.ArrayList<>();
+    private LinearLayout clockRowView;
+    private TextClock dateBeside;
+    private boolean fitPosted;
 
     /**
      * @param available whether the layout can host a slot at all (a slot it cannot is not drawn)
@@ -116,7 +130,11 @@ final class HomePreview extends FrameLayout {
         // The gap before the first chip: beside the date it sits 6 dp after the divider (the weather chip's -10 dp
         // tuck, after the divider's own 16 dp); under the time it follows the time directly, 16 dp (the real chip pads
         // 8 dp more, so its art starts about 24 dp after the time). Later chips follow at the plain 8 dp.
-        int firstChipMarginDp = ClockRowLayout.firstChipMargin(!dateBelow, 6, 16);
+        boolean besideWeather = available.test(WidgetSlot.BESIDE_WEATHER)
+                && (open.contains(WidgetSlot.BESIDE_WEATHER) || placements.widgetIn(WidgetSlot.BESIDE_WEATHER) != null);
+        int[] chipGapsDp = ClockRowLayout.chipMargins(new boolean[] {clockSide, besideWeather}, new int[] {6, 6},
+                !dateBelow, 16, 8);
+        clockRowView = clockRow;
 
         TextClock date = new TextClock(ctx);
         date.setFormat12Hour(ctx.getString(R.string.date_format_home));
@@ -135,7 +153,8 @@ final class HomePreview extends FrameLayout {
             left.addView(date, below);
         } else {
             clockRow.addView(divider(ctx), dividerParams(ctx));
-            date.setMaxWidth(dp(ctx, 240));
+            date.setMaxWidth(dp(ctx, DATE_MAX_W_DP));
+            dateBeside = date;
             LinearLayout.LayoutParams dp1 = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT);
             dp1.gravity = Gravity.BOTTOM;
@@ -148,21 +167,25 @@ final class HomePreview extends FrameLayout {
             LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(dp(ctx, CLOCK_SLOT_W_DP),
                     dp(ctx, CLOCK_SLOT_H_DP));
             sp.gravity = Gravity.CENTER_VERTICAL;
-            sp.setMarginStart(dp(ctx, firstChipMarginDp));
+            sp.setMarginStart(dp(ctx, chipGapsDp[0]));
             View box = slotBox(ctx, placements.widgetIn(WidgetSlot.CLOCK_SIDE));
             slotViews.put(WidgetSlot.CLOCK_SIDE, box);
+            clockBoxes.add(box);
             clockRow.addView(box, sp);
         }
 
-        if (available.test(WidgetSlot.BESIDE_WEATHER)
-                && (open.contains(WidgetSlot.BESIDE_WEATHER) || placements.widgetIn(WidgetSlot.BESIDE_WEATHER) != null)) {
+        if (besideWeather) {
             LinearLayout.LayoutParams wp = new LinearLayout.LayoutParams(dp(ctx, CLOCK_SLOT_W_DP),
                     dp(ctx, CLOCK_SLOT_H_DP));
             wp.gravity = Gravity.CENTER_VERTICAL;
-            wp.setMarginStart(dp(ctx, clockSide ? 8 : firstChipMarginDp));
+            wp.setMarginStart(dp(ctx, chipGapsDp[1]));
             View weatherBox = slotBox(ctx, placements.widgetIn(WidgetSlot.BESIDE_WEATHER));
             slotViews.put(WidgetSlot.BESIDE_WEATHER, weatherBox);
+            clockBoxes.add(weatherBox);
             clockRow.addView(weatherBox, wp);
+        }
+        if (!clockBoxes.isEmpty()) {
+            clockRow.addOnLayoutChangeListener((v, l1, t1, r1, b1, l0, t0, r0, b0) -> scheduleFit());
         }
 
         LinearLayout buttons = new LinearLayout(ctx);
@@ -191,18 +214,102 @@ final class HomePreview extends FrameLayout {
                 && (open.contains(WidgetSlot.TOP_BAR_START) || placements.widgetIn(WidgetSlot.TOP_BAR_START) != null)) {
             addBarSlot(ctx, buttons, WidgetSlot.TOP_BAR_START, placements, 0);
         }
-        if (cfg.topMenu) {
-            buttons.addView(pill(ctx, 0, R.drawable.ic_settings, true));
-        } else {
-            if (cfg.showInputsPill) buttons.addView(pill(ctx, R.string.inputs, R.drawable.ic_input, cfg.iconOnlyInputs));
-            if (cfg.showNetworkPill) buttons.addView(pill(ctx, R.string.wifi, R.drawable.ic_wifi, cfg.iconOnlyButtons));
-            buttons.addView(pill(ctx, R.string.settings, R.drawable.ic_settings, cfg.iconOnlyButtons));
-        }
+        addButtons(ctx, cfg, buttons);
         if (available.test(WidgetSlot.TOP_BAR_END)
                 && (open.contains(WidgetSlot.TOP_BAR_END) || placements.widgetIn(WidgetSlot.TOP_BAR_END) != null)) {
             addBarSlot(ctx, buttons, WidgetSlot.TOP_BAR_END, placements, 10);
         }
         ClockFormat.apply(this, cfg.clockFormat);
+    }
+
+    /**
+     * The buttons Home's bar has with these choices, in its order, each in the style the owner picked (icon, text or
+     * both; TopButtonStyler gives the shape): Inputs, Wi-Fi, Reorder, App library, Settings, or the one gear.
+     */
+    private static void addButtons(Context ctx, Config cfg, LinearLayout buttons) {
+        Map<TopButtonStyle.Button, String> styles = TopButtonStyler.load(ctx, cfg);
+        if (cfg.topMenu) {
+            buttons.addView(pill(ctx, TopButtonStyle.ICON, R.drawable.ic_settings, ctx.getString(R.string.settings)));
+            return;
+        }
+        if (cfg.showInputsPill) {
+            buttons.addView(pill(ctx, styles.get(TopButtonStyle.Button.INPUTS), R.drawable.ic_input,
+                    ctx.getString(R.string.inputs)));
+        }
+        if (cfg.showNetworkPill) {
+            buttons.addView(pill(ctx, cfg.iconOnlyButtons ? TopButtonStyle.ICON : TopButtonStyle.BOTH,
+                    R.drawable.ic_wifi, ctx.getString(R.string.wifi)));
+        }
+        if (cfg.reorderButton) {
+            buttons.addView(pill(ctx, TopButtonStyle.ICON, R.drawable.ic_swap_vert, ctx.getString(R.string.reorder)));
+        }
+        if (cfg.libraryButton && cfg.appLibrary) {
+            buttons.addView(pill(ctx, TopButtonStyle.ICON, R.drawable.ic_apps_pill, ctx.getString(R.string.app_library)));
+        }
+        buttons.addView(pill(ctx, styles.get(TopButtonStyle.Button.SETTINGS),
+                cfg.launcherSettingsButton ? R.drawable.ic_home_settings_pill : R.drawable.ic_settings,
+                ctx.getString(cfg.launcherSettingsButton ? R.string.launcher_settings : R.string.settings)));
+    }
+
+    // ---- fitting the boxes ---------------------------------------------------------------------------------------
+
+    private void scheduleFit() {
+        if (fitPosted) return;
+        fitPosted = true;
+        post(() -> {
+            fitPosted = false;
+            fitClockBoxes();
+        });
+    }
+
+    /**
+     * Sizes the clock row's boxes to the room the row has, from what the views measured to, so the row never runs
+     * over the buttons: the boxes shrink first and then the date beside the time (as the real row hides chips that
+     * do not fit). Changes nothing once it fits, so the layout it triggers settles at once.
+     */
+    private void fitClockBoxes() {
+        LinearLayout row = clockRowView;
+        if (row == null || clockBoxes.isEmpty() || row.getWidth() <= 0) return;
+        Context ctx = getContext();
+        int fixed = 0;
+        for (int i = 0; i < row.getChildCount(); i++) {
+            View child = row.getChildAt(i);
+            if (child.getVisibility() == View.GONE || clockBoxes.contains(child) || child == dateBeside) continue;
+            ViewGroup.MarginLayoutParams lp = (ViewGroup.MarginLayoutParams) child.getLayoutParams();
+            fixed += child.getWidth() + lp.getMarginStart() + lp.getMarginEnd();
+        }
+        int shrinkable = 0;
+        if (dateBeside != null) {
+            dateBeside.setMaxWidth(dp(ctx, DATE_MAX_W_DP));
+            dateBeside.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+            shrinkable = dateBeside.getMeasuredWidth();
+            ViewGroup.MarginLayoutParams dl = (ViewGroup.MarginLayoutParams) dateBeside.getLayoutParams();
+            fixed += dl.getMarginStart() + dl.getMarginEnd();
+        }
+        int[] margins = new int[clockBoxes.size()];
+        for (int i = 0; i < margins.length; i++) {
+            margins[i] = ((ViewGroup.MarginLayoutParams) clockBoxes.get(i).getLayoutParams()).getMarginStart();
+        }
+        int[] sized = ClockRowLayout.shrinkToFit(row.getWidth(), fixed, shrinkable, dp(ctx, DATE_MIN_W_DP), margins,
+                dp(ctx, CLOCK_SLOT_W_DP), dp(ctx, CLOCK_SLOT_MIN_W_DP));
+        if (dateBeside != null) dateBeside.setMaxWidth(Math.max(1, sized[0]));
+        for (int i = 0; i < clockBoxes.size(); i++) {
+            View box = clockBoxes.get(i);
+            LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) box.getLayoutParams();
+            if (lp.width != sized[i + 1]) {
+                lp.width = sized[i + 1];
+                box.setLayoutParams(lp);
+            }
+            showName(box, sized[i + 1] >= dp(ctx, NAME_MIN_W_DP));
+        }
+    }
+
+    private static void showName(View box, boolean show) {
+        if (!(box instanceof ViewGroup) || ((ViewGroup) box).getChildCount() < 2) return;
+        View name = ((ViewGroup) box).getChildAt(1);
+        int want = show ? View.VISIBLE : View.GONE;
+        if (name.getVisibility() != want) name.setVisibility(want);
     }
 
     /** The box that stands for the slot (its outline is drawn over it by the slot picker), or null when not drawn. */
@@ -216,6 +323,7 @@ final class HomePreview extends FrameLayout {
         lp.gravity = Gravity.CENTER_VERTICAL;
         lp.setMarginStart(dp(ctx, marginStartDp));
         View box = slotBox(ctx, placements.widgetIn(slot));
+        showName(box, false);   // 72 dp holds the icon; the caption under it names the slot
         slotViews.put(slot, box);
         if (slot == WidgetSlot.TOP_BAR_START) {
             lp.setMarginEnd(dp(ctx, 0));
@@ -225,17 +333,16 @@ final class HomePreview extends FrameLayout {
         }
     }
 
-    /** A rounded chip with the docked widget's icon and name, or empty when nothing is docked in the slot. */
+    /**
+     * What is docked in the slot, its icon and name, or empty when nothing is. It has no border or fill of its own:
+     * the slot picker's outline is the only box drawn for the slot.
+     */
     private static View slotBox(Context ctx, String widgetId) {
         LinearLayout box = new LinearLayout(ctx);
         box.setOrientation(LinearLayout.HORIZONTAL);
         box.setGravity(Gravity.CENTER);
         WidgetDef def = widgetId == null ? null : WidgetRegistry.get(widgetId);
         if (def == null) return box;
-        GradientDrawable chip = new GradientDrawable();
-        chip.setColor(0x1AFFFFFF);
-        chip.setCornerRadius(dp(ctx, 14));
-        box.setBackground(chip);
         box.setPadding(dp(ctx, 8), 0, dp(ctx, 8), 0);
         ImageView icon = new ImageView(ctx);
         icon.setImageResource(def.iconRes);
@@ -251,21 +358,15 @@ final class HomePreview extends FrameLayout {
         return box;
     }
 
-    private static TextView pill(Context ctx, int labelRes, int iconRes, boolean iconOnly) {
-        int style = iconOnly ? R.style.TopButtonIcon : R.style.TopButton;
-        TextView pill = new TextView(ctx, null, 0, style);
+    /** A top-bar button drawn in {@code style} (TopButtonStyler gives it the shape Home gives the real one). */
+    private static TextView pill(Context ctx, String style, int iconRes, String label) {
+        TextView pill = new TextView(ctx, null, 0, R.style.TopButton);
         pill.setFocusable(false);
         pill.setClickable(false);
-        pill.setCompoundDrawablesRelativeWithIntrinsicBounds(iconRes, 0, 0, 0);
-        if (iconOnly) {
-            pill.setContentDescription(labelRes == 0 ? "" : ctx.getString(labelRes));
-        } else {
-            pill.setText(labelRes);
-        }
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
-                iconOnly ? dp(ctx, 42) : ViewGroup.LayoutParams.WRAP_CONTENT, dp(ctx, 42));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(ctx, 42));
         lp.setMarginStart(dp(ctx, 10));
         pill.setLayoutParams(lp);
+        TopButtonStyler.apply(pill, style, iconRes, label);
         return pill;
     }
 

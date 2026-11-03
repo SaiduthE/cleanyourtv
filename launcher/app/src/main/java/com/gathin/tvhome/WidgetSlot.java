@@ -22,6 +22,7 @@ enum WidgetSlot {
     }
 
     private static final WidgetSlot[] CLOCK_ROW = {CLOCK_SIDE, BESIDE_WEATHER};
+    private static final WidgetSlot[] BAR = {TOP_BAR_START, TOP_BAR_END};
     private static final WidgetSlot[] BEFORE_BAR = {CLOCK_SIDE, BESIDE_WEATHER, TOP_BAR_START};
 
     /** The slots in the clock row, left to right. */
@@ -32,6 +33,22 @@ enum WidgetSlot {
     /** The slots left of the top-bar buttons, in D-pad order from the clock. */
     static WidgetSlot[] beforeBar() {
         return BEFORE_BAR.clone();
+    }
+
+    /** The slots in the top bar, left to right: before the buttons, then after them. */
+    static WidgetSlot[] bar() {
+        return BAR.clone();
+    }
+
+    /** Its place among the top bar's slots, or -1 outside the bar. */
+    int barOrder() {
+        for (int i = 0; i < BAR.length; i++) if (BAR[i] == this) return i;
+        return -1;
+    }
+
+    /** The first slot of the group this one belongs to (the clock row or the top bar); the group's mounts share it. */
+    WidgetSlot groupLead() {
+        return inClockRow() ? CLOCK_SIDE : TOP_BAR_START;
     }
 
     boolean inClockRow() {

@@ -37,12 +37,12 @@ import java.util.concurrent.Executors;
 
 /**
  * The Layered Top Shelf above the dock. At rest a crisp rotating picture ({@link ShelfWallpaper}: the add-on's photos, else the launcher's
- * wallpapers; never show artwork) shows under a light veil, with the photo's credit small at the bottom right. When focus rests on a dock app for {@link TopShelfLogic#DWELL_MS} the shelf shows what that app has in
+ * wallpapers; never show artwork) shows full-bleed under feathered shades (no edges), with the photo's credit small at the bottom right. When focus rests on a dock app for {@link TopShelfLogic#DWELL_MS} the shelf shows what that app has in
  * Continue watching (the show's own backdrop, where you are, a Resume button and up to two up-next items); an app with
  * nothing to resume gets its name in large type, and its icon when that can be drawn without enlarging it more than
  * {@link TopShelfLogic#MAX_UPSCALE} times, over the wallpaper. Only a genuine landscape picture
  * ({@link TopShelfLogic#isBackdrop}) is ever drawn full-bleed; a poster, cover or square picture is a small crisp
- * card at the right of the resume block, over the wallpaper. A top scrim keeps the clock and date legible.
+ * card at the right of the resume block, over the wallpaper. A feathered top shade keeps the clock and date legible; the bottom fades into the dock band.
  * Focus away from the dock for {@link TopShelfLogic#LEAVE_MS} brings the plain wallpaper back. Nothing is blurred and
  * no picture is scaled up beyond that limit. The Resume button and the up-next items take focus (Up from the dock),
  * and the shelf never goes away while one of them has it.
@@ -81,8 +81,10 @@ final class TopShelf {
     private static final TopShelfLogic.Shelf NONE = new TopShelfLogic.Shelf(null, Collections.emptyList());
 
     private final ShelfWallpaper wall;
-    /** The light veil over the wallpaper at rest, and the black stage a real backdrop is shown on. */
-    private final View light, stage;
+    /** The feathered bottom veil over the wallpaper (full-bleed, fading into the dock band). */
+    private final View light;
+    /** The two shades behind the type, built once: over the wallpaper, and over a real backdrop (which also gets the bottom veil). */
+    private final Drawable scrimWallpaper, scrimBackdrop;
     /** The left text shade at rest (lighter than behind a shelf's own type); gone while shelf content is up. */
     private final View restScrim;
     /** The photo's author and licence: tiny and faint at the bottom right, only while a photo shows on the idle shelf. */
@@ -129,7 +131,7 @@ final class TopShelf {
 
     /** @param wallpapers the launcher's wallpaper pictures (empty when the wallpaper is off); the feed's are added */
     TopShelf(Context context, FrameLayout container, Host host, boolean animations, boolean reducedMotion, int accent,
-             List<File> wallpapers) {
+             List<File> wallpapers, int dockOpacity, boolean dockBand) {
         this.context = context;
         this.container = container;
         this.host = host;
@@ -143,11 +145,16 @@ final class TopShelf {
         this.accent = accent;
 
         wall = new ShelfWallpaper(context, container, wallpapers, animations, reducedMotion, this::onCredit);
+        float bottomPeak = ShelfGradients.bottomPeak(dockOpacity, dockBand);
+        scrimWallpaper = edgeFade(Edge.LEFT, ShelfGradients.LEFT_SPAN, ShelfGradients.LEFT_SHELF_PEAK);
+        scrimBackdrop = new LayerDrawable(new Drawable[] {
+                edgeFade(Edge.LEFT, ShelfGradients.LEFT_SPAN, ShelfGradients.LEFT_SHELF_PEAK),
+                edgeFade(Edge.BOTTOM, ShelfGradients.BOTTOM_SPAN, bottomPeak)});
         light = new View(context);
-        light.setBackground(lightVeil());
+        light.setBackground(edgeFade(Edge.BOTTOM, ShelfGradients.BOTTOM_SPAN, bottomPeak));
         container.addView(light, new FrameLayout.LayoutParams(-1, -1));
         restScrim = new View(context);
-        restScrim.setBackground(sideScrim(0.55f));
+        restScrim.setBackground(edgeFade(Edge.LEFT, ShelfGradients.LEFT_SPAN, ShelfGradients.LEFT_REST_PEAK));
         restScrim.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         container.addView(restScrim, new FrameLayout.LayoutParams(-1, -1));
         credit = new TextView(context);
@@ -164,11 +171,6 @@ final class TopShelf {
         FrameLayout.LayoutParams creditLp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
         creditLp.setMarginEnd(dp(TopShelfLogic.SAFE_MARGIN_DP));
         container.addView(credit, creditLp);
-        stage = new View(context);
-        stage.setBackgroundColor(Color.BLACK);
-        stage.setAlpha(0f);
-        container.addView(stage, new FrameLayout.LayoutParams(-1, -1));
-
         content = new FrameLayout(context);
         content.setAlpha(0f);
         content.setVisibility(View.GONE);
@@ -187,11 +189,12 @@ final class TopShelf {
 
         art = new ImageView(context);
         art.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        art.setAlpha(0.8f);
+        // Full-bleed: the picture and its shade run the whole screen, behind the clock and the dock band, so no
+        // rectangle edge shows. It crossfades straight over the wallpaper (no black stage that would dip the frame).
         content.addView(art, new FrameLayout.LayoutParams(-1, -1));
         scrim = new View(context);
         content.addView(scrim, new FrameLayout.LayoutParams(-1, -1));
-        scrim.setBackground(scrimOnWallpaper());
+        scrim.setBackground(scrimWallpaper);
 
         card = new ImageView(context);
         card.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -477,16 +480,10 @@ final class TopShelf {
         shownPkg = wantPkg;
         shown = what;
         updateCredit();
-        int artHeight = Math.max(1, wantDockTop);
-        FrameLayout.LayoutParams artLp = (FrameLayout.LayoutParams) art.getLayoutParams();
-        FrameLayout.LayoutParams scrimLp = (FrameLayout.LayoutParams) scrim.getLayoutParams();
-        if (artLp.height != artHeight) {
-            artLp.height = scrimLp.height = artHeight;
-            art.setLayoutParams(artLp);
-            scrim.setLayoutParams(scrimLp);
-        }
         boolean backdropShown = what == TopShelfLogic.Content.RESUME && backdrop != null;
-        scrim.setBackground(backdropShown ? scrimOnBackdrop() : scrimOnWallpaper());
+        if (scrim.getBackground() != (backdropShown ? scrimBackdrop : scrimWallpaper)) {
+            scrim.setBackground(backdropShown ? scrimBackdrop : scrimWallpaper);
+        }
         if (what == TopShelfLogic.Content.RESUME) {
             nameRow.setVisibility(View.GONE);
             fillResume(shelf, backdrop, cardPic, small);
@@ -640,7 +637,7 @@ final class TopShelf {
 
     /** The top scrim covers the clock row and a little below it. */
     private void sizeTopScrim() {
-        int h = host.headerBottom() + dp(40);
+        int h = host.headerBottom() + dp(72);
         FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) topScrim.getLayoutParams();
         if (h > dp(40) && lp.height != h) {
             lp.height = h;
@@ -653,22 +650,18 @@ final class TopShelf {
         if (intent != null) host.open(intent);
     }
 
-    /** Fades the content in; a real backdrop also fades a black stage in under it and rests the wallpaper. */
-    private void reveal(boolean onStage) {
+    /** Fades the content in over the wallpaper (no darker frame in between); a real backdrop covers it and rests it. */
+    private void reveal(boolean coversWallpaper) {
         int ms = SettingsModel.duration(animations, reducedMotion, 240);
-        stage.animate().cancel();
         content.animate().cancel();
         content.setVisibility(View.VISIBLE);
-        wall.setRotating(!onStage);
+        wall.setRotating(!coversWallpaper);
         restScrim.animate().cancel();
         restScrim.animate().alpha(0f).setDuration(ms).start();
-        float stageAlpha = onStage ? 1f : 0f;
         if (ms == 0) {
-            stage.setAlpha(stageAlpha);
             content.setAlpha(1f);
             return;
         }
-        stage.animate().alpha(stageAlpha).setDuration(ms).start();
         content.setAlpha(0f);
         content.animate().alpha(1f).setDuration(ms).start();
     }
@@ -684,17 +677,14 @@ final class TopShelf {
         updateCredit();
         host.setTitleHidden(false);
         int ms = fade ? SettingsModel.duration(animations, reducedMotion, 320) : 0;
-        stage.animate().cancel();
         content.animate().cancel();
         wall.setRotating(true);
         restScrim.animate().cancel();
         restScrim.animate().alpha(1f).setDuration(ms).start();
         if (ms == 0) {
-            stage.setAlpha(0f);
             clearContent();
             return;
         }
-        stage.animate().alpha(0f).setDuration(ms).start();
         content.animate().alpha(0f).setDuration(ms).withEndAction(() -> {
             if (shown == TopShelfLogic.Content.REST) clearContent();
         }).start();
@@ -747,46 +737,31 @@ final class TopShelf {
 
     // ---- views ---------------------------------------------------------------------------------------------------
 
-    /** Over the wallpaper at rest: a little dark at the top and the bottom; the top scrim adds the clock's own shade. */
-    private Drawable lightVeil() {
-        return new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] {0x4D000000, 0x14000000, 0x14000000, 0x73000000});
-    }
-
-    /** Over everything on the shelf, under the clock row: no frame or bright picture competes with the clock text. */
+    /** Over everything on the shelf, under the clock row: a feathered shade so no picture competes with the clock text. */
     private Drawable topVeil() {
-        return new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] {0xB8000000, 0x80000000, 0x00000000});
+        return edgeFade(Edge.TOP, 1f, ShelfGradients.TOP_PEAK);
     }
 
-    /** Behind a real backdrop: the strong shading the picture was always given. */
-    private Drawable scrimOnBackdrop() {
-        GradientDrawable vertical = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] {0x99000000, 0x26000000, 0x26000000, 0xFF000000});
-        return new LayerDrawable(new Drawable[] {sideScrim(1f), vertical});
-    }
-
-    /** Behind type on the wallpaper: a soft shade from the left and the bottom, so the picture stays bright. */
-    private Drawable scrimOnWallpaper() {
-        GradientDrawable vertical = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] {0x00000000, 0x00000000, 0x4D000000});
-        return new LayerDrawable(new Drawable[] {sideScrim(1f), vertical});
-    }
+    private enum Edge { LEFT, TOP, BOTTOM }
 
     /**
-     * The text scrim: a horizontal gradient from {@link TopShelfLogic#SCRIM_ALPHA} dark at the left edge, fading to
-     * transparent by 60% of the width, so the right of the picture stays as it is. strength scales the darkness.
+     * A shade that is darkest (peak) at an edge of its view and eases to fully transparent over span of the view's
+     * width (LEFT) or height (TOP, BOTTOM), on {@link ShelfGradients#STOPS} eased stops, so it has no hard end. The
+     * tint is the dock band's own. The shader is made when the view is sized, never per frame.
      */
-    private static Drawable sideScrim(float strength) {
+    private static Drawable edgeFade(Edge edge, float span, float peak) {
+        final float[] positions = ShelfGradients.positions();
+        final int[] colors = ShelfGradients.colors(ShelfGradients.TINT, ShelfGradients.fadeAlphas(peak));
         ShapeDrawable d = new ShapeDrawable(new RectShape());
+        d.getPaint().setDither(true);
         d.setShaderFactory(new ShapeDrawable.ShaderFactory() {
             @Override public Shader resize(int width, int height) {
-                int[] colors = new int[TopShelfLogic.SCRIM_ALPHA.length];
-                for (int i = 0; i < colors.length; i++) {
-                    colors[i] = Math.round(255 * TopShelfLogic.SCRIM_ALPHA[i] * strength) << 24;
+                float w = Math.max(1, width), h = Math.max(1, height);
+                switch (edge) {
+                    case LEFT: return new LinearGradient(0, 0, w * span, 0, colors, positions, Shader.TileMode.CLAMP);
+                    case TOP: return new LinearGradient(0, 0, 0, h * span, colors, positions, Shader.TileMode.CLAMP);
+                    default: return new LinearGradient(0, h, 0, h - h * span, colors, positions, Shader.TileMode.CLAMP);
                 }
-                return new LinearGradient(0, 0, Math.max(1, width), 0, colors, TopShelfLogic.SCRIM_POS,
-                        Shader.TileMode.CLAMP);
             }
         });
         return d;

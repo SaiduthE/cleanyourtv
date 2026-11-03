@@ -54,12 +54,6 @@ final class TopShelfLogic {
     static final int UP_NEXT_MIN_H_DP = 56;
     /** An up-next card with no thumbnail is a compact text-only card this tall, not an empty 16:9 rectangle. */
     static final int UP_NEXT_TEXT_H_DP = 60;
-    /**
-     * The left text scrim as fractions of the picture's width: 75% dark at the left edge, fading to nothing by 60%.
-     * Alphas are 0..1 at the matching positions.
-     */
-    static final float[] SCRIM_POS = {0f, 0.3f, 0.6f};
-    static final float[] SCRIM_ALPHA = {0.75f, 0.38f, 0f};
     /** The title is at most this wide; the up-next column keeps {@link #BLOCK_GAP_DP} clear of it. */
     static final int TITLE_MAX_W_DP = 460, BLOCK_GAP_DP = 24;
     /** The room the resume block needs between the header and the dock. */

@@ -329,19 +329,6 @@ public class TopShelfLogicTest {
         assertTrue(left >= TopShelfLogic.SAFE_MARGIN_DP + p.titleMaxW + TopShelfLogic.BLOCK_GAP_DP);
     }
 
-    @Test public void textScrimIs75PercentAtTheLeftAndGoneBy60PercentOfTheWidth() {
-        assertEquals(TopShelfLogic.SCRIM_POS.length, TopShelfLogic.SCRIM_ALPHA.length);
-        assertEquals(0f, TopShelfLogic.SCRIM_POS[0], 0f);
-        assertEquals(0.75f, TopShelfLogic.SCRIM_ALPHA[0], 0f);
-        int last = TopShelfLogic.SCRIM_POS.length - 1;
-        assertEquals(0.6f, TopShelfLogic.SCRIM_POS[last], 0f);
-        assertEquals(0f, TopShelfLogic.SCRIM_ALPHA[last], 0f);
-        for (int i = 1; i <= last; i++) {
-            assertTrue(TopShelfLogic.SCRIM_POS[i] > TopShelfLogic.SCRIM_POS[i - 1]);
-            assertTrue(TopShelfLogic.SCRIM_ALPHA[i] < TopShelfLogic.SCRIM_ALPHA[i - 1]);
-        }
-    }
-
     @Test public void anUpNextCardWithoutAThumbnailIsACompactTextCard() {
         TopShelfLogic.UpNextPlan p = TopShelfLogic.upNextPlan(960, 0, 300, 2, new boolean[] {false, false});
         assertEquals(2, p.count);

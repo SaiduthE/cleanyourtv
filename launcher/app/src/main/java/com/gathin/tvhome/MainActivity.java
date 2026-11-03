@@ -556,7 +556,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // dock_title false: the name above the dock (and the cinematic lines under it) never shows; the glow
         // still follows the dock.
         if (!cfg.dockTitle) hero.setVisibility(View.GONE);
-        if (layeredShelf) setUpTopShelf(cfg.dockTitle, cfg.wallpaperEnabled ? cfg.wallpapers : java.util.Collections.<java.io.File>emptyList());
+        if (layeredShelf) setUpTopShelf(cfg.dockTitle, cfg.wallpaperEnabled ? cfg.wallpapers : java.util.Collections.<java.io.File>emptyList(), cfg.dockOpacity, cfg.dockBand);
         reorderIndicator.attach(root, animations, reducedMotion);
         greeting = findViewById(R.id.greeting);
         clockBlock = findViewById(R.id.leftBlock);
@@ -2024,7 +2024,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     // ---- top shelf -------------------------------------------------------------------------------
 
     /** The layered Top Shelf (Launcher settings, Top Shelf): its view, and what it asks of Home. */
-    private void setUpTopShelf(boolean dockTitle, java.util.List<java.io.File> wallpapers) {
+    private void setUpTopShelf(boolean dockTitle, java.util.List<java.io.File> wallpapers, int dockOpacity, boolean dockBand) {
         FrameLayout view = findViewById(R.id.topShelf);
         view.setVisibility(View.VISIBLE);
         topShelf = new TopShelf(this, view, new TopShelf.Host() {
@@ -2054,7 +2054,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 }
                 return bottom;
             }
-        }, animations, reducedMotion, PanelTheme.get(this).accent, wallpapers);
+        }, animations, reducedMotion, PanelTheme.get(this).accent, wallpapers, dockOpacity, dockBand);
     }
 
     /** Focus rests on the dock app at position: the shelf waits out its dwell, then shows what that app has. */

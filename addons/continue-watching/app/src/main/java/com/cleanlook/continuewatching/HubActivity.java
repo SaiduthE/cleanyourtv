@@ -140,6 +140,7 @@ public final class HubActivity extends Activity {
 
     @Override protected void onResume() {
         super.onResume();
+        PhotoFeed.kick(this); // the first photos, or the three-day refresh, when the add-on is opened
         if (rows == null) return;
         show();
         if (!Refresher.recent(STALE_MS)) refresh();

@@ -17,7 +17,7 @@ import java.util.List;
 
 /**
  * The Top Shelf feed for the launcher (contract in README.md): the rows of Continue watching with real artwork
- * as files this app cached. Read-only. Exported, but only {@link ShelfAccess} callers get anything.
+ * as files this app cached, and the Top Shelf photos (/photos, /photo/name). Read-only. Exported, but only {@link ShelfAccess} callers get anything.
  */
 public final class ShelfProvider extends ContentProvider {
     private static final long REFRESH_AFTER_MS = 10 * 60_000L;
@@ -38,7 +38,9 @@ public final class ShelfProvider extends ContentProvider {
     }
 
     @Override public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
-        if (!Contract.PATH_ITEMS.equals(uri.getLastPathSegment())) return null;
+        String last = uri.getLastPathSegment();
+        if (Contract.PATH_PHOTOS.equals(last) && uri.getPathSegments().size() == 1) return photos();
+        if (!Contract.PATH_ITEMS.equals(last)) return null;
         checkCaller();
         final Context c = getContext();
         if (c == null) return null;
@@ -83,10 +85,36 @@ public final class ShelfProvider extends ContentProvider {
         return out;
     }
 
+    /** The Top Shelf photos, newest first. An empty cache is the cue to fetch the first ones (or any that are due). */
+    private Cursor photos() {
+        checkCaller();
+        Context c = getContext();
+        MatrixCursor out = new MatrixCursor(Contract.PHOTO_COLUMNS);
+        if (c == null) return out;
+        Context app = c.getApplicationContext();
+        out.setNotificationUri(app.getContentResolver(), Contract.PHOTOS_URI);
+        if (!App.prefs(app).photosEnabled()) return out;
+        long id = 0;
+        for (PhotoCache.Photo p : PhotoFeed.available(app)) {
+            String uri = new Uri.Builder().scheme("content").authority(Contract.AUTHORITY).appendPath(Contract.PATH_PHOTO)
+                    .appendPath(p.name).build().toString();
+            out.addRow(new Object[] {++id, uri, p.width, p.height, p.credit});
+        }
+        PhotoFeed.kick(app);
+        return out;
+    }
+
     @Override public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
         checkCaller();
         List<String> seg = uri.getPathSegments();
         Context c = getContext();
+        if (c != null && seg.size() == 2 && Contract.PATH_PHOTO.equals(seg.get(0))) {
+            if (!"r".equals(mode) || !App.prefs(c).photosEnabled()
+                    || !PhotoCache.validName(seg.get(1), PhotoFeed.listing(c))) {
+                throw new FileNotFoundException();
+            }
+            return ParcelFileDescriptor.open(new File(PhotoFeed.dir(c), seg.get(1)), ParcelFileDescriptor.MODE_READ_ONLY);
+        }
         if (c == null || !"r".equals(mode) || seg.size() != 2 || !Contract.PATH_IMG.equals(seg.get(0))
                 || !seg.get(1).matches(ShelfImages.NAME_PATTERN)) {
             throw new FileNotFoundException();
@@ -99,6 +127,7 @@ public final class ShelfProvider extends ContentProvider {
     @Override public String getType(Uri uri) {
         String last = uri.getLastPathSegment();
         if (Contract.PATH_ITEMS.equals(last)) return "vnd.android.cursor.dir/vnd." + Contract.AUTHORITY + ".item";
+        if (Contract.PATH_PHOTOS.equals(last)) return "vnd.android.cursor.dir/vnd." + Contract.AUTHORITY + ".photo";
         if (last != null && last.endsWith(".png")) return "image/png";
         return last != null && last.endsWith(".jpg") ? "image/jpeg" : null;
     }

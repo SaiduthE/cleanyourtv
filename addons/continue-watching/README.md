@@ -9,7 +9,8 @@ show's own picture, a resume bar and the episode ("S2 · E4 · 23 min left"). OK
 - **Sources are managed on the TV**, with the remote only, and show **only what you added**. **Sources** (top
   right of the page) is a grid of tiles, one per source, each with the app's icon (its banner when that is large
   enough; never enlarged past 1.5 times), its name and a status dot: **N rows** (green), **No rows found**, an
-  error (red: "Sign in again", "Not reachable", "Needs access") or **Off**. The last tile is **+ Add source**;
+  error (red: "Sign in again", "Not reachable", "Needs access") or **Off**. The **Top Shelf photos** tile (always
+  there, see [Photos](#photos)) comes before the last tile, **+ Add source**;
   with nothing added it is the only tile, under a one-line hint. Header buttons: **Allow Watch Next access** (until
   granted), **Rescan apps**, and the **Top Shelf feed** switch (off: the launcher gets nothing and the cached
   pictures are deleted).
@@ -54,11 +55,13 @@ show's own picture, a resume bar and the episode ("S2 · E4 · 23 min left"). OK
 | Permission | Why |
 |---|---|
 | `READ_TV_LISTINGS` | Reads the Watch Next rows of other apps. Ask for it from **Sources > Allow Watch Next access**, or grant it: `adb shell pm grant com.cleanlook.continuewatching android.permission.READ_TV_LISTINGS`. |
-| `INTERNET` | Your Jellyfin server, and the pictures: the server's own, and the picture addresses other apps put in their Watch Next rows (those are plain image downloads from the app's own servers, sent with no account, cookie or identifier). |
+| `INTERNET` | Your Jellyfin server, and the pictures: the server's own, and the picture addresses other apps put in their Watch Next rows (those are plain image downloads from the app's own servers, sent with no account, cookie or identifier). Also the [Photos](#photos): `https` to `commons.wikimedia.org` and `upload.wikimedia.org` only. |
+| `ACCESS_NETWORK_STATE` | Whether the TV is connected, and whether the connection is unmetered, before the Photos are refreshed. |
 
 Also: `usesCleartextTraffic`, because a Jellyfin server on the home network is normally `http://`; a `<queries>`
 entry, because Android 11 hides other apps otherwise (it lists apps that have a TV launcher icon, and the Jellyfin
-client). No analytics, no ads, no background service, no boot receiver. Credentials: the password is only sent to
+client). No analytics, no ads, no boot receiver, no service of its own that stays running: only the system's
+three-day job for the [Photos](#photos), which ends when it has checked. Credentials: the password is only sent to
 your server to sign in and is never stored; the access token (or API key) is stored encrypted with a key in the
 Android Keystore (`SecureStore`). Addresses, tokens and titles are never written to logcat. Backups are off.
 
@@ -114,6 +117,51 @@ it used as the backdrop too.
 **Start the app.** Alternatively send `com.cleanlook.continuewatching.action.RESUME` to `HubActivity`; with an
 int extra `accent` it tints the resume bars, and with a string extra `item_id` it starts that title at once and
 shows nothing.
+
+## Photos
+
+The launcher's Top Shelf shows a slow, full-bleed photo behind the cards, like Windows Spotlight or a browser's
+new-tab photos. This app supplies the photos (and only this app touches the internet for them): scenic pictures from
+**Wikimedia Commons** featured-picture categories, cached on the TV.
+
+- **Source.** The MediaWiki API on `commons.wikimedia.org` (no key, no account) lists the files of the categories
+  *Featured pictures of landscapes, mountains, coasts, lakes, forests, clouds, sunsets*; the 1920 px copy of each
+  chosen picture comes from `upload.wikimedia.org`. Nothing else is contacted: every address, and every redirect,
+  must be `https` to one of those two hosts. The `User-Agent` is the generic `CleanTV-Photos/1.0 (Android TV)`;
+  no account, cookie, device id or location is sent.
+- **What is kept.** JPEG only, at least 2500 px wide on the original, shape 1.5 to 2.2 times wider than tall, and
+  a free licence only: CC BY, CC BY-SA, CC0 or public domain (anything non-commercial, no-derivatives, fair use or
+  unlabelled is dropped). Pictures whose file name or Commons categories point to maps, diagrams, paintings,
+  portraits, people, trains and railways, buildings or interiors are skipped. Each photo is stored as the 1920 px
+  JPEG (normally under 1 MB; one over 3 MB is refused).
+- **Cache.** 15 photos, about 12 to 14 MB, in this app's private files. A refresh fetches 5 new ones (or enough to
+  fill an emptier cache) and drops the 5 oldest, the oldest also going first if the size limit is hit.
+- **When.** The first photos are fetched as soon as the add-on is opened, or the launcher first asks for the photos
+  with an empty cache (a quick fill of up to 15, each photo available as soon as it arrives). After that at most
+  every 3 days, on an unmetered, connected network (a `JobScheduler` job every 3 days, plus the checks when the add-on
+  opens and when the launcher asks). **Sources > Top Shelf photos > Refresh now** fetches at once on any connection.
+- **On the TV.** In **Sources** the **Top Shelf photos** tile has On/Off (default On; Off deletes the photos and the
+  launcher uses its own wallpapers), a switch per category (at least one stays on), **Refresh now** and a plain
+  status line ("12 photos, updated today", "No network", "Timed out").
+- **Credit.** Each photo carries a plain-text credit, "Author — Licence", at most 80 characters, made from the
+  Commons author and licence fields with the markup removed, so the launcher can show it.
+
+**Provider.** Same authority and the same caller check as the rest of the feed.
+
+`content://com.cleanlook.continuewatching.shelf/photos`: newest first, every column returned.
+
+| Column | Type | Meaning |
+|---|---|---|
+| `_id` | long | Row number in this answer. |
+| `photo_uri` | string | `content://com.cleanlook.continuewatching.shelf/photo/<name>.jpg` |
+| `width`, `height` | int | Pixels of the cached JPEG (1920 wide). |
+| `credit` | string | "Author — Licence", plain text, at most 80 characters. |
+
+`content://com.cleanlook.continuewatching.shelf/photo/<name>.jpg` is one JPEG, opened read only. A name is served
+only if it is 16 lower-case hex digits and `.jpg` **and** is in the cache folder's listing; anything else
+(`..`, a path, another extension, a temporary file) is a `FileNotFoundException`. The cursor of `/photos` notifies
+when a photo arrives or leaves. An empty answer means "use your own wallpapers" (the switch is off, or nothing is
+cached yet).
 
 ## Jellyfin deep link
 

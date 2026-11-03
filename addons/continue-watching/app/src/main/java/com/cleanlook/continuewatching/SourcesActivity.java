@@ -44,6 +44,8 @@ public final class SourcesActivity extends Activity {
     private static final int POPUP_VISIBLE_CHANNELS = 5;
     private static final String ADD = "+add";
     private static final String SHOW_ALL = "+all";
+    /** The Top Shelf photos tile: always there, never removed. */
+    private static final String PHOTOS = "+photos";
     private static final int NEUTRAL = 0;
     private static final int GOOD = 1;
     private static final int BAD = 2;
@@ -63,6 +65,7 @@ public final class SourcesActivity extends Activity {
     private float density;
 
     private boolean busy;
+    private boolean photosBusy;
     private boolean picker;
     private boolean showAll;
     private boolean awaitingJellyfin;
@@ -235,6 +238,7 @@ public final class SourcesActivity extends Activity {
 
     private void sourceTiles() {
         for (String key : prefs.addedSources()) addTile(key);
+        addTile(PHOTOS);
         addTile(ADD);
     }
 
@@ -320,6 +324,7 @@ public final class SourcesActivity extends Activity {
     }
 
     private String labelOf(String key) {
+        if (PHOTOS.equals(key)) return "Top Shelf photos";
         if (AddedSources.JELLYFIN.equals(key)) {
             return picker || !prefs.jellyfinConfigured() || prefs.serverName().isEmpty() ? "Jellyfin server"
                     : "Jellyfin · " + prefs.serverName();
@@ -332,7 +337,9 @@ public final class SourcesActivity extends Activity {
     private void setArt(ImageView art, TextView glyph, String key, String label) {
         Drawable icon;
         Drawable banner = null;
-        if (AddedSources.JELLYFIN.equals(key)) {
+        if (PHOTOS.equals(key)) {
+            icon = getDrawable(R.drawable.ic_photos);
+        } else if (AddedSources.JELLYFIN.equals(key)) {
             icon = App.icon(this, Item.JELLYFIN_PKG);
             if (icon == null) icon = getDrawable(R.drawable.ic_jellyfin);
         } else {
@@ -360,7 +367,22 @@ public final class SourcesActivity extends Activity {
         }
     }
 
+    private AddedSources.Status photosStatus() {
+        int n = PhotoFeed.available(this).size();
+        if (!prefs.photosEnabled()) return new AddedSources.Status(AddedSources.Level.OFF, "Off");
+        if (PhotoFeed.running() || photosBusy) {
+            return new AddedSources.Status(n > 0 ? AddedSources.Level.ROWS : AddedSources.Level.NONE, "Refreshing…");
+        }
+        if (n == 0) {
+            String note = prefs.photosNote();
+            return note.isEmpty() ? new AddedSources.Status(AddedSources.Level.NONE, "No photos yet")
+                    : new AddedSources.Status(AddedSources.Level.ERROR, note);
+        }
+        return new AddedSources.Status(AddedSources.Level.ROWS, n + (n == 1 ? " photo" : " photos"));
+    }
+
     private AddedSources.Status statusFor(String key) {
+        if (PHOTOS.equals(key)) return photosStatus();
         boolean on = !prefs.disabledPackages().contains(key);
         if (AddedSources.JELLYFIN.equals(key)) {
             return AddedSources.jellyfinStatus(on, prefs.jellyfinConfigured(), prefs.jellyfinStatus(), state.jf.size());
@@ -576,14 +598,8 @@ public final class SourcesActivity extends Activity {
         return AddedSources.JELLYFIN.equals(popupKey);
     }
 
-    /** Builds the popup for a source on its tile and focuses row {@code row}, column {@code col}. */
-    private void showPopup(View anchor, String key, int row, int col) {
-        if (popup != null) root.removeView(popup);
-        popupNav.clear();
-        popupAnchor = anchor;
-        popupKey = key;
-        readData();
-
+    /** The popup's empty box with its title line. */
+    private LinearLayout popupFrame(String heading) {
         LinearLayout box = new LinearLayout(this);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setBackgroundResource(R.drawable.popup_bg);
@@ -592,7 +608,7 @@ public final class SourcesActivity extends Activity {
         box.setClickable(true);
 
         TextView head = new TextView(this);
-        head.setText(labelOf(key));
+        head.setText(heading);
         head.setTextColor(getColor(R.color.text_faint));
         head.setTextSize(12);
         head.setAllCaps(true);
@@ -602,6 +618,22 @@ public final class SourcesActivity extends Activity {
         head.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         head.setPadding(px(4), 0, px(4), px(4));
         box.addView(head);
+        return box;
+    }
+
+    /** Builds the popup for a source on its tile and focuses row {@code row}, column {@code col}. */
+    private void showPopup(View anchor, String key, int row, int col) {
+        if (PHOTOS.equals(key)) {
+            showPhotosPopup(anchor, row);
+            return;
+        }
+        if (popup != null) root.removeView(popup);
+        popupNav.clear();
+        popupAnchor = anchor;
+        popupKey = key;
+        readData();
+
+        LinearLayout box = popupFrame(labelOf(key));
 
         final boolean on = !prefs.disabledPackages().contains(key);
         box.addView(nav(popupRow("This source", "", on ? "On" : "Off", on, v -> {
@@ -662,9 +694,14 @@ public final class SourcesActivity extends Activity {
             })));
         }
 
-        if (!popupNote.isEmpty()) {
+        placePopup(box, anchor, popupNote, row, col);
+    }
+
+    /** Adds the note, puts the box beside its tile (kept inside the screen) and focuses a row and column. */
+    private void placePopup(LinearLayout box, View anchor, String noteText, int row, int col) {
+        if (!noteText.isEmpty()) {
             TextView note = new TextView(this);
-            note.setText(popupNote);
+            note.setText(noteText);
             note.setTextColor(getColor(R.color.text_dim));
             note.setTextSize(12);
             note.setMaxLines(3);
@@ -701,6 +738,89 @@ public final class SourcesActivity extends Activity {
         View target = cols[Math.max(0, Math.min(col, cols.length - 1))];
         scrollOf(target).jumpOnNextFocus();
         target.requestFocus();
+    }
+
+    /** The Top Shelf photos popup: the switch, one switch per category, Refresh now, and the plain status. */
+    private void showPhotosPopup(View anchor, int row) {
+        if (popup != null) root.removeView(popup);
+        popupNav.clear();
+        popupAnchor = anchor;
+        popupKey = PHOTOS;
+        readData();
+
+        LinearLayout box = popupFrame(labelOf(PHOTOS));
+        final boolean on = prefs.photosEnabled();
+        box.addView(nav(popupRow("Photos", "", on ? "On" : "Off", on, v -> {
+            prefs.setPhotosEnabled(!on);
+            final Context app = getApplicationContext();
+            if (on) {
+                io.execute(() -> {
+                    PhotoFeed.clear(app);
+                    main.post(() -> {
+                        if (!isDestroyed()) changed();
+                    });
+                });
+                say("The launcher shows its own wallpapers again.", NEUTRAL);
+            } else {
+                say("Photos are on. The first ones are being fetched.", NEUTRAL);
+                refreshPhotos(true);
+            }
+            changed();
+        })));
+        if (on) {
+            final Set<String> off = prefs.photosOff();
+            LinearLayout list = new LinearLayout(this);
+            list.setOrientation(LinearLayout.VERTICAL);
+            for (final PhotoPolicy.Category c : PhotoPolicy.CATEGORIES) {
+                final boolean cOn = !off.contains(c.key);
+                list.addView(nav(popupRow(c.label, "", cOn ? "On" : "Off", cOn, v -> {
+                    Set<String> next = PhotoPolicy.toggle(prefs.photosOff(), c.key);
+                    if (next.equals(prefs.photosOff())) {
+                        say("At least one category stays on.", BAD);
+                        return;
+                    }
+                    prefs.setPhotosOff(next);
+                    say(c.label + (cOn ? " is left out of the next photos." : " is in the next photos."), NEUTRAL);
+                    changed();
+                })));
+            }
+            SmoothScrollView sv = new SmoothScrollView(this);
+            sv.setVerticalScrollBarEnabled(false);
+            sv.setClipToPadding(false);
+            sv.addView(list);
+            box.addView(sv, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    POPUP_VISIBLE_CHANNELS * px(43) + px(3)));
+            box.addView(nav(popupRow("Refresh now", "", "", true, v -> refreshPhotos(true))));
+        }
+        String note = photosBusy || PhotoFeed.running() ? "Refreshing…"
+                : PhotoPolicy.status(false, PhotoFeed.available(this).size(), prefs.photosOkMs(),
+                        System.currentTimeMillis(), prefs.photosNote());
+        placePopup(box, anchor, on ? note + ". Pictures from Wikimedia Commons." : "Off. The launcher uses its wallpapers.",
+                row, 0);
+    }
+
+    /** Fetches photos now, off the main thread; the popup and tile follow as they arrive. */
+    private void refreshPhotos(boolean manual) {
+        if (photosBusy) return;
+        photosBusy = true;
+        final Context app = getApplicationContext();
+        io.execute(() -> {
+            PhotoFeed.refresh(app, manual);
+            main.post(() -> {
+                photosBusy = false;
+                if (isDestroyed()) return;
+                changed();
+                String note = prefs.photosNote();
+                say(note.isEmpty() ? "Photos refreshed." : note, note.isEmpty() ? GOOD : BAD);
+            });
+        });
+        main.postDelayed(new Runnable() {
+            @Override public void run() {
+                if (!photosBusy || isDestroyed()) return;
+                changed();
+                main.postDelayed(this, 2500);
+            }
+        }, 2500);
     }
 
     private SmoothScrollView scrollOf(View v) {

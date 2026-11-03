@@ -47,6 +47,17 @@ public final class Contract {
         COL_SOURCE_LABEL, COL_FETCHED_MS,
     };
 
+    /** The Top Shelf photos: /photos lists them (newest first), /photo/&lt;name&gt; is one JPEG, read only. */
+    public static final Uri PHOTOS_URI = Uri.parse("content://" + AUTHORITY + "/photos");
+    public static final String PATH_PHOTOS = "photos";
+    public static final String PATH_PHOTO = "photo";
+    /** {@link #COL_ID}, then: the content:// URI of the picture, its size in pixels and a plain-text credit line. */
+    public static final String COL_PHOTO_URI = "photo_uri";
+    public static final String COL_WIDTH = "width";
+    public static final String COL_HEIGHT = "height";
+    public static final String COL_CREDIT = "credit";
+    public static final String[] PHOTO_COLUMNS = {COL_ID, COL_PHOTO_URI, COL_WIDTH, COL_HEIGHT, COL_CREDIT};
+
     static final String IMG_BACKDROP = "backdrop";
     static final String IMG_POSTER = "poster";
     static final String IMG_LOGO = "logo";

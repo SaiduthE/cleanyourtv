@@ -4,8 +4,11 @@
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
 
-    <!-- Only the Jellyfin server the owner types in, and the pictures that server and the Watch Next rows point to. -->
+    <!-- Only the Jellyfin server the owner types in, the pictures that server and the Watch Next rows point to, and
+         commons.wikimedia.org / upload.wikimedia.org (https) for the Top Shelf photos. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Top Shelf photos: whether there is a connection, and whether it is metered. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Reads the Watch Next rows other apps publish (docs/watch-next.md). Granted from Sources, or by adb. -->
     <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
 
@@ -60,6 +63,12 @@
             android:exported="false"
             android:screenOrientation="landscape"
             android:windowSoftInputMode="adjustResize" />
+
+        <!-- Every three days on an unmetered network: new Top Shelf photos from Wikimedia Commons. -->
+        <service
+            android:name=".PhotoJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
 
         <!-- The Top Shelf feed. Exported, but ShelfProvider answers only this app, the launcher and same-key apps. -->
         <provider

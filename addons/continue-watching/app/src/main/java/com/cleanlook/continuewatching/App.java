@@ -19,6 +19,7 @@ public final class App extends Application {
         // Before anything else can save a probe or a choice: an install from before "Add source" keeps what it showed.
         if (!prefs.addedMigrated()) prefs.migrateAdded(Store.read(this));
         refreshImageAuth(this);
+        PhotoJobService.schedule(this);
     }
 
     static Prefs prefs(Context c) {

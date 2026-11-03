@@ -5,9 +5,13 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /** Minimal HTTP. It never logs an address or a header: they can hold a server name or a token. */
 final class Http {
@@ -58,6 +62,61 @@ final class Http {
         } finally {
             c.disconnect();
         }
+    }
+
+    private static final int MAX_REDIRECTS = 3;
+
+    /** True for an https address (default port, no user info) whose host is exactly one of {@code hosts}. */
+    static boolean allowedHttps(String url, Set<String> hosts) {
+        if (url == null) return false;
+        try {
+            URI u = new URI(url);
+            String host = u.getHost();
+            return "https".equals(u.getScheme()) && host != null && hosts.contains(host.toLowerCase(Locale.ROOT))
+                    && u.getUserInfo() == null && (u.getPort() == -1 || u.getPort() == 443);
+        } catch (URISyntaxException e) {
+            return false;
+        }
+    }
+
+    /**
+     * A GET that only ever talks https to {@code hosts}: same timeouts as {@link #request}, but redirects are followed
+     * by hand (at most three) and every hop must pass {@link #allowedHttps}, so a redirect off the list is refused.
+     */
+    static Response getGuarded(String url, Map<String, String> headers, int maxBytes, Set<String> hosts)
+            throws IOException {
+        String at = url;
+        for (int hop = 0; hop <= MAX_REDIRECTS; hop++) {
+            if (!allowedHttps(at, hosts)) throw new IOException("address not allowed");
+            HttpURLConnection c = (HttpURLConnection) new URL(at).openConnection();
+            try {
+                c.setRequestMethod("GET");
+                c.setConnectTimeout(6000);
+                c.setReadTimeout(15000);
+                c.setUseCaches(false);
+                c.setInstanceFollowRedirects(false);
+                if (headers != null) {
+                    for (Map.Entry<String, String> h : headers.entrySet()) c.setRequestProperty(h.getKey(), h.getValue());
+                }
+                int code = c.getResponseCode();
+                if (code == 301 || code == 302 || code == 303 || code == 307 || code == 308) {
+                    String loc = c.getHeaderField("Location");
+                    if (loc == null) throw new IOException("redirect without target");
+                    at = new URL(new URL(at), loc).toString();
+                    continue;
+                }
+                if (code < 200 || code >= 300) throw new IOException("HTTP " + code);
+                Response r = new Response();
+                r.code = code;
+                try (InputStream in = c.getInputStream()) {
+                    r.body = readAll(in, maxBytes);
+                }
+                return r;
+            } finally {
+                c.disconnect();
+            }
+        }
+        throw new IOException("too many redirects");
     }
 
     static byte[] getBytes(String url, Map<String, String> headers, int maxBytes) throws IOException {

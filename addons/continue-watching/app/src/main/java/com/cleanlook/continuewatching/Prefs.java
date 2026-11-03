@@ -149,6 +149,29 @@ final class Prefs {
     boolean shelfEnabled() { return sp.getBoolean("shelf_enabled", true); }
     void setShelfEnabled(boolean v) { sp.edit().putBoolean("shelf_enabled", v).apply(); }
 
+    // ---- Top Shelf photos (PhotoFeed): on by default; the categories the owner switched off; the cache's record
+    boolean photosEnabled() { return sp.getBoolean("photos_enabled", true); }
+    void setPhotosEnabled(boolean v) { sp.edit().putBoolean("photos_enabled", v).apply(); }
+
+    Set<String> photosOff() { return new HashSet<>(sp.getStringSet("photos_off", new HashSet<String>())); }
+    void setPhotosOff(Set<String> off) { sp.edit().putStringSet("photos_off", new HashSet<>(off)).apply(); }
+
+    String photosRecord() { return sp.getString("photos_record", ""); }
+    void setPhotosRecord(String json) { sp.edit().putString("photos_record", json).apply(); }
+
+    /** When the last refresh that worked ended, and when the last one of any kind started (0: never). */
+    long photosOkMs() { return sp.getLong("photos_ok", 0); }
+    long photosTryMs() { return sp.getLong("photos_try", 0); }
+    String photosNote() { return sp.getString("photos_note", ""); }
+
+    void photosTried(long now) { sp.edit().putLong("photos_try", now).putString("photos_note", "").apply(); }
+
+    void photosDone(long okMs, String note) {
+        SharedPreferences.Editor e = sp.edit().putString("photos_note", note == null ? "" : note);
+        if (okMs > 0) e.putLong("photos_ok", okMs);
+        e.apply();
+    }
+
     // ---- what the first-run probe found: package -> [Watch Next rows, preview rows], see Probe.encode
     long probeAt() { return sp.getLong("probe_at", 0); }
     String probeJson() { return sp.getString("probe", ""); }

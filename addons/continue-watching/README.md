@@ -34,6 +34,14 @@ show's own picture, a resume bar and the episode ("S2 · E4 · 23 min left"). OK
     list is saved in the preferences in the order added (Jellyfin's sign-in stays in the encrypted store).
   - Scrolling is one 150-200 ms decelerating glide that centres the focused row; the platform's own jump is off,
     so the highlight and the scroll move together.
+- **The page is grouped by app**: one section per app that has anything to resume, each a header (the app's icon at
+  its own size, name, title count and the row it came from, such as "Continue watching") over a sideways row of
+  cards (picture, title, episode, resume bar). The app watched most recently comes first, then the bigger rows;
+  apps without items are not shown, and with none at all the page says "Add a source to see what to resume".
+  Left/Right move inside a row, Up/Down between sections, landing on the column you were on (a short row holds
+  you at its last card and a longer one returns you to where you started); Up from the first row reaches Refresh
+  and Sources. Each move is one glide (the row sideways, the page vertically). Pictures load only for cards on or
+  near the screen and are let go when far away; at most 8 sections of 20 cards.
 - **First run.** When Watch Next access is granted, a probe reads every app's rows once and remembers which
   packages publish any (counts only, in `adb logcat -s CWProbe`: no titles, no addresses). Some apps publish
   nothing readable to a sideloaded app (see [`docs/watch-next.md`](../../docs/watch-next.md)); Sources shows

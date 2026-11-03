@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- One title: its picture, the app it plays in, the title, "S2 · E4 · 23 min left" and the resume bar. 16:9, 277 x 156 dp. -->
+<!-- One title: its picture, the title, "S2 · E4 · 23 min left" and the resume bar. 16:9, 232 x 130 dp. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="156dp"
+    android:layout_height="130dp"
     android:background="@drawable/card_bg"
     android:focusable="true"
     android:foreground="@drawable/card_focus">
@@ -24,25 +24,9 @@
 
     <View
         android:layout_width="match_parent"
-        android:layout_height="104dp"
+        android:layout_height="88dp"
         android:layout_gravity="bottom"
         android:background="@drawable/scrim" />
-
-    <TextView
-        android:id="@+id/source"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="top|start"
-        android:layout_margin="10dp"
-        android:background="@drawable/chip"
-        android:fontFamily="sans-serif-medium"
-        android:paddingStart="10dp"
-        android:paddingTop="3dp"
-        android:paddingEnd="10dp"
-        android:paddingBottom="3dp"
-        android:singleLine="true"
-        android:textColor="@color/text"
-        android:textSize="11sp" />
 
     <TextView
         android:id="@+id/tag"

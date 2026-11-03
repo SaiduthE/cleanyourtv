@@ -6,7 +6,8 @@
     <string name="sources">Sources</string>
     <string name="refreshing">Refreshing…</string>
     <string name="up_next">Up next</string>
-    <string name="empty">Nothing to continue yet.\nOpen Sources to add an app or a Jellyfin server.</string>
+    <string name="empty_title">Nothing to resume yet</string>
+    <string name="empty_hint">Add a source to see what to resume. Sources is at the top right.</string>
     <string name="status_denied">Watch Next access is off, so no app can be read. Open Sources.</string>
     <string name="status_updated">updated %1$s</string>
     <string name="status_updated_empty">Nothing in progress · updated %1$s</string>

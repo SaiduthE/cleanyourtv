@@ -28,7 +28,14 @@ final class ShelfFeed {
 
     /** The feed's rows for one source app, newest first as the add-on orders them; empty on any failure. */
     static List<TopShelfLogic.Entry> query(ContentResolver resolver, String pkg) {
-        Uri uri = Uri.parse(TopShelfLogic.ITEMS_URI).buildUpon().appendQueryParameter("pkg", pkg).build();
+        return query(resolver, pkg, MAX_ROWS);
+    }
+
+    /** Up to maxRows of the feed; a null pkg asks for every app's rows (no ?pkg=). */
+    static List<TopShelfLogic.Entry> query(ContentResolver resolver, String pkg, int maxRows) {
+        Uri.Builder builder = Uri.parse(TopShelfLogic.ITEMS_URI).buildUpon();
+        if (pkg != null) builder.appendQueryParameter("pkg", pkg);
+        Uri uri = builder.build();
         try (Cursor c = resolver.query(uri, null, null, null, null)) {
             if (c == null) return Collections.emptyList();
             int kind = c.getColumnIndex("kind"), title = c.getColumnIndex("title"), sub = c.getColumnIndex("subtitle"),
@@ -37,7 +44,7 @@ final class ShelfFeed {
                     poster = c.getColumnIndex("poster");
             if (title < 0) return Collections.emptyList();
             List<TopShelfLogic.Entry> rows = new ArrayList<>();
-            while (c.moveToNext() && rows.size() < MAX_ROWS) {
+            while (c.moveToNext() && rows.size() < maxRows) {
                 rows.add(new TopShelfLogic.Entry(text(c, kind), text(c, title), text(c, sub),
                         progress < 0 || c.isNull(progress) ? 0 : c.getInt(progress), text(c, source),
                         text(c, intent), text(c, backdrop), text(c, poster)));

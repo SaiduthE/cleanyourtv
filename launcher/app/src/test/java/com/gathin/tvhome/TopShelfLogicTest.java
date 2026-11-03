@@ -46,9 +46,9 @@ public class TopShelfLogicTest {
         assertEquals(Content.RESUME, TopShelfLogic.select(Mode.LAYERED, true, true, true, false));
     }
 
-    @Test public void withoutRoomOrShowTheAppsArtworkStandsIn() {
-        assertEquals(Content.ARTWORK, TopShelfLogic.select(Mode.LAYERED, true, true, false, true));
-        assertEquals(Content.ARTWORK, TopShelfLogic.select(Mode.LAYERED, true, false, true, true));
+    @Test public void withoutRoomOrShowTheAppNameStandsIn() {
+        assertEquals(Content.APP_NAME, TopShelfLogic.select(Mode.LAYERED, true, true, false, true));
+        assertEquals(Content.APP_NAME, TopShelfLogic.select(Mode.LAYERED, true, false, true, true));
     }
 
     @Test public void withNothingAtAllTheWallpaperStays() {
@@ -120,5 +120,66 @@ public class TopShelfLogicTest {
     @Test public void theRowsKeepTheirOrderObject() {
         Entry a = row("resume", "A", "", 1, "p");
         assertSame(a, TopShelfLogic.shelf(Collections.singletonList(a), "p").main);
+    }
+
+    @Test public void aNarrowBackdropIsNeverStretched() {
+        assertFalse(TopShelfLogic.backdropWideEnough(639));
+        assertTrue(TopShelfLogic.backdropWideEnough(640));
+        assertTrue(TopShelfLogic.backdropWideEnough(960));
+    }
+
+    @Test public void anIconIsShownOnlyUnderOneAndAHalfTimesUpscaling() {
+        assertTrue(TopShelfLogic.iconCrisp(128, 128, 128));    // native size
+        assertTrue(TopShelfLogic.iconCrisp(128, 128, 192));    // exactly 1.5x
+        assertFalse(TopShelfLogic.iconCrisp(128, 128, 193));
+        assertTrue(TopShelfLogic.iconCrisp(256, 256, 112));    // shrunk is always fine
+        assertFalse(TopShelfLogic.iconCrisp(48, 48, 112));     // a small icon would be blown up
+        assertFalse(TopShelfLogic.iconCrisp(0, 0, 112));       // no intrinsic size: unknown, omit
+    }
+
+    @Test public void aBannerIsNotUsedAsTheSmallIcon() {
+        assertFalse(TopShelfLogic.iconCrisp(320, 180, 100));
+    }
+
+    @Test public void feedBackdropsAreOwnAndDistinct() {
+        Entry a = row("resume", "A", "", 1, "p");
+        Entry b = new Entry("resume", "B", "", 0, "p", null, "content://evil/x", null);
+        Entry c = new Entry("next", "C", "", 0, "q", null, null, PIC);   // a poster is not a backdrop
+        assertEquals(Collections.singletonList(PIC),
+                TopShelfLogic.backdrops(Arrays.asList(a, b, c, row("next", "D", "", 0, "q"))));
+        assertTrue(TopShelfLogic.backdrops(null).isEmpty());
+    }
+
+    @Test public void poolJoinsWallpapersAndBackdropsOnce() {
+        assertEquals(Arrays.asList("/w/a.jpg", "/w/b.jpg", PIC),
+                TopShelfLogic.pool(Arrays.asList("/w/a.jpg", "/w/b.jpg", "/w/a.jpg"), Arrays.asList(PIC, "/w/b.jpg")));
+        assertTrue(TopShelfLogic.pool(null, null).isEmpty());
+    }
+
+    @Test public void poolIsCapped() {
+        java.util.List<String> many = new java.util.ArrayList<>();
+        for (int i = 0; i < 100; i++) many.add("/w/" + i);
+        assertEquals(TopShelfLogic.POOL_MAX, TopShelfLogic.pool(many, null).size());
+    }
+
+    @Test public void rotationNeverRepeatsThePictureOnScreen() {
+        java.util.Random random = new java.util.Random(7);
+        assertEquals(-1, TopShelfLogic.nextPick(0, -1, random));
+        assertEquals(0, TopShelfLogic.nextPick(1, 0, random));
+        for (int cur = 0; cur < 4; cur++) {
+            boolean[] seen = new boolean[4];
+            for (int n = 0; n < 200; n++) {
+                int pick = TopShelfLogic.nextPick(4, cur, random);
+                assertTrue(pick >= 0 && pick < 4 && pick != cur);
+                seen[pick] = true;
+            }
+            for (int i = 0; i < 4; i++) assertEquals(i != cur, seen[i]);
+        }
+        assertTrue(TopShelfLogic.nextPick(3, -1, random) >= 0);
+    }
+
+    @Test public void wallpaperTimingsMatchTheBrief() {
+        assertTrue(TopShelfLogic.ROTATE_MS >= 10_000 && TopShelfLogic.ROTATE_MS <= 12_000);
+        assertEquals(1.5f, TopShelfLogic.MAX_UPSCALE, 0f);
     }
 }

@@ -37,21 +37,24 @@
     <string name="ls_advanced_confirm_title" translatable="false">Turn on Advanced effects?</string>
     <string name="ls_keep_off" translatable="false">Keep off</string>
 
-    <!-- Hold-OK explanations (the ones with an existing string reuse it: advanced_effects_warning,
-         follow_theme_hint, home_settings_help, remote_buttons_help). -->
-    <string name="ls_help_columns" translatable="false">How many app tiles fit across the screen. Fewer means bigger tiles.</string>
-    <string name="ls_help_rows_below" translatable="false">How many rows of apps stay visible under the dock band.</string>
-    <string name="ls_help_dock_opacity" translatable="false">How much the band behind the dock hides the wallpaper. Lower lets the picture show through. Only applies while the dock is its own row.</string>
-    <string name="ls_help_open_on_start" translatable="false">An app that opens instead of Home the first time after the TV starts. Home and Back still come back here.</string>
-    <string name="ls_help_style" translatable="false">The look of Clean Look: wallpaper, dock, columns and colours. Your other choices stay.</string>
+    <!-- Hold-OK tips: one or two short lines each, shown in a tip card under the row. -->
+    <string name="ls_help_columns" translatable="false">How many app tiles fit across. Fewer means bigger tiles.</string>
+    <string name="ls_help_rows_below" translatable="false">How many rows of apps stay visible under the dock.</string>
+    <string name="ls_help_dock_opacity" translatable="false">How much the dock band hides the wallpaper. Lower shows more picture.</string>
+    <string name="ls_help_open_on_start" translatable="false">An app that opens instead of Home when the TV starts. Back returns here.</string>
+    <string name="ls_help_style" translatable="false">The look of Clean Look: wallpaper, dock, columns and colours.</string>
     <string name="ls_help_wallpaper" translatable="false">Pick one picture to keep, or let the theme change it.</string>
-    <string name="ls_help_clock" translatable="false">System follows the TV\'s own setting.</string>
+    <string name="ls_help_clock" translatable="false">System follows the TV\'s own 12 or 24 hour setting.</string>
     <string name="ls_help_animations" translatable="false">Off makes every move instant, for slow TVs.</string>
+    <string name="ls_help_advanced" translatable="false">Lifted tile, icon zoom and smooth colours. May use more memory.</string>
     <string name="ls_help_advanced_off" translatable="false">Turn Animations on first. Advanced effects need them.</string>
-    <string name="ls_help_weather_on_home" translatable="false">The weather next to the clock and on the clock screensaver. Needs the weather add-on.</string>
+    <string name="ls_help_weather_on_home" translatable="false">Weather next to the clock and on the screensaver. Needs the weather add-on.</string>
     <string name="ls_help_weather_settings" translatable="false">Opens the weather add-on\'s own settings.</string>
+    <string name="ls_help_remote_buttons" translatable="false">Map a remote button to an app or action: press, hold or double press.</string>
     <string name="ls_help_reorder" translatable="false">Pick up an app and move it. OK or Back puts it down.</string>
     <string name="ls_help_edit_dock" translatable="false">Choose which apps sit in the dock band.</string>
+    <string name="ls_help_default_home" translatable="false">Switch between Clean Look and the TV\'s original Home.</string>
     <string name="ls_help_tv_settings" translatable="false">Opens the TV\'s own settings.</string>
-    <string name="ls_help_reset_none" translatable="false">Nothing was changed on this page, so the theme\'s own settings are already in use.</string>
+    <string name="ls_help_reset" translatable="false">Clears your choices here and goes back to the theme\'s own settings.</string>
+    <string name="ls_help_reset_none" translatable="false">Nothing was changed here, so the theme\'s own settings are in use.</string>
 </resources>

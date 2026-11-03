@@ -14,6 +14,7 @@ import android.provider.Settings;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewConfiguration;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -72,16 +73,24 @@ public final class LauncherSettingsActivity extends Activity {
     private final Map<Row, SettingRowView> views = new EnumMap<>(Row.class);
 
     private final Handler handler = new Handler(Looper.getMainLooper());
-    private final HoldKey hold = new HoldKey();
+    private final HoldKey hold = new HoldKey(ViewConfiguration.getLongPressTimeout());
     private SettingRowView holdRow;
+    private HoldTip tip;
     private OptionPopup popup;
     /** Keys whose down was used up (closing a popup): their repeats and up are ignored. */
     private final Set<Integer> swallowUp = new HashSet<>();
     private boolean closing;
 
-    /** The default long-press time passed with OK still down: it is a hold, so the release will not click. */
+    /**
+     * The default long-press time passed with OK still down: it is a hold, so the release will not click, and the
+     * row's tip card fades in until OK is released, another key is pressed or 5 s pass.
+     */
     private final Runnable holdDue = () -> {
-        if (hold.tracking() && holdRow != null && hold.due(SystemClock.uptimeMillis())) holdRow.setPressed(false);
+        if (hold.tracking() && holdRow != null && hold.due(SystemClock.uptimeMillis())) {
+            holdRow.setPressed(false);
+            Object tag = holdRow.getTag();
+            if (tag instanceof Row) showHelp((Row) tag, holdRow);
+        }
     };
 
     @Override
@@ -315,16 +324,15 @@ public final class LauncherSettingsActivity extends Activity {
             case WEATHER_SETTINGS: return getString(R.string.ls_help_weather_settings);
             case ANIMATIONS: return getString(R.string.ls_help_animations);
             case ADVANCED:
-                return animations ? getString(R.string.advanced_effects_warning)
-                        : getString(R.string.ls_help_advanced_off) + " " + getString(R.string.advanced_effects_warning);
-            case REMOTE_BUTTONS: return getString(R.string.remote_buttons_help);
+                return getString(animations ? R.string.ls_help_advanced : R.string.ls_help_advanced_off);
+            case REMOTE_BUTTONS: return getString(R.string.ls_help_remote_buttons);
             case REORDER: return getString(R.string.ls_help_reorder);
             case EDIT_DOCK: return getString(R.string.ls_help_edit_dock);
-            case DEFAULT_HOME: return getString(R.string.home_settings_help);
+            case DEFAULT_HOME: return getString(R.string.ls_help_default_home);
             case TV_SETTINGS: return getString(R.string.ls_help_tv_settings);
             default:
                 return resetCount() == 0 ? getString(R.string.ls_help_reset_none)
-                        : getString(R.string.follow_theme_hint);
+                        : getString(R.string.ls_help_reset);
         }
     }
 
@@ -690,10 +698,16 @@ public final class LauncherSettingsActivity extends Activity {
     // ---- a row that is switched off: say why --------------------------------------------------------------------
 
     private void showHelp(Row row, SettingRowView view) {
-        Toast.makeText(this, help(row), Toast.LENGTH_LONG).show();
+        if (tip == null) tip = new HoldTip(this, root, card);
+        tip.show(view, help(row), anim(140));
+    }
+
+    private void hideTip(boolean animate) {
+        if (tip != null) tip.hide(animate && anim(100) > 0);
     }
 
     private void cancelHold() {
+        hideTip(false);
         handler.removeCallbacks(holdDue);
         hold.cancel();
         if (holdRow != null) {
@@ -713,6 +727,10 @@ public final class LauncherSettingsActivity extends Activity {
         if (swallowUp.contains(code)) {
             if (!down) swallowUp.remove(code);
             return true;
+        }
+        // Any key but the repeats of the held OK ends the tip.
+        if (down && tip != null && tip.isShowing() && !(HoldKey.isHoldKey(code) && event.getRepeatCount() > 0)) {
+            hideTip(true);
         }
         if (popup != null && popup.isShowing()) return popupKey(event, code, down);
         if (HoldKey.isHoldKey(code)) {
@@ -765,6 +783,7 @@ public final class LauncherSettingsActivity extends Activity {
         SettingRowView row = holdRow;
         HoldKey.Up up = hold.up();
         handler.removeCallbacks(holdDue);
+        if (up == HoldKey.Up.CONSUMED) hideTip(true);   // OK released after a hold: the tip goes, nothing is clicked
         holdRow = null;
         if (row != null) row.setPressed(false);
         switch (up) {

@@ -16,5 +16,5 @@
 
     <string name="ls_top_shelf_label" translatable="false">Top Shelf</string>
     <string name="ls_top_shelf_layered" translatable="false">Layered</string>
-    <string name="ls_help_top_shelf" translatable="false">Layered shows what you are partway through, or the app\'s own artwork, above the dock when focus rests on an app. Off keeps the plain wallpaper.</string>
+    <string name="ls_help_top_shelf" translatable="false">Layered shows a wallpaper above the dock, or what you can resume in the focused app. Off keeps the plain wallpaper.</string>
 </resources>

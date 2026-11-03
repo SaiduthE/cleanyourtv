@@ -6,8 +6,8 @@ import java.util.Locale;
 
 /**
  * What the Top Shelf shows and when, with no Android in it so it runs in JVM tests: the setting, which of the three
- * pictures a focused app gets, the timings, how the Continue watching rows become a shelf, and the checks on the
- * addresses the add-on hands back.
+ * views a focused app gets, the timings, how the Continue watching rows become a shelf, the wallpaper pool and its
+ * rotation, the limits on stretching pictures, and the checks on the addresses the add-on hands back.
  */
 final class TopShelfLogic {
 
@@ -27,8 +27,11 @@ final class TopShelfLogic {
         }
     }
 
-    /** What the shelf shows: the dimmed wallpaper, the show to resume, or the focused app's own artwork. */
-    enum Content { REST, RESUME, ARTWORK }
+    /**
+     * What the shelf shows: the wallpaper alone, the show to resume, or the focused app's name (and a small icon)
+     * over the wallpaper when it has nothing to resume.
+     */
+    enum Content { REST, RESUME, APP_NAME }
 
     /** Focus has to rest on an app this long before the shelf changes. */
     static final long DWELL_MS = 600;
@@ -46,6 +49,17 @@ final class TopShelfLogic {
     static final int MAX_UP_NEXT = 2;
     /** The room the resume block needs between the header and the dock. */
     static final int RESUME_MIN_DP = 150;
+    /** A backdrop narrower than this is never stretched across the shelf: the wallpaper is used instead. */
+    static final int MIN_BACKDROP_W = 640;
+    /** No icon or banner is ever drawn larger than this many times its own size. */
+    static final float MAX_UPSCALE = 1.5f;
+    /** The wallpaper layer changes picture this often, crossfading over {@link #FADE_MS}. */
+    static final long ROTATE_MS = 11_000;
+    static final int FADE_MS = 1600;
+    /** The most pictures the wallpaper pool will hold. */
+    static final int POOL_MAX = 40;
+    /** The feed rows read for the wallpaper pool (the app shelves read only 3). */
+    static final int POOL_FEED_ROWS = 12;
 
     static final String AUTHORITY = "com.cleanlook.continuewatching.shelf";
     static final String ITEMS_URI = "content://" + AUTHORITY + "/items";
@@ -119,13 +133,58 @@ final class TopShelfLogic {
 
     /**
      * What to show for the app that has focus. The dock is where the shelf lives: focus anywhere else, a mode that is
-     * off, a shelf with nothing to say or too little room for the resume block all leave the wallpaper (or the
-     * artwork, which needs no room).
+     * off, or no app name to show, leave the wallpaper alone; a shelf with nothing to resume, or too little room for
+     * the resume block, shows the app's name (which needs no room).
      */
-    static Content select(Mode mode, boolean onDock, boolean hasShelf, boolean roomForResume, boolean hasArtwork) {
+    static Content select(Mode mode, boolean onDock, boolean hasShelf, boolean roomForResume, boolean hasName) {
         if (mode != Mode.LAYERED || !onDock) return Content.REST;
         if (hasShelf && roomForResume) return Content.RESUME;
-        return hasArtwork ? Content.ARTWORK : Content.REST;
+        return hasName ? Content.APP_NAME : Content.REST;
+    }
+
+    /** Whether a decoded backdrop is wide enough to stand in for the wallpaper behind the resume block. */
+    static boolean backdropWideEnough(int widthPx) {
+        return widthPx >= MIN_BACKDROP_W;
+    }
+
+    /**
+     * Whether an app's icon may be drawn at targetPx on its short side: it is a square-ish icon (a wide banner is
+     * left out) and the drawing is at most {@link #MAX_UPSCALE} times its own size.
+     */
+    static boolean iconCrisp(int intrinsicW, int intrinsicH, int targetPx) {
+        if (intrinsicW <= 0 || intrinsicH <= 0 || targetPx <= 0) return false;
+        if (intrinsicW >= intrinsicH * 1.4f) return false;
+        return targetPx <= Math.min(intrinsicW, intrinsicH) * MAX_UPSCALE;
+    }
+
+    /** The Continue watching rows' own backdrop addresses, each once, in order: pictures for the wallpaper pool. */
+    static List<String> backdrops(List<Entry> rows) {
+        List<String> out = new ArrayList<>();
+        if (rows == null) return out;
+        for (Entry e : rows) {
+            if (e != null && ownUri(e.backdrop) && !out.contains(e.backdrop)) out.add(e.backdrop);
+        }
+        return out;
+    }
+
+    /** The wallpaper pool: the launcher's wallpaper paths, then the feed's backdrops, without repeats, at most POOL_MAX. */
+    static List<String> pool(List<String> wallpapers, List<String> backdrops) {
+        List<String> out = new ArrayList<>();
+        for (List<String> source : java.util.Arrays.asList(wallpapers, backdrops)) {
+            if (source == null) continue;
+            for (String key : source) {
+                if (key != null && !out.contains(key) && out.size() < POOL_MAX) out.add(key);
+            }
+        }
+        return out;
+    }
+
+    /** The next picture to show: any but the current one (when there is a choice); -1 for an empty pool. */
+    static int nextPick(int size, int current, java.util.Random random) {
+        if (size <= 0) return -1;
+        if (size == 1) return 0;
+        int pick = random.nextInt(size - 1);
+        return current >= 0 && pick >= current ? pick + 1 : pick;
     }
 
     static boolean roomForResume(float availableDp) {

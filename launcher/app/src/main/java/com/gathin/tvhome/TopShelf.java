@@ -5,12 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.Paint;
-import android.graphics.RadialGradient;
-import android.graphics.Rect;
-import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.LayerDrawable;
@@ -29,6 +24,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -36,12 +32,15 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * The Layered Top Shelf above the dock. At rest the wallpaper shows through a dim veil. When focus rests on a dock
- * app for {@link TopShelfLogic#DWELL_MS} the shelf shows what that app has in Continue watching (the show's own
- * backdrop, where you are, a Resume button and up to two up-next items), or else the app's own artwork. Focus away
- * from the dock for {@link TopShelfLogic#LEAVE_MS} brings the wallpaper back. Nothing is blurred: pictures are
- * decoded small and drawn large, and at most three are held at a time. The Resume button and the up-next items take
- * focus (Up from the dock), and the shelf never goes away while one of them has it.
+ * The Layered Top Shelf above the dock. At rest a crisp rotating wallpaper ({@link ShelfWallpaper}) shows under a light
+ * veil. When focus rests on a dock app for {@link TopShelfLogic#DWELL_MS} the shelf shows what that app has in
+ * Continue watching (the show's own backdrop, where you are, a Resume button and up to two up-next items); an app with
+ * nothing to resume gets its name in large type, and its icon when that can be drawn without enlarging it more than
+ * {@link TopShelfLogic#MAX_UPSCALE} times, over the wallpaper. A backdrop narrower than
+ * {@link TopShelfLogic#MIN_BACKDROP_W} is never stretched: the wallpaper stays and the resume block sits on it.
+ * Focus away from the dock for {@link TopShelfLogic#LEAVE_MS} brings the plain wallpaper back. Nothing is blurred and
+ * no picture is scaled up beyond that limit. The Resume button and the up-next items take focus (Up from the dock),
+ * and the shelf never goes away while one of them has it.
  */
 final class TopShelf {
 
@@ -58,9 +57,7 @@ final class TopShelf {
         int headerBottom();
     }
 
-    /** The share of black over the wallpaper at rest. */
-    private static final float REST_VEIL = 0.35f;
-    private static final int ART_W = 320, ART_H = 180;
+    private static final int ICON_DP = 56;
     private static final int GAP_DP = 28;
     private static final int THUMB_W_DP = 122, THUMB_H_DP = 69;
     private static final int NO_PIC = 0xFF1C1F26;
@@ -77,10 +74,15 @@ final class TopShelf {
     private final ShelfCache<TopShelfLogic.Shelf> cache = new ShelfCache<>(TopShelfLogic.CACHE_MS, TopShelfLogic.CACHE_SIZE);
     private static final TopShelfLogic.Shelf NONE = new TopShelfLogic.Shelf(null, Collections.emptyList());
 
-    private final View veil;
+    private final ShelfWallpaper wall;
+    /** The light veil over the wallpaper at rest, and the black stage a real backdrop is shown on. */
+    private final View light, stage;
     private final FrameLayout content;
     private final ImageView art;
     private final View scrim;
+    private final LinearLayout nameRow;
+    private final ImageView nameIcon;
+    private final TextView nameText;
     private final LinearLayout block;
     private final TextView source, title, meta, resumeButton;
     private final FrameLayout progressTrack;
@@ -98,7 +100,7 @@ final class TopShelf {
     /** The dock app focus rests on (null when focus is elsewhere) and what the shelf needs of it. */
     private String wantPkg, wantLabel;
     private Drawable wantArt;
-    private int wantColor, wantDockTop;
+    private int wantDockTop;
     private boolean suspended, closed;
     /** Bumped by every new request, so a query or decode that is no longer wanted drops its result. */
     private int generation;
@@ -107,7 +109,9 @@ final class TopShelf {
     private final Runnable dwell = this::resolve;
     private final Runnable leave = this::leaveDue;
 
-    TopShelf(Context context, FrameLayout container, Host host, boolean animations, boolean reducedMotion, int accent) {
+    /** @param wallpapers the launcher's wallpaper pictures (empty when the wallpaper is off); the feed's are added */
+    TopShelf(Context context, FrameLayout container, Host host, boolean animations, boolean reducedMotion, int accent,
+             List<File> wallpapers) {
         this.context = context;
         this.container = container;
         this.host = host;
@@ -117,10 +121,14 @@ final class TopShelf {
         this.density = context.getResources().getDisplayMetrics().density;
         this.accent = accent;
 
-        veil = new View(context);
-        veil.setBackgroundColor(Color.BLACK);
-        veil.setAlpha(REST_VEIL);
-        container.addView(veil, new FrameLayout.LayoutParams(-1, -1));
+        wall = new ShelfWallpaper(context, container, wallpapers, animations, reducedMotion);
+        light = new View(context);
+        light.setBackground(lightVeil());
+        container.addView(light, new FrameLayout.LayoutParams(-1, -1));
+        stage = new View(context);
+        stage.setBackgroundColor(Color.BLACK);
+        stage.setAlpha(0f);
+        container.addView(stage, new FrameLayout.LayoutParams(-1, -1));
 
         content = new FrameLayout(context);
         content.setAlpha(0f);
@@ -136,7 +144,24 @@ final class TopShelf {
         content.addView(art, new FrameLayout.LayoutParams(-1, -1));
         scrim = new View(context);
         content.addView(scrim, new FrameLayout.LayoutParams(-1, -1));
-        scrim.setBackground(scrimDrawable());
+        scrim.setBackground(scrimOnWallpaper());
+
+        nameRow = new LinearLayout(context);
+        nameRow.setOrientation(LinearLayout.HORIZONTAL);
+        nameRow.setGravity(Gravity.CENTER_VERTICAL);
+        nameRow.setClipChildren(false);
+        nameIcon = new ImageView(context);
+        nameIcon.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        nameRow.addView(nameIcon, margins(0, 0, 18, 0, ICON_DP, ICON_DP));
+        nameText = text(48, R.string.font_light, Color.WHITE);
+        nameText.setLetterSpacing(-0.01f);
+        nameText.setMaxWidth(dp(620));
+        nameText.setShadowLayer(dp(14), 0, dp(2), 0x80000000);
+        nameRow.addView(nameText);
+        FrameLayout.LayoutParams nameLp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.START);
+        nameLp.setMarginStart(dp(58));
+        content.addView(nameRow, nameLp);
+        nameRow.setVisibility(View.GONE);
 
         block = new LinearLayout(context);
         block.setOrientation(LinearLayout.VERTICAL);
@@ -221,7 +246,6 @@ final class TopShelf {
         cancelLeave();
         wantLabel = label;
         wantArt = artwork;
-        wantColor = ambientColor;
         wantDockTop = dockTop;
         if (pkg.equals(wantPkg)) return;   // already shown, waiting for its dwell, or resolved to the wallpaper
         wantPkg = pkg;
@@ -282,13 +306,19 @@ final class TopShelf {
         }
     }
 
-    /** Home is leaving the screen: wallpaper again, instantly, and no query in flight. */
+    /** Home is leaving the screen: wallpaper again, instantly, no query in flight, and the wallpaper pictures let go. */
     void pause() {
         handler.removeCallbacks(dwell);
         generation++;
         wantPkg = null;
         wantArt = null;
         showRest(false);
+        wall.stop();
+    }
+
+    /** Home is on screen: the wallpaper shows and rotates. */
+    void resume() {
+        if (!closed) wall.start();
     }
 
     void close() {
@@ -296,6 +326,7 @@ final class TopShelf {
         handler.removeCallbacksAndMessages(null);
         generation++;
         worker.shutdownNow();
+        wall.close();
         art.setImageDrawable(null);
         for (ImageView t : thumbImages) t.setImageDrawable(null);
         recycle(artBitmap);
@@ -325,6 +356,10 @@ final class TopShelf {
             Bitmap[] small = new Bitmap[TopShelfLogic.MAX_UP_NEXT];
             if (found != null) {
                 back = ShelfFeed.decode(resolver, found.main.image(), TopShelfLogic.MAX_W, TopShelfLogic.MAX_H);
+                if (back != null && !TopShelfLogic.backdropWideEnough(back.getWidth())) {
+                    recycle(back);   // too small to stretch over the shelf: the wallpaper is used instead
+                    back = null;
+                }
                 for (int i = 0; i < found.upNext.size() && gen == generation; i++) {
                     small[i] = ShelfFeed.decode(resolver, found.upNext.get(i).image(),
                             TopShelfLogic.THUMB_W, TopShelfLogic.THUMB_H);
@@ -347,13 +382,15 @@ final class TopShelf {
     private void show(TopShelfLogic.Shelf shelf, Bitmap backdrop, Bitmap[] small) {
         float room = (wantDockTop - dp(GAP_DP) - host.headerBottom()) / density;
         TopShelfLogic.Content what = TopShelfLogic.select(TopShelfLogic.Mode.LAYERED, true, shelf != null,
-                TopShelfLogic.roomForResume(room), wantArt != null);
+                TopShelfLogic.roomForResume(room), wantLabel != null && !wantLabel.isEmpty());
         if (what == TopShelfLogic.Content.REST) {
+            recycle(backdrop);
+            for (Bitmap b : small) recycle(b);
             showRest(true);
             return;
         }
-        if (what == TopShelfLogic.Content.ARTWORK && shelf != null) {
-            // The shelf has a show but no room for it: the app's artwork stands in; drop the decoded pictures.
+        if (what == TopShelfLogic.Content.APP_NAME && shelf != null) {
+            // The shelf has a show but no room for it: the app's name stands in; drop the decoded pictures.
             recycle(backdrop);
             for (Bitmap b : small) recycle(b);
         }
@@ -367,16 +404,47 @@ final class TopShelf {
             art.setLayoutParams(artLp);
             scrim.setLayoutParams(scrimLp);
         }
+        boolean backdropShown = what == TopShelfLogic.Content.RESUME && backdrop != null;
+        scrim.setBackground(backdropShown ? scrimOnBackdrop() : scrimOnWallpaper());
         if (what == TopShelfLogic.Content.RESUME) {
+            nameRow.setVisibility(View.GONE);
             fillResume(shelf, backdrop, small);
         } else {
-            setArt(makeArtwork(wantArt, wantColor));
+            setArt(null);
             block.setVisibility(View.GONE);
             upNext.setVisibility(View.GONE);
             setThumbs(null);
+            fillName();
         }
-        host.setTitleHidden(what == TopShelfLogic.Content.RESUME);
-        reveal();
+        // The shelf's own large type takes the place of the app name above the dock.
+        host.setTitleHidden(true);
+        reveal(backdropShown);
+    }
+
+    /** No resume item: the app's name in clean large type, and its icon small beside it when it stays crisp. */
+    private void fillName() {
+        nameText.setText(wantLabel);
+        Drawable icon = null;
+        int target = dp(ICON_DP);
+        if (wantArt != null && TopShelfLogic.iconCrisp(wantArt.getIntrinsicWidth(), wantArt.getIntrinsicHeight(), target)) {
+            // A private copy: setting the bounds of the drawable a tile shows would blank the tile.
+            icon = wantArt.getConstantState() != null ? wantArt.getConstantState().newDrawable().mutate() : null;
+        }
+        nameIcon.setImageDrawable(icon);
+        nameIcon.setVisibility(icon == null ? View.GONE : View.VISIBLE);
+        nameRow.setVisibility(View.VISIBLE);
+        placeAboveDock(nameRow);
+    }
+
+    private void placeAboveDock(View... views) {
+        int bottom = container.getHeight() - wantDockTop + dp(GAP_DP);
+        for (View v : views) {
+            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) v.getLayoutParams();
+            if (lp.bottomMargin != bottom) {
+                lp.bottomMargin = bottom;
+                v.setLayoutParams(lp);
+            }
+        }
     }
 
     private void fillResume(TopShelfLogic.Shelf shelf, Bitmap backdrop, Bitmap[] small) {
@@ -402,14 +470,7 @@ final class TopShelf {
         }
         upNext.setVisibility(shelf.upNext.isEmpty() ? View.GONE : View.VISIBLE);
         block.setVisibility(View.VISIBLE);
-        int bottom = container.getHeight() - wantDockTop + dp(GAP_DP);
-        for (View v : new View[] {block, upNext}) {
-            FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) v.getLayoutParams();
-            if (lp.bottomMargin != bottom) {
-                lp.bottomMargin = bottom;
-                v.setLayoutParams(lp);
-            }
-        }
+        placeAboveDock(block, upNext);
     }
 
     private void launch(TopShelfLogic.Entry e) {
@@ -417,22 +478,25 @@ final class TopShelf {
         if (intent != null) host.open(intent);
     }
 
-    private void reveal() {
+    /** Fades the content in; a real backdrop also fades a black stage in under it and rests the wallpaper. */
+    private void reveal(boolean onStage) {
         int ms = SettingsModel.duration(animations, reducedMotion, 240);
-        veil.animate().cancel();
+        stage.animate().cancel();
         content.animate().cancel();
         content.setVisibility(View.VISIBLE);
+        wall.setRotating(!onStage);
+        float stageAlpha = onStage ? 1f : 0f;
         if (ms == 0) {
-            veil.setAlpha(1f);
+            stage.setAlpha(stageAlpha);
             content.setAlpha(1f);
             return;
         }
-        veil.animate().alpha(1f).setDuration(ms).start();
+        stage.animate().alpha(stageAlpha).setDuration(ms).start();
         content.setAlpha(0f);
         content.animate().alpha(1f).setDuration(ms).start();
     }
 
-    /** Back to the dim wallpaper. Never while the Resume button or an up-next item has focus: that goes to the tile first. */
+    /** Back to the plain wallpaper. Never while the Resume button or an up-next item has focus: that goes to the tile first. */
     private void showRest(boolean fade) {
         cancelLeave();
         if (container.hasFocus()) host.focusTiles();
@@ -441,14 +505,15 @@ final class TopShelf {
         shownPkg = null;
         host.setTitleHidden(false);
         int ms = fade ? SettingsModel.duration(animations, reducedMotion, 320) : 0;
-        veil.animate().cancel();
+        stage.animate().cancel();
         content.animate().cancel();
+        wall.setRotating(true);
         if (ms == 0) {
-            veil.setAlpha(REST_VEIL);
+            stage.setAlpha(0f);
             clearContent();
             return;
         }
-        veil.animate().alpha(REST_VEIL).setDuration(ms).start();
+        stage.animate().alpha(0f).setDuration(ms).start();
         content.animate().alpha(0f).setDuration(ms).withEndAction(() -> {
             if (shown == TopShelfLogic.Content.REST) clearContent();
         }).start();
@@ -459,6 +524,7 @@ final class TopShelf {
         content.setVisibility(View.GONE);
         setArt(null);
         setThumbs(null);
+        nameIcon.setImageDrawable(null);
     }
 
     // ---- pictures: at most three held ---------------------------------------------------------------------------
@@ -489,43 +555,29 @@ final class TopShelf {
         if (b != null && !b.isRecycled()) b.recycle();
     }
 
-    /**
-     * The app's own artwork, drawn small and stretched by the view: a banner covers a 320x180 picture, an icon sits
-     * to the right on a dark plate lit in the app's colour. The stretch is the softness; no blur is run.
-     */
-    private Bitmap makeArtwork(Drawable live, int color) {
-        if (live == null) return null;
-        Drawable d = live.getConstantState() != null ? live.getConstantState().newDrawable().mutate() : live;
-        Rect saved = new Rect(d.getBounds());
-        Bitmap b = Bitmap.createBitmap(ART_W, ART_H, Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(b);
-        c.drawColor(0xFF101114);
-        Paint glow = new Paint(Paint.ANTI_ALIAS_FLAG);
-        glow.setShader(new RadialGradient(ART_W * 0.7f, ART_H * 0.35f, ART_W * 0.55f,
-                (color & 0xFFFFFF) | 0x73000000, color & 0xFFFFFF, Shader.TileMode.CLAMP));
-        c.drawRect(0, 0, ART_W, ART_H, glow);
-        int w = d.getIntrinsicWidth(), h = d.getIntrinsicHeight();
-        if (w > 0 && h > 0 && w >= h * 1.4f) {
-            float scale = Math.max(ART_W / (float) w, ART_H / (float) h);
-            int dw = Math.round(w * scale), dh = Math.round(h * scale);
-            d.setBounds((ART_W - dw) / 2, (ART_H - dh) / 2, (ART_W + dw) / 2, (ART_H + dh) / 2);
-        } else {
-            int size = 110;
-            int left = Math.round(ART_W * 0.7f) - size / 2, top = Math.round(ART_H * 0.35f) - size / 2;
-            d.setBounds(left, top, left + size, top + size);
-        }
-        d.draw(c);
-        d.setBounds(saved);
-        return b;
-    }
-
     // ---- views ---------------------------------------------------------------------------------------------------
 
-    private Drawable scrimDrawable() {
+    /** Over the wallpaper at rest: just enough dark at the top (clock) and the bottom (dock) to read the type there. */
+    private Drawable lightVeil() {
+        return new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[] {0x4D000000, 0x14000000, 0x14000000, 0x73000000});
+    }
+
+    /** Behind a real backdrop: the strong shading the picture was always given. */
+    private Drawable scrimOnBackdrop() {
         GradientDrawable side = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
                 new int[] {0xEB000000, 0x99000000, 0x00000000});
         GradientDrawable vertical = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[] {0x99000000, 0x26000000, 0x26000000, 0xFF000000});
+        return new LayerDrawable(new Drawable[] {side, vertical});
+    }
+
+    /** Behind type on the wallpaper: a soft shade from the left and the bottom, so the picture stays bright. */
+    private Drawable scrimOnWallpaper() {
+        GradientDrawable side = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                new int[] {0x8C000000, 0x40000000, 0x00000000});
+        GradientDrawable vertical = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[] {0x00000000, 0x00000000, 0x4D000000});
         return new LayerDrawable(new Drawable[] {side, vertical});
     }
 

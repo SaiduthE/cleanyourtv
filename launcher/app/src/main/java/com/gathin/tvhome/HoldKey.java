@@ -7,14 +7,28 @@ package com.gathin.tvhome;
  */
 final class HoldKey {
 
-    /** How long OK must stay down before it counts as a hold: the platform's default long-press timeout. */
+    /** The platform's default long-press timeout, used when none is given (the activity passes the real one). */
     static final long HOLD_MS = 500;
 
     /** What a key-up means. */
     enum Up { NONE, CLICK, CONSUMED }
 
+    private final long holdMs;
     private long downAt = -1;
     private boolean fired;
+
+    HoldKey() {
+        this(HOLD_MS);
+    }
+
+    /** @param holdMs how long OK must stay down before it counts as a hold */
+    HoldKey(long holdMs) {
+        this.holdMs = holdMs;
+    }
+
+    long holdMs() {
+        return holdMs;
+    }
 
     /** DPAD_CENTER (23), ENTER (66) and NUMPAD_ENTER (160). */
     static boolean isHoldKey(int keyCode) {
@@ -35,7 +49,7 @@ final class HoldKey {
 
     /** True once, the first time the hold is long enough. */
     boolean due(long now) {
-        if (downAt < 0 || fired || now - downAt < HOLD_MS) return false;
+        if (downAt < 0 || fired || now - downAt < holdMs) return false;
         fired = true;
         return true;
     }

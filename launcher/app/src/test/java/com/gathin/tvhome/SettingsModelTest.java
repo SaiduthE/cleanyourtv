@@ -54,7 +54,7 @@ public class SettingsModelTest {
 
     @Test public void labelsAndLookups() {
         assertArrayEquals(new String[] {"100%", "70%", "50%", "30%"},
-                SettingsModel.percentLabels(SettingsModel.DOCK_OPACITIES));
+                SettingsModel.percentLabels(DockOpacity.OLD_PRESETS));
         assertArrayEquals(new String[] {"4", "5", "6", "7"}, SettingsModel.numberLabels(SettingsModel.COLUMNS));
         assertEquals(2, SettingsModel.indexOf(SettingsModel.COLUMNS, 6));
         assertEquals(-1, SettingsModel.indexOf(SettingsModel.COLUMNS, 9));

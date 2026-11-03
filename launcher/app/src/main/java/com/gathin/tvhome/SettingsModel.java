@@ -26,7 +26,6 @@ final class SettingsModel {
 
     static final int[] COLUMNS = {4, 5, 6, 7};
     static final int[] ROWS_BELOW_DOCK = {0, 1, 2, 3};
-    static final int[] DOCK_OPACITIES = {100, 70, 50, 30};
     static final String[] CLOCK_FORMATS = {"system", "12", "24"};
 
     /**
@@ -145,7 +144,7 @@ final class SettingsModel {
 
     /** The lists Android's compatibility RTL mode would leave left-to-right: they run reversed under rtl_app_grid. */
     static boolean reversesInRtl(Row row) {
-        return row == Row.COLUMNS || row == Row.ROWS_BELOW_DOCK || row == Row.DOCK_OPACITY || row == Row.CLOCK;
+        return row == Row.COLUMNS || row == Row.ROWS_BELOW_DOCK || row == Row.CLOCK;
     }
 
     /** Which option sits at each position of a list of n: 0..n-1, or n-1..0 when reversed. */

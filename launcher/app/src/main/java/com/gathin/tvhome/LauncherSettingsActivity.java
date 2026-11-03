@@ -84,6 +84,8 @@ public final class LauncherSettingsActivity extends Activity {
     private SettingRowView holdRow;
     private HoldTip tip;
     private OptionPopup popup;
+    /** The slider popup (dock band opacity) while it is open; it takes every key. */
+    private SliderPopup slider;
     private WidgetsFlow widgetsFlow;
     /** Keys whose down was used up (closing a popup): their repeats and up are ignored. */
     private final Set<Integer> swallowUp = new HashSet<>();
@@ -447,12 +449,7 @@ public final class LauncherSettingsActivity extends Activity {
                         });
                 break;
             case DOCK_OPACITY:
-                options(row, view, SettingsModel.percentLabels(SettingsModel.DOCK_OPACITIES),
-                        SettingsModel.indexOf(SettingsModel.DOCK_OPACITIES, dockOpacity), i -> {
-                            dockOpacity = SettingsModel.DOCK_OPACITIES[i];
-                            choices.edit().putInt(Config.DOCK_OPACITY_KEY, dockOpacity).apply();
-                            committed(row);
-                        });
+                dockOpacitySlider(row, view);
                 break;
             case CLOCK:
                 options(row, view, new String[] {getString(R.string.clock_format_system),
@@ -629,6 +626,25 @@ public final class LauncherSettingsActivity extends Activity {
             if (isCurrent) focus = i;
         }
         p.show(list, focus, position -> pick.accept(order[position]), null);
+    }
+
+    /**
+     * The dock band opacity as a slider. Home is a different activity behind this panel and cannot redraw while the
+     * panel is on top, so the live preview is a swatch of the band in the popup; OK saves, Back keeps the old value.
+     */
+    private void dockOpacitySlider(Row row, SettingRowView view) {
+        cancelHold();
+        DockBandSwatch swatch = new DockBandSwatch(this, config.cinematicHome, config.dockGlass, dockOpacity);
+        slider = new SliderPopup(this, root, card, view, getString(R.string.dock_opacity_label), DockOpacity.MIN,
+                DockOpacity.MAX, DockOpacity.STEP, dockOpacity, rtl, anim(140), SettingsModel::percent)
+                .preview(swatch, 76)
+                .hint(getString(R.string.ls_slider_hint))
+                .onChange(swatch::setPercent);
+        slider.show(list, percent -> {
+            dockOpacity = percent;
+            choices.edit().putInt(Config.DOCK_OPACITY_KEY, dockOpacity).apply();
+            committed(row);
+        }, null);
     }
 
     private OptionPopup newPopup(SettingRowView view, int widthDp, int itemDp) {
@@ -890,6 +906,14 @@ public final class LauncherSettingsActivity extends Activity {
         }
         // The Widgets manager's screens are on top of the panel and take the arrows, OK and Back while open.
         if (widgetsFlow != null && widgetsFlow.dispatchKey(event)) return true;
+        if (slider != null && slider.isShowing()) {
+            // OK and Back act on the press; their release must not reach the row underneath.
+            if (down && event.getRepeatCount() == 0 && (code == KeyEvent.KEYCODE_BACK || code == KeyEvent.KEYCODE_ESCAPE
+                    || code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER)) {
+                swallowUp.add(code);
+            }
+            return slider.handleKey(event);
+        }
         if (popup != null && popup.isShowing()) return popupKey(event, code, down);
         if (HoldKey.isHoldKey(code)) {
             if (holdKey(event, down)) return true;

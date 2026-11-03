@@ -17,7 +17,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
-import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -38,8 +37,7 @@ import com.gathin.tvhome.SettingsModel.Row;
 
 /**
  * Remote-friendly settings owned by the launcher, as a card on the right over a dimmed Home: four groups of compact
- * rows (label left, value right). OK opens a small list over the row with the current choice ticked; holding OK shows
- * what the row does. System settings stay one row away. Colours come from {@link PanelTheme}, so the card follows
+ * rows (label left, value right). OK opens a small list over the row with the current choice ticked. System settings stay one row away. Colours come from {@link PanelTheme}, so the card follows
  * the active style.
  */
 public final class LauncherSettingsActivity extends Activity {
@@ -50,10 +48,9 @@ public final class LauncherSettingsActivity extends Activity {
 
     static final String EXTRA_REORDER = "com.gathin.tvhome.extra.REORDER_FROM_SETTINGS";
     static final String EXTRA_EDIT_DOCK = "com.gathin.tvhome.extra.EDIT_DOCK_FROM_SETTINGS";
-    /** Set after the first hold-OK help, so the footer hint goes away for good. */
-    private static final String HINT_SEEN_KEY = "hint_hold_seen";
     private static final int CARD_WIDTH_DP = 326;
-    private static final long TIP_SHOWN_MS = 6000;
+    /** One length for the highlight fade and the list glide, so they move together. */
+    private static final int MOVE_MS = 180;
 
     /** The row focused last, kept while the process lives. */
     private static Row lastRow;
@@ -71,36 +68,20 @@ public final class LauncherSettingsActivity extends Activity {
 
     private FrameLayout root;
     private FrameLayout card;
-    private ScrollView list;
-    private TextView footer;
+    private GlideScrollView list;
     private final Map<Row, SettingRowView> views = new EnumMap<>(Row.class);
-    private final List<View> headers = new ArrayList<>();
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final HoldKey hold = new HoldKey();
     private SettingRowView holdRow;
     private OptionPopup popup;
-    private HoldTooltip tooltip;
-    /** Keys whose down was used up (closing a popup or a tooltip): their repeats and up are ignored. */
+    /** Keys whose down was used up (closing a popup): their repeats and up are ignored. */
     private final Set<Integer> swallowUp = new HashSet<>();
     private boolean closing;
 
-    private final Runnable holdTick = new Runnable() {
-        @Override
-        public void run() {
-            if (!hold.tracking() || holdRow == null) return;
-            long now = SystemClock.uptimeMillis();
-            holdRow.setHoldProgress(hold.progress(now));
-            if (hold.due(now)) {
-                holdRow.setPressed(false);
-                showHelp(rowOf(holdRow), holdRow);
-                return;
-            }
-            handler.postDelayed(this, 16);
-        }
-    };
-    private final Runnable tipClose = () -> {
-        if (tooltip != null) tooltip.dismiss(anim(100));
+    /** The default long-press time passed with OK still down: it is a hold, so the release will not click. */
+    private final Runnable holdDue = () -> {
+        if (hold.tracking() && holdRow != null && hold.due(SystemClock.uptimeMillis())) holdRow.setPressed(false);
     };
 
     @Override
@@ -223,10 +204,9 @@ public final class LauncherSettingsActivity extends Activity {
             if (inGroup.isEmpty()) continue;
             TextView header = PanelRows.header(this, groupLabel(group));
             rows.addView(header);
-            headers.add(header);
             for (Row row : inGroup) {
                 SettingRowView view = new SettingRowView(this, label(row),
-                        true, anim(120));
+                        true, anim(MOVE_MS));
                 view.setTag(row);
                 view.setLayoutParams(PanelRows.rowParams(this));
                 view.setOnClickListener(v -> activate(row, (SettingRowView) v));
@@ -238,7 +218,8 @@ public final class LauncherSettingsActivity extends Activity {
             }
         }
 
-        list = new ScrollView(this);
+        list = new GlideScrollView(this);
+        list.setDurationMs(anim(MOVE_MS));
         list.setFillViewport(false);
         list.setVerticalScrollBarEnabled(false);
         // Feather the top and bottom: rows dissolve into the card's edge instead of being cut off.
@@ -250,21 +231,8 @@ public final class LauncherSettingsActivity extends Activity {
         FrameLayout.LayoutParams listParams = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT);
         listParams.setMargins(PanelRows.dp(this, 12), PanelRows.dp(this, 58), PanelRows.dp(this, 12),
-                PanelRows.dp(this, 34));
+                PanelRows.dp(this, 12));
         card.addView(list, listParams);
-
-        footer = new TextView(this);
-        footer.setText(R.string.ls_footer_hint);
-        footer.setTextSize(12);
-        footer.setTextColor(0x5CFFFFFF);
-        footer.setTypeface(UiFont.get(this, R.string.font_regular));
-        footer.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
-        footer.setPaddingRelative(PanelRows.dp(this, 28), 0, PanelRows.dp(this, 12), 0);
-        footer.setVisibility(choices.getBoolean(HINT_SEEN_KEY, false) ? View.GONE : View.VISIBLE);
-        card.addView(footer, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                PanelRows.dp(this, 34), Gravity.BOTTOM));
-
-        tooltip = new HoldTooltip(this, root, card);
     }
 
     /** The theme's name for the top right of the card, or empty. */
@@ -296,15 +264,7 @@ public final class LauncherSettingsActivity extends Activity {
     }
 
     private void onRowFocused(Row row, View view) {
-        lastRow = row;
-        // Reveal the group name above the first row of a group when it scrolls into place.
-        int index = ((ViewGroup) view.getParent()).indexOfChild(view);
-        if (index > 0) {
-            View before = ((ViewGroup) view.getParent()).getChildAt(index - 1);
-            if (headers.contains(before) && list.getScrollY() > before.getTop()) {
-                list.smoothScrollTo(0, before.getTop());
-            }
-        }
+        lastRow = row;   // the list follows the focus by itself (GlideScrollView)
     }
 
     // ---- rows: labels, values, help -----------------------------------------------------------------------------
@@ -595,7 +555,6 @@ public final class LauncherSettingsActivity extends Activity {
 
     private OptionPopup newPopup(SettingRowView view, int widthDp, int itemDp) {
         cancelHold();
-        tooltip.dismiss(0);
         popup = new OptionPopup(this, root, card, view, widthDp, itemDp, anim(140));
         return popup;
     }
@@ -728,23 +687,16 @@ public final class LauncherSettingsActivity extends Activity {
         }
     }
 
-    // ---- hold OK: the explanation -------------------------------------------------------------------------------
+    // ---- a row that is switched off: say why --------------------------------------------------------------------
 
     private void showHelp(Row row, SettingRowView view) {
-        tooltip.show(view, label(row), help(row), anim(120));
-        if (!choices.getBoolean(HINT_SEEN_KEY, false)) {
-            choices.edit().putBoolean(HINT_SEEN_KEY, true).apply();
-            footer.setVisibility(View.GONE);
-        }
-        handler.removeCallbacks(tipClose);
-        handler.postDelayed(tipClose, TIP_SHOWN_MS);
+        Toast.makeText(this, help(row), Toast.LENGTH_LONG).show();
     }
 
     private void cancelHold() {
-        handler.removeCallbacks(holdTick);
+        handler.removeCallbacks(holdDue);
         hold.cancel();
         if (holdRow != null) {
-            holdRow.setHoldProgress(0f);
             holdRow.setPressed(false);
             holdRow = null;
         }
@@ -752,8 +704,7 @@ public final class LauncherSettingsActivity extends Activity {
 
     /**
      * Keys. A popup takes Back, Left/Right (close) and Up/Down (no wrap). Otherwise OK is watched for a hold: a short
-     * press clicks the row on release, a long one shows its explanation and the release is swallowed. Any key
-     * closes a showing tooltip and is used up by that.
+     * press clicks the row on release, a long one does nothing and its release is swallowed.
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
@@ -764,13 +715,6 @@ public final class LauncherSettingsActivity extends Activity {
             return true;
         }
         if (popup != null && popup.isShowing()) return popupKey(event, code, down);
-        if (tooltip != null && tooltip.isShowing() && down
-                && !(HoldKey.isHoldKey(code) && hold.tracking())) {
-            handler.removeCallbacks(tipClose);
-            tooltip.dismiss(anim(100));
-            swallowUp.add(code);
-            return true;
-        }
         if (HoldKey.isHoldKey(code)) {
             if (holdKey(event, down)) return true;
         } else if (down) {
@@ -814,25 +758,20 @@ public final class LauncherSettingsActivity extends Activity {
             if (hold.down(SystemClock.uptimeMillis(), event.getRepeatCount())) {
                 holdRow = (SettingRowView) focused;
                 holdRow.setPressed(true);
-                handler.post(holdTick);
+                handler.postDelayed(holdDue, HoldKey.HOLD_MS);
             }
             return true;
         }
         SettingRowView row = holdRow;
         HoldKey.Up up = hold.up();
-        handler.removeCallbacks(holdTick);
+        handler.removeCallbacks(holdDue);
         holdRow = null;
-        if (row != null) {
-            row.setHoldProgress(0f);
-            row.setPressed(false);
-        }
+        if (row != null) row.setPressed(false);
         switch (up) {
             case CLICK:
                 if (row != null) row.performClick();
                 return true;
             case CONSUMED:
-                handler.removeCallbacks(tipClose);
-                handler.postDelayed(tipClose, TIP_SHOWN_MS);
                 return true;
             default:
                 return false;

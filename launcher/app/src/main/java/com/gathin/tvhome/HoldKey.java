@@ -7,8 +7,8 @@ package com.gathin.tvhome;
  */
 final class HoldKey {
 
-    /** How long OK must stay down before it counts as a hold. */
-    static final long HOLD_MS = 550;
+    /** How long OK must stay down before it counts as a hold: the platform's default long-press timeout. */
+    static final long HOLD_MS = 500;
 
     /** What a key-up means. */
     enum Up { NONE, CLICK, CONSUMED }
@@ -31,12 +31,6 @@ final class HoldKey {
 
     boolean tracking() {
         return downAt >= 0;
-    }
-
-    /** 0 to 1 over {@link #HOLD_MS}; 0 when nothing is held. */
-    float progress(long now) {
-        if (downAt < 0) return 0f;
-        return Math.max(0f, Math.min(1f, (now - downAt) / (float) HOLD_MS));
     }
 
     /** True once, the first time the hold is long enough. */

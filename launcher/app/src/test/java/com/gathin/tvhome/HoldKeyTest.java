@@ -25,14 +25,14 @@ public class HoldKeyTest {
         assertEquals(HoldKey.Up.CONSUMED, k.up());
     }
 
-    @Test public void progressRunsFromZeroToOne() {
+    @Test public void cancelForgetsTheHold() {
         HoldKey k = new HoldKey();
-        assertEquals(0f, k.progress(5), 0f);
-        k.down(1000, 0);
-        assertEquals(0.5f, k.progress(1000 + HoldKey.HOLD_MS / 2), 0.01f);
-        assertEquals(1f, k.progress(9999), 0f);
+        assertTrue(k.down(1000, 0));
+        assertTrue(k.tracking());
         k.cancel();
         assertFalse(k.tracking());
+        assertFalse(k.due(9999));
+        assertEquals(HoldKey.Up.NONE, k.up());
     }
 
     @Test public void holdKeys() {

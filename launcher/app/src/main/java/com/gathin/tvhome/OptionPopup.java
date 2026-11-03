@@ -40,6 +40,7 @@ final class OptionPopup {
     static final int MAX_VISIBLE = 7;
     private static final int PAD_DP = 6;
     private static final int INSET_DP = 12;
+    private static final int POPUP_ELEVATION_DP = 28;
 
     private final Context ctx;
     private final FrameLayout host;
@@ -82,7 +83,9 @@ final class OptionPopup {
         box = new LinearLayout(ctx);
         box.setOrientation(LinearLayout.VERTICAL);
         box.setBackground(PanelRows.popupBackground(ctx, PanelRows.POPUP_RADIUS_DP));
-        box.setElevation(PanelRows.dp(ctx, 12));
+        // Views draw in order of elevation, not of position: this must stay above the card's 16 dp, or the card (and
+        // its dimmed list) is drawn over the popup and the popup looks faded and underneath.
+        box.setElevation(PanelRows.dp(ctx, POPUP_ELEVATION_DP));
         int pad = PanelRows.dp(ctx, PAD_DP);
         box.setPadding(pad, pad, pad, pad);
         items = new LinearLayout(ctx);

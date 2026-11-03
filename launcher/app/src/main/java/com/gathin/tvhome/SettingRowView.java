@@ -3,9 +3,6 @@ package com.gathin.tvhome;
 import android.animation.ArgbEvaluator;
 import android.animation.ValueAnimator;
 import android.content.Context;
-import android.graphics.Canvas;
-import android.graphics.Paint;
-import android.graphics.RectF;
 import android.graphics.drawable.Drawable;
 import android.text.TextUtils;
 import android.view.Gravity;
@@ -15,8 +12,8 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 /**
- * One 44 dp settings row: the label on the left; the value, an optional swatch and a chevron on the right; a thin
- * hold bar along the bottom that fills while OK is held. The slab behind it comes from {@link PanelRows}.
+ * One 44 dp settings row: the label on the left; the value, an optional swatch and a chevron on the right. The slab
+ * behind it comes from {@link PanelRows}.
  */
 final class SettingRowView extends LinearLayout {
 
@@ -26,10 +23,6 @@ final class SettingRowView extends LinearLayout {
     private final TextView chevron;
     private final View swatch;
     private ImageView icon;
-    private final Paint track = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint fill = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final RectF bar = new RectF();
-    private float holdProgress;
     private ValueAnimator flash;
 
     SettingRowView(Context ctx, String labelText, boolean chevronShown, int fadeMs) {
@@ -65,7 +58,6 @@ final class SettingRowView extends LinearLayout {
         chevronParams.setMarginStart(PanelRows.dp(ctx, 6));
         addView(chevron, chevronParams);
 
-        track.setColor(0x1FFFFFFF);
         applyColors();
     }
 
@@ -109,11 +101,6 @@ final class SettingRowView extends LinearLayout {
         setAlpha(dimmed ? 0.38f : 1f);
     }
 
-    void setHoldProgress(float progress) {
-        holdProgress = Math.max(0f, Math.min(1f, progress));
-        invalidate();
-    }
-
     /** The value changed: its colour pulses to the accent and back over 200 ms. */
     void flashValue(boolean animate) {
         if (flash != null) flash.cancel();
@@ -135,21 +122,5 @@ final class SettingRowView extends LinearLayout {
         boolean focused = isFocused();
         label.setTextColor(focused ? PanelRows.TEXT_FOCUSED : PanelRows.TEXT_ROW);
         value.setTextColor(focused ? PanelRows.VALUE_FOCUSED : theme.valueText);
-    }
-
-    @Override
-    protected void dispatchDraw(Canvas canvas) {
-        super.dispatchDraw(canvas);
-        if (holdProgress <= 0f) return;
-        float d = getResources().getDisplayMetrics().density;
-        float left = 14 * d;
-        float right = getWidth() - 14 * d;
-        float bottom = getHeight() - 5 * d;
-        float radius = d;
-        bar.set(left, bottom - 2 * d, right, bottom);
-        canvas.drawRoundRect(bar, radius, radius, track);
-        fill.setColor(theme.accent);
-        bar.right = left + (right - left) * holdProgress;
-        canvas.drawRoundRect(bar, radius, radius, fill);
     }
 }

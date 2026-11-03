@@ -49,7 +49,6 @@ public final class LauncherSettingsActivity extends Activity {
 
     static final String EXTRA_REORDER = "com.gathin.tvhome.extra.REORDER_FROM_SETTINGS";
     static final String EXTRA_EDIT_DOCK = "com.gathin.tvhome.extra.EDIT_DOCK_FROM_SETTINGS";
-    static final String EXTRA_WIDGETS = "com.gathin.tvhome.extra.WIDGETS_FROM_SETTINGS";
     private static final int CARD_WIDTH_DP = 326;
     /** One length for the highlight fade and the list glide, so they move together. */
     private static final int MOVE_MS = 180;
@@ -78,6 +77,7 @@ public final class LauncherSettingsActivity extends Activity {
     private SettingRowView holdRow;
     private HoldTip tip;
     private OptionPopup popup;
+    private WidgetsFlow widgetsFlow;
     /** Keys whose down was used up (closing a popup): their repeats and up are ignored. */
     private final Set<Integer> swallowUp = new HashSet<>();
     private boolean closing;
@@ -124,8 +124,7 @@ public final class LauncherSettingsActivity extends Activity {
 
     @Override
     protected void onPause() {
-        cancelHold();
-        super.onPause();
+        cancelHold();        super.onPause();
     }
 
     @Override
@@ -476,9 +475,9 @@ public final class LauncherSettingsActivity extends Activity {
                 open(new Intent(this, RemoteKeysActivity.class));
                 break;
             case WIDGETS:
-                // Home opens the Widgets manager over itself: the slots are on its own screen.
-                setResult(RESULT_OK, new Intent().putExtra(EXTRA_WIDGETS, true));
-                finish();
+                // The Widgets manager opens over this panel, which stays open (dimmed) underneath.
+                cancelHold();
+                widgetsFlow().open();
                 break;
             case REORDER:
                 setResult(RESULT_OK, new Intent().putExtra(EXTRA_REORDER, true));
@@ -721,6 +720,8 @@ public final class LauncherSettingsActivity extends Activity {
         if (down && tip != null && tip.isShowing() && !(HoldKey.isHoldKey(code) && event.getRepeatCount() > 0)) {
             hideTip(true);
         }
+        // The Widgets manager's screens are on top of the panel and take the arrows, OK and Back while open.
+        if (widgetsFlow != null && widgetsFlow.dispatchKey(event)) return true;
         if (popup != null && popup.isShowing()) return popupKey(event, code, down);
         if (HoldKey.isHoldKey(code)) {
             if (holdKey(event, down)) return true;
@@ -734,6 +735,16 @@ public final class LauncherSettingsActivity extends Activity {
             }
         }
         return super.dispatchKeyEvent(event);
+    }
+
+    /** The Widgets manager for this opening of the Widgets row (it reads the current choices). */
+    private WidgetsFlow widgetsFlow() {
+        widgetsFlow = new WidgetsFlow(this, root, config, this::changed, () -> {
+            updateRows();   // the Widgets row says how many are on Home
+            SettingRowView row = views.get(Row.WIDGETS);
+            if (row != null) row.flashValue(anim(200) > 0);
+        });
+        return widgetsFlow;
     }
 
     private boolean popupKey(KeyEvent event, int code, boolean down) {

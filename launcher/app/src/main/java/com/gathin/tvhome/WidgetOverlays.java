@@ -29,9 +29,10 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * The Widgets manager's screens, all drawn over the real Home in the style of the settings panels (the panel
- * colours, fonts and focus slabs) and always opaque and on top: the grid of widgets, the slot picker, a widget's
- * settings, and the brightness control. {@link HomeWidgets} keeps at most one open and sends it the keys.
+ * The Widgets manager's screens, in the style of the settings panels (the panel colours, fonts and focus slabs),
+ * always on top of whatever is behind them: the grid of widgets, the slot picker (over a preview of Home's header),
+ * a widget's settings, and, on Home, the brightness control. {@link WidgetsFlow} (inside Launcher settings) and
+ * {@link HomeWidgets} (on Home) each keep at most one open and send it the keys.
  */
 final class WidgetOverlays {
 
@@ -70,16 +71,27 @@ final class WidgetOverlays {
         }
     }
 
+    /** What every screen needs of whoever shows it: the activity, the motion settings, and a way to close. */
+    interface Host {
+        Activity activity();
+
+        boolean animations();
+
+        boolean reducedMotion();
+
+        void closeOverlay();
+    }
+
     // ---- the base ------------------------------------------------------------------------------------------------
 
     /** One open screen: a full-screen layer that takes the arrows, OK and Back, and passes every other key on. */
     abstract static class Overlay {
-        final HomeWidgets host;
+        final Host host;
         final Activity activity;
         private final FrameLayout layer;
         private final Set<Integer> pressed = new HashSet<>();
 
-        Overlay(HomeWidgets host, int scrim) {
+        Overlay(Host host, int scrim) {
             this.host = host;
             this.activity = host.activity();
             layer = new FrameLayout(activity);
@@ -142,14 +154,16 @@ final class WidgetOverlays {
     // ---- the grid of widgets -------------------------------------------------------------------------------------
 
     static final class Grid extends Overlay {
+        private final WidgetsFlow flow;
         private static final int COLUMNS = 3;
         private static final int TILE_W = 150, TILE_H = 116, GAP = 8, MAX_ROWS = 3;
         private final List<WidgetDef> defs = new ArrayList<>(WidgetRegistry.all());
         private final List<View> tiles = new ArrayList<>();
         private int selected;
 
-        Grid(HomeWidgets host) {
-            super(host, 0xB3000000);
+        Grid(WidgetsFlow flow) {
+            super(flow, 0xB3000000);
+            this.flow = flow;
             Context ctx = activity;
             LinearLayout box = card(ctx);
             box.addView(text(ctx, ctx.getString(R.string.widgets_title), 22, 0xFFFFFFFF, R.string.font_medium));
@@ -200,7 +214,7 @@ final class WidgetOverlays {
             tile.setPadding(dp(ctx, 8), dp(ctx, 8), dp(ctx, 8), dp(ctx, 8));
             tile.setBackground(PanelRows.slabBackground(ctx, 16, TILE_H, anim(120)));
             boolean available = def.availability.available(ctx);
-            WidgetSlot slot = host.placements().slotOf(def.id);
+            WidgetSlot slot = flow.placements().slotOf(def.id);
             tile.setAlpha(available || slot != null ? 1f : 0.55f);
 
             ImageView icon = new ImageView(ctx);
@@ -242,21 +256,22 @@ final class WidgetOverlays {
             if (selected < 0 || selected >= defs.size()) return;
             WidgetDef def = defs.get(selected);
             // A missing source is said plainly, and nothing is placed; one already on Home can still be moved or removed.
-            if (!def.availability.available(activity) && host.placements().slotOf(def.id) == null) {
-                host.toast(def.unavailableRes);
+            if (!def.availability.available(activity) && flow.placements().slotOf(def.id) == null) {
+                flow.toast(def.unavailableRes);
                 return;
             }
-            host.openSlots(def);
+            flow.openSlots(def);
         }
     }
 
-    // ---- the slot picker, over the real Home ---------------------------------------------------------------------
+    // ---- the slot picker, over a preview of Home's header ---------------------------------------------------------------------
 
     static final class Slots extends Overlay {
+        private final WidgetsFlow flow;
         private final WidgetDef def;
         private final List<WidgetSlot> order = new ArrayList<>();
         private final Map<WidgetSlot, View> outlines = new EnumMap<>(WidgetSlot.class);
-        private final Map<WidgetSlot, View> targets = new EnumMap<>(WidgetSlot.class);
+        private final HomePreview preview;
         private final Map<WidgetSlot, TextView> captions = new EnumMap<>(WidgetSlot.class);
         private final TextView status;
         private final View remove;
@@ -264,14 +279,20 @@ final class WidgetOverlays {
         private int lastSlot;
         private ViewTreeObserver.OnGlobalLayoutListener layout;
 
-        Slots(HomeWidgets host, WidgetDef def) {
-            super(host, 0x99000000);
+        Slots(WidgetsFlow flow, WidgetDef def) {
+            super(flow, 0x99000000);
+            this.flow = flow;
             this.def = def;
             Context ctx = activity;
-            WidgetSlot current = host.placements().slotOf(def.id);
+            WidgetSlot current = flow.placements().slotOf(def.id);
             for (WidgetSlot slot : WidgetSlot.values()) {
-                if (!def.supports(slot) || !host.slotAvailable(slot)) continue;
-                order.add(slot);
+                if (def.supports(slot) && flow.slotAvailable(slot)) order.add(slot);
+            }
+            // Home's header drawn to size, with the slots where the real Home has them.
+            preview = new HomePreview(ctx, flow.config(), flow.placements(), flow::slotAvailable, order);
+            layer().addView(preview, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP));
+            for (WidgetSlot slot : order) {
                 View outline = new View(ctx);
                 outline.setFocusable(true);
                 outline.setClickable(true);
@@ -287,13 +308,13 @@ final class WidgetOverlays {
                 captions.put(slot, caption);
                 layer().addView(caption, new FrameLayout.LayoutParams(dp(ctx, 190),
                         ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP | Gravity.LEFT));
-                WidgetPlacements.Result r = host.placements().check(def.id, slot, WidgetRegistry.RULES);
+                WidgetPlacements.Result r = flow.placements().check(def.id, slot, WidgetRegistry.RULES);
                 if (r == WidgetPlacements.Result.OCCUPIED) outline.setAlpha(0.5f);
             }
             if (current != null && order.contains(current)) selected = order.indexOf(current);
             else {
                 for (int i = 0; i < order.size(); i++) {
-                    if (host.placements().widgetIn(order.get(i)) == null) { selected = i; break; }
+                    if (flow.placements().widgetIn(order.get(i)) == null) { selected = i; break; }
                 }
             }
             lastSlot = selected;
@@ -351,12 +372,12 @@ final class WidgetOverlays {
         private String caption(WidgetSlot slot) {
             Context ctx = activity;
             String name = slotLabel(ctx, slot);
-            String occupant = host.placements().widgetIn(slot);
+            String occupant = flow.placements().widgetIn(slot);
             if (occupant == null) return name;
             WidgetDef other = WidgetRegistry.get(occupant);
             String otherName = other == null ? occupant : ctx.getString(other.labelRes);
             if (occupant.equals(def.id)) return name + " (" + ctx.getString(R.string.widget_slot_now) + ")";
-            WidgetPlacements.Result r = host.placements().check(def.id, slot, WidgetRegistry.RULES);
+            WidgetPlacements.Result r = flow.placements().check(def.id, slot, WidgetRegistry.RULES);
             return name + "\n" + ctx.getString(r == WidgetPlacements.Result.SWAPPED ? R.string.widget_slot_swap
                     : R.string.widget_slot_taken, otherName);
         }
@@ -364,34 +385,24 @@ final class WidgetOverlays {
         @Override
         void opened() {
             super.opened();
-            // Room for a widget in every slot that has none on screen, so the real layout shows where it would sit.
-            for (WidgetSlot slot : order) {
-                HomeWidget live = host.live(slot);
-                View shown = live == null ? null : live.shownView();
-                if (shown == null) {
-                    shown = host.mount(slot).beginPreview(slot == WidgetSlot.CLOCK_SIDE ? 220 : 132,
-                            slot == WidgetSlot.CLOCK_SIDE ? 52 : 42);
-                }
-                targets.put(slot, shown);
-            }
-            ViewTreeObserver observer = host.root().getViewTreeObserver();
+            ViewTreeObserver observer = layer().getViewTreeObserver();
             layout = () -> {
-                if (host.root().getViewTreeObserver().isAlive()) {
-                    host.root().getViewTreeObserver().removeOnGlobalLayoutListener(layout);
+                if (layer().getViewTreeObserver().isAlive()) {
+                    layer().getViewTreeObserver().removeOnGlobalLayoutListener(layout);
                 }
                 placeOutlines();
             };
             observer.addOnGlobalLayoutListener(layout);
-            host.root().requestLayout();
+            layer().requestLayout();
             focusSelected();
         }
 
         private void placeOutlines() {
-            int screenW = host.root().getWidth();
+            int screenW = layer().getWidth();
             for (WidgetSlot slot : order) {
-                View target = targets.get(slot);
+                View target = preview.slotView(slot);
                 if (target == null || target.getWidth() == 0) continue;
-                Rect r = WidgetMount.boundsIn(host.root(), target);
+                Rect r = WidgetMount.boundsIn(layer(), target);
                 int pad = dp(activity, 4);
                 View outline = outlines.get(slot);
                 FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) outline.getLayoutParams();
@@ -421,19 +432,11 @@ final class WidgetOverlays {
             }
         }
 
-        private void endPreviews() {
-            for (WidgetSlot slot : order) {
-                WidgetMount mount = host.mount(slot);
-                if (mount != null) mount.endPreview();
-            }
-        }
-
         @Override
         void closed() {
-            if (layout != null && host.root().getViewTreeObserver().isAlive()) {
-                host.root().getViewTreeObserver().removeOnGlobalLayoutListener(layout);
+            if (layout != null && layer().getViewTreeObserver().isAlive()) {
+                layer().getViewTreeObserver().removeOnGlobalLayoutListener(layout);
             }
-            endPreviews();
         }
 
         @Override
@@ -453,50 +456,51 @@ final class WidgetOverlays {
         void onOk() {
             Context ctx = activity;
             if (selected < 0) {
-                host.remove(def);
-                host.toast(ctx.getString(R.string.widget_removed, ctx.getString(def.labelRes)));
-                host.openManager();
+                flow.remove(def);
+                flow.toast(ctx.getString(R.string.widget_removed, ctx.getString(def.labelRes)));
+                flow.openManager();
                 return;
             }
             if (selected >= order.size()) return;
             WidgetSlot slot = order.get(selected);
-            WidgetPlacements.Result r = host.placements().check(def.id, slot, WidgetRegistry.RULES);
+            WidgetPlacements.Result r = flow.placements().check(def.id, slot, WidgetRegistry.RULES);
             if (r == WidgetPlacements.Result.OCCUPIED) {
                 // Refused, and said so: the occupant cannot move to where this widget is now.
-                String other = host.placements().widgetIn(slot);
+                String other = flow.placements().widgetIn(slot);
                 WidgetDef otherDef = WidgetRegistry.get(other);
                 String otherName = otherDef == null ? other : ctx.getString(otherDef.labelRes);
-                WidgetSlot mine = host.placements().slotOf(def.id);
+                WidgetSlot mine = flow.placements().slotOf(def.id);
                 status.setText(mine == null ? ctx.getString(R.string.widget_taken_none, otherName)
                         : ctx.getString(R.string.widget_taken_stuck, otherName, slotLabel(ctx, mine)));
                 return;
             }
             String swapped = null;
             if (r == WidgetPlacements.Result.SWAPPED) {
-                WidgetDef otherDef = WidgetRegistry.get(host.placements().widgetIn(slot));
+                WidgetDef otherDef = WidgetRegistry.get(flow.placements().widgetIn(slot));
                 swapped = otherDef == null ? null : ctx.getString(otherDef.labelRes);
             }
-            endPreviews();
-            host.place(def, slot);
-            if (swapped != null) host.toast(ctx.getString(R.string.widget_swapped, swapped));
-            host.openSettings(def);
+            flow.place(def, slot);
+            if (swapped != null) flow.toast(ctx.getString(R.string.widget_swapped, swapped));
+            flow.openSettings(def);
         }
 
         @Override
         void onBack() {
-            host.openManager();
+            flow.openManager();
         }
     }
 
     // ---- a widget's settings -------------------------------------------------------------------------------------
 
     static final class Settings extends Overlay {
+        private final WidgetsFlow flow;
         private final WidgetDef def;
         private final List<SettingRowView> rows = new ArrayList<>();
         private int selected;
 
-        Settings(HomeWidgets host, WidgetDef def) {
-            super(host, 0xB3000000);
+        Settings(WidgetsFlow flow, WidgetDef def) {
+            super(flow, 0xB3000000);
+            this.flow = flow;
             this.def = def;
             Context ctx = activity;
             LinearLayout box = card(ctx);
@@ -524,7 +528,7 @@ final class WidgetOverlays {
             for (int i = 0; i < def.options.size(); i++) {
                 WidgetOption option = def.options.get(i);
                 if (option.isAction()) continue;
-                rows.get(i).setValue(activity.getString(option.labelOf(host.store().option(def, option))));
+                rows.get(i).setValue(activity.getString(option.labelOf(flow.store().option(def, option))));
             }
         }
 
@@ -546,17 +550,17 @@ final class WidgetOverlays {
         }
 
         private void step(WidgetOption option, boolean forward) {
-            String now = host.store().option(def, option);
-            host.store().put(WidgetOption.storageKey(def.id, option.key), forward ? option.next(now) : option.previous(now));
+            String now = flow.store().option(def, option);
+            flow.store().put(WidgetOption.storageKey(def.id, option.key), forward ? option.next(now) : option.previous(now));
             refreshValues();
             rows.get(selected).flashValue(anim(200) > 0);
-            host.optionChanged(def);
+            flow.optionChanged();
         }
 
         @Override
         void onOk() {
             if (selected >= def.options.size()) {
-                host.openManager();
+                flow.openManager();
                 return;
             }
             WidgetOption option = def.options.get(selected);
@@ -566,7 +570,7 @@ final class WidgetOverlays {
 
         @Override
         void onBack() {
-            host.openManager();
+            flow.openManager();
         }
     }
 
@@ -581,7 +585,7 @@ final class WidgetOverlays {
         private boolean inFlight;
         private boolean closedAlready;
 
-        BrightnessQuick(HomeWidgets host, BrightnessWidget widget) {
+        BrightnessQuick(Host host, BrightnessWidget widget) {
             super(host, 0x00000000);
             this.widget = widget;
             Context ctx = activity;

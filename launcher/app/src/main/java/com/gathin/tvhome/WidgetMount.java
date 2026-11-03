@@ -48,6 +48,15 @@ final class WidgetMount {
     }
 
     /**
+     * Whether Home's header can host the slot with these layout choices (what {@link #create} decides on Home itself,
+     * known without Home: the Widgets manager inside Launcher settings asks before it draws its picture of the header).
+     */
+    static boolean slotAvailable(WidgetSlot slot, boolean rtlMenuBar, boolean dateBelowClock, boolean topMenu) {
+        if (rtlMenuBar) return false;
+        return slot == WidgetSlot.CLOCK_SIDE ? !dateBelowClock : !topMenu;
+    }
+
+    /**
      * The mount for a slot, or null when the layout cannot host it: the mirrored Hebrew header, the date moved
      * below the clock (date_below_clock), or the one-gear top menu for the top bar slots.
      */

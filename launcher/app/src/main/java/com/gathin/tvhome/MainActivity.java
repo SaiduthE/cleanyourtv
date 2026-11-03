@@ -1215,11 +1215,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         boolean editDock = data != null && data.getBooleanExtra(LauncherSettingsActivity.EXTRA_EDIT_DOCK, false);
-        boolean widgetsRequest = data != null && data.getBooleanExtra(LauncherSettingsActivity.EXTRA_WIDGETS, false);
         if (requestCode == LAUNCHER_SETTINGS_REQUEST && resultCode == RESULT_OK
-                && data != null && (editDock || widgetsRequest || data.getBooleanExtra(LauncherSettingsActivity.EXTRA_REORDER, false))) {
+                && data != null && (editDock || data.getBooleanExtra(LauncherSettingsActivity.EXTRA_REORDER, false))) {
             getIntent().putExtra(editDock ? LauncherSettingsActivity.EXTRA_EDIT_DOCK
-                    : widgetsRequest ? LauncherSettingsActivity.EXTRA_WIDGETS : LauncherSettingsActivity.EXTRA_REORDER, true);
+                    : LauncherSettingsActivity.EXTRA_REORDER, true);
             // The old activity must not consume the pending action, or rebuild a second time in onResume.
             settingsRecreationPending = true;
             settingsRevision = settingsRevision();
@@ -1229,16 +1228,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void startPendingSettingsReorder() {
         boolean dock = getIntent().getBooleanExtra(LauncherSettingsActivity.EXTRA_EDIT_DOCK, false);
-        boolean widgetsRequest = getIntent().getBooleanExtra(LauncherSettingsActivity.EXTRA_WIDGETS, false);
         if (settingsRecreationPending || !tilesReady || !hasWindowFocus() || isFinishing()
-                || !(dock || widgetsRequest || getIntent().getBooleanExtra(LauncherSettingsActivity.EXTRA_REORDER, false))) return;
+                || !(dock || getIntent().getBooleanExtra(LauncherSettingsActivity.EXTRA_REORDER, false))) return;
         getIntent().removeExtra(LauncherSettingsActivity.EXTRA_REORDER);
         getIntent().removeExtra(LauncherSettingsActivity.EXTRA_EDIT_DOCK);
-        getIntent().removeExtra(LauncherSettingsActivity.EXTRA_WIDGETS);
-        if (widgetsRequest) {
-            if (widgets != null) widgets.openManager();
-            return;
-        }
         if (dock) startDockEdit();
         else toggleReorder();
     }

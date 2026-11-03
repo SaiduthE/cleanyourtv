@@ -4,21 +4,19 @@ import android.app.Activity;
 import android.view.KeyEvent;
 import android.view.ViewGroup;
 import android.widget.FrameLayout;
-import android.widget.Toast;
 
 import java.util.EnumMap;
 import java.util.Map;
 
 /**
- * The widgets docked in Home's header, and the Widgets manager that arranges them. It builds each widget from the
- * saved placements (see {@link WidgetStore}), keeps the D-pad order across the header (clock row, then the top bar
- * with its widgets before and after the buttons), and owns the one overlay that can be open: the manager's grid, the
- * slot picker over the real Home, a widget's settings, or the brightness control.
+ * The widgets docked in Home's header. It builds each widget from the saved placements (see {@link WidgetStore}),
+ * keeps the D-pad order across the header (clock row, then the top bar with its widgets before and after the
+ * buttons), and owns the one overlay that can be open on Home: the brightness control. The Widgets manager that
+ * arranges the widgets lives in Launcher settings ({@link WidgetsFlow}); Home picks its choices up when it resumes.
  *
- * MainActivity creates it once, forwards resume, pause and key events, and opens the manager when Launcher settings
- * asks for it.
+ * MainActivity creates it once and forwards resume, pause and key events.
  */
-final class HomeWidgets {
+final class HomeWidgets implements WidgetOverlays.Host {
 
     /** What the widgets ask of Home for the keys they handle. */
     interface Nav {
@@ -59,20 +57,15 @@ final class HomeWidgets {
         rebuild();
     }
 
-    Activity activity() { return activity; }
+    @Override public Activity activity() { return activity; }
     FrameLayout root() { return root; }
     Nav nav() { return nav; }
     WidgetStore store() { return store; }
-    boolean animations() { return animations; }
-    boolean reducedMotion() { return reducedMotion; }
+    @Override public boolean animations() { return animations; }
+    @Override public boolean reducedMotion() { return reducedMotion; }
     WidgetPlacements placements() { return placements; }
     WidgetMount mount(WidgetSlot slot) { return mounts.get(slot); }
     HomeWidget live(WidgetSlot slot) { return live.get(slot); }
-
-    /** Whether the layout can host the slot right now (the mirrored Hebrew header and the one-gear menu cannot). */
-    boolean slotAvailable(WidgetSlot slot) {
-        return mounts.containsKey(slot);
-    }
 
     // ---- building ------------------------------------------------------------------------------------------------
 
@@ -145,58 +138,11 @@ final class HomeWidgets {
         return true;
     }
 
-    // ---- placing -------------------------------------------------------------------------------------------------
-
-    /** Moves a widget to a slot (or swaps) and applies it at once. */
-    WidgetPlacements.Result place(WidgetDef def, WidgetSlot slot) {
-        WidgetPlacements.Result result = placements.place(def.id, slot, WidgetRegistry.RULES);
-        if (result == WidgetPlacements.Result.PLACED || result == WidgetPlacements.Result.SWAPPED) {
-            store.save(placements);
-            rebuild();
-        }
-        return result;
-    }
-
-    void remove(WidgetDef def) {
-        placements.remove(def.id);
-        store.save(placements);
-        rebuild();
-    }
-
-    /** An option changed or an action ran: show the widget again. */
-    void optionChanged(WidgetDef def) {
-        WidgetSlot slot = placements.slotOf(def.id);
-        HomeWidget widget = slot == null ? null : live.get(slot);
-        if (widget != null) widget.refresh();
-    }
-
     // ---- overlays ------------------------------------------------------------------------------------------------
-
-    /** The manager's grid of widgets (Launcher settings, Widgets). */
-    void openManager() {
-        show(new WidgetOverlays.Grid(this));
-    }
-
-    void openSlots(WidgetDef def) {
-        show(new WidgetOverlays.Slots(this, def));
-    }
-
-    void openSettings(WidgetDef def) {
-        if (def.options.isEmpty()) openManager();
-        else show(new WidgetOverlays.Settings(this, def));
-    }
 
     /** OK on the brightness chip. */
     void openBrightnessControl(BrightnessWidget widget) {
         show(new WidgetOverlays.BrightnessQuick(this, widget));
-    }
-
-    void toast(int res) {
-        Toast.makeText(activity, res, Toast.LENGTH_SHORT).show();
-    }
-
-    void toast(String text) {
-        Toast.makeText(activity, text, Toast.LENGTH_SHORT).show();
     }
 
     void show(WidgetOverlays.Overlay next) {
@@ -209,7 +155,8 @@ final class HomeWidgets {
     }
 
     /** Closes whatever is open, leaving no trace on Home. */
-    void closeOverlay() {
+    @Override
+    public void closeOverlay() {
         close(true);
     }
 

@@ -229,6 +229,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private int vpnPillState = VpnBadge.PILL_HIDDEN;
     /** icon_only_vpn: the VPN pill is a round lock button; off, it keeps the plain glass look saved here. */
     private boolean iconOnlyVpn;
+    /** The top-bar buttons' icon / text / both styles (TopButtonStyler.load), and the VPN pill's. */
+    private Map<TopButtonStyle.Button, String> topStyles;
+    private String vpnStyle = TopButtonStyle.BOTH;
     private Drawable.ConstantState vpnPlainBackground;
     private ColorStateList vpnPlainInk;
     private SpringAnimation springX, springY;
@@ -921,7 +924,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             makeIconOnly((TextView) btnSettings);
         }
         if (cfg.iconOnlyInputs) makeIconOnly((TextView) btnInputs);
-        iconOnlyVpn = vpnPill && cfg.iconOnlyVpn;
+        topStyles = TopButtonStyler.load(this, cfg);
+        vpnStyle = topStyles.get(TopButtonStyle.Button.VPN);
+        iconOnlyVpn = vpnPill && TopButtonStyle.ICON.equals(vpnStyle);
         if (iconOnlyVpn) {
             vpnPlainBackground = btnVpn.getBackground().getConstantState();
             vpnPlainInk = btnVpn.getCompoundDrawableTintList();
@@ -974,6 +979,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         }
         if (festive) applyFestiveSkin((TextView) btnInputs, (TextView) btnSettings);
+        // Icon / text / both for Settings, Inputs, Discover and VPN (Launcher settings > Top bar buttons).
+        TopButtonStyler.applyBar(this, topStyles, festive, cfg.topMenu, cfg.launcherSettingsButton,
+                (TextView) btnSettings, (TextView) btnInputs, discover == null ? null : discover.button(), btnVpn);
 
         // Hide the glass when focus leaves the tiles.
         getWindow().getDecorView().getViewTreeObserver().addOnGlobalFocusChangeListener((oldF, newF) -> {
@@ -3375,7 +3383,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             btnVpn.setText(up ? R.string.vpn : R.string.vpn_off);
             btnVpn.setTextColor(ink);
             btnVpn.setBackground(VpnBadge.pillBackground(up, density));
-            btnVpn.setCompoundDrawablesRelativeWithIntrinsicBounds(up ? R.drawable.ic_lock : 0, 0, 0, 0);
+            btnVpn.setCompoundDrawablesRelativeWithIntrinsicBounds(
+                    TopButtonStyle.showsIcon(vpnStyle) ? VpnBadge.iconOnlyLock(up) : 0, 0, 0, 0);
             btnVpn.setCompoundDrawableTintList(ink);
         }
         btnVpn.setVisibility(View.VISIBLE);

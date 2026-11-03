@@ -286,6 +286,7 @@ public final class LauncherSettingsActivity extends Activity {
             case ANIMATIONS: return getString(R.string.ls_animations_label);
             case ADVANCED: return getString(R.string.advanced_effects);
             case REMOTE_BUTTONS: return getString(R.string.remote_buttons);
+            case TOP_BAR_BUTTONS: return getString(R.string.ls_top_bar_buttons);
             case REORDER: return getString(R.string.ls_reorder);
             case EDIT_DOCK: return getString(R.string.dock_edit);
             case DEFAULT_HOME: return getString(R.string.home_settings);
@@ -309,6 +310,7 @@ public final class LauncherSettingsActivity extends Activity {
             case ADVANCED:
                 return getString(animations ? R.string.ls_help_advanced : R.string.ls_help_advanced_off);
             case REMOTE_BUTTONS: return getString(R.string.ls_help_remote_buttons);
+            case TOP_BAR_BUTTONS: return getString(R.string.ls_help_top_bar_buttons);
             case REORDER: return getString(R.string.ls_help_reorder);
             case EDIT_DOCK: return getString(R.string.ls_help_edit_dock);
             case DEFAULT_HOME: return getString(R.string.ls_help_default_home);
@@ -332,6 +334,8 @@ public final class LauncherSettingsActivity extends Activity {
             case WIDGETS: return WidgetStore.summary(this);
             case ANIMATIONS: return getString(animations ? R.string.on : R.string.off);
             case ADVANCED: return getString(advancedEffects ? R.string.on : R.string.off);
+            case TOP_BAR_BUTTONS: return TopBarButtonsActivity.styleLabel(this,
+                    TopButtonStyle.common(TopButtonStyler.load(this, config)));
             case REMOTE_BUTTONS: {
                 int n = KeyMap.merged(this, config.appKeys).size();
                 return n == 0 ? getString(R.string.ls_remote_none) : getString(R.string.ls_remote_count, n);
@@ -474,6 +478,9 @@ public final class LauncherSettingsActivity extends Activity {
             case REMOTE_BUTTONS:
                 open(new Intent(this, RemoteKeysActivity.class));
                 break;
+            case TOP_BAR_BUTTONS:
+                showTopBarButtonsPicker(view);
+                break;
             case WIDGETS:
                 // The Widgets manager opens over this panel, which stays open (dimmed) underneath.
                 cancelHold();
@@ -598,6 +605,28 @@ public final class LauncherSettingsActivity extends Activity {
                 Toast.makeText(this, R.string.wallpaper_applied, Toast.LENGTH_SHORT).show();
             }
             committed(Row.WALLPAPER);
+        });
+    }
+
+    /** One style for all four top-bar buttons, or Per button for the list that sets each. */
+    private void showTopBarButtonsPicker(SettingRowView view) {
+        String common = TopButtonStyle.common(TopButtonStyler.load(this, config));
+        String[] labels = new String[TopButtonStyle.STYLES.length + 1];
+        for (int i = 0; i < TopButtonStyle.STYLES.length; i++) {
+            labels[i] = TopBarButtonsActivity.styleLabel(this, TopButtonStyle.STYLES[i]);
+        }
+        labels[TopButtonStyle.STYLES.length] = getString(R.string.ls_tbb_per_button);
+        int current = TopButtonStyle.MIXED.equals(common) ? -1 : TopButtonStyle.indexOf(common);
+        options(Row.TOP_BAR_BUTTONS, view, labels, current, which -> {
+            if (which == TopButtonStyle.STYLES.length) {
+                open(new Intent(this, TopBarButtonsActivity.class));
+                return;
+            }
+            TopButtonStyler.save(this, TopButtonStyle.allTo(TopButtonStyle.STYLES[which]));
+            setResult(RESULT_OK);
+            updateRows();
+            SettingRowView changedRow = views.get(Row.TOP_BAR_BUTTONS);
+            if (changedRow != null) changedRow.flashValue(anim(200) > 0);
         });
     }
 

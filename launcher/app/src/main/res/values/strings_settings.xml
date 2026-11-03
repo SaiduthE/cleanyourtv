@@ -22,6 +22,13 @@
 
     <string name="ls_animations_label" translatable="false">Animations</string>
     <string name="ls_clock_label" translatable="false">Clock</string>
+    <string name="ls_top_bar_buttons" translatable="false">Top bar buttons</string>
+    <string name="ls_tbb_icons" translatable="false">Icons</string>
+    <string name="ls_tbb_text" translatable="false">Text</string>
+    <string name="ls_tbb_both" translatable="false">Icons + text</string>
+    <string name="ls_tbb_mixed" translatable="false">Mixed</string>
+    <string name="ls_tbb_per_button" translatable="false">Per button</string>
+    <string name="ls_help_top_bar_buttons" translatable="false">Show Settings, Inputs, Discover and VPN as icons, text or both. Per button picks each one.</string>
     <string name="ls_reorder" translatable="false">Reorder apps</string>
     <string name="ls_reset_theme" translatable="false">Reset Theme</string>
     <string name="ls_reset" translatable="false">Reset</string>

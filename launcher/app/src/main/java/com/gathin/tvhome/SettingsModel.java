@@ -16,7 +16,7 @@ final class SettingsModel {
     enum Row {
         COLUMNS, ROWS_BELOW_DOCK, DOCK_OPACITY, OPEN_ON_START,
         STYLE, WALLPAPER, TOP_SHELF, CLOCK, WIDGETS, ANIMATIONS, ADVANCED,
-        REMOTE_BUTTONS, REORDER, EDIT_DOCK,
+        REMOTE_BUTTONS, TOP_BAR_BUTTONS, REORDER, EDIT_DOCK,
         DEFAULT_HOME, TV_SETTINGS, RESET_THEME
     }
 
@@ -68,6 +68,7 @@ final class SettingsModel {
                 break;
             case BUTTONS:
                 rows.add(Row.REMOTE_BUTTONS);
+                rows.add(Row.TOP_BAR_BUTTONS);
                 rows.add(Row.REORDER);
                 if (dockRow) rows.add(Row.EDIT_DOCK);
                 break;

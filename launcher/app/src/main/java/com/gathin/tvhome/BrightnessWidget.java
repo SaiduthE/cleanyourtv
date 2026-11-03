@@ -125,15 +125,9 @@ final class BrightnessWidget implements HomeWidget {
         // Unknown until the add-on answers (or when it cannot be read): "--" says so instead of a made-up level.
         String value = level == null ? "--%" : level.level + "%";
         chip.setText(text ? value : "");
-        chip.setCompoundDrawablesRelativeWithIntrinsicBounds(icon ? R.drawable.ic_widget_brightness : 0, 0, 0, 0);
-        chip.setCompoundDrawablePadding(text && icon ? PanelRows.dp(activity, 9) : 0);
         chip.setContentDescription(activity.getString(R.string.widget_brightness_description, value));
-        if (!text) {
-            // Icon only: a round pill like the other icon buttons.
-            chip.setPaddingRelative(PanelRows.dp(activity, 10), 0, PanelRows.dp(activity, 10), 0);
-        } else {
-            chip.setPaddingRelative(PanelRows.dp(activity, 16), 0, PanelRows.dp(activity, 20), 0);
-        }
+        // The same shape rules as the other top-bar buttons' icon / text / both styles.
+        TopButtonStyler.shape(chip, R.drawable.ic_widget_brightness, icon, text);
         if (!shown) {
             shown = true;
             wc.mount.setShown(true);

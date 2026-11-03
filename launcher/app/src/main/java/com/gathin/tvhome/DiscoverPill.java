@@ -29,6 +29,11 @@ final class DiscoverPill {
         this.button = button;
     }
 
+    /** The pill's view, for TopButtonStyler. */
+    TextView button() {
+        return (TextView) button;
+    }
+
     /** The hub, by explicit component. */
     static Intent hubIntent() {
         return new Intent(Intent.ACTION_MAIN).setComponent(new ComponentName(PACKAGE, HUB))

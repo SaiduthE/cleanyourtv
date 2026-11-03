@@ -126,6 +126,12 @@
             android:excludeFromRecents="true"
             android:screenOrientation="landscape" />
         <activity
+            android:name=".TopBarButtonsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.TvHome.Panel"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape" />
+        <activity
             android:name=".ThemesActivity"
             android:exported="false"
             android:theme="@style/Theme.TvHome.Panel"

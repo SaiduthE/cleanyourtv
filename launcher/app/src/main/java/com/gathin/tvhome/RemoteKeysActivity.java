@@ -11,7 +11,6 @@ import android.provider.Settings;
 import android.view.KeyEvent;
 import android.view.View;
 import android.widget.LinearLayout;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
@@ -152,7 +151,7 @@ public final class RemoteKeysActivity extends Activity {
                 : "Key helper: OFF. Only buttons that reach the launcher can be mapped, and a mapped button won't "
                     + "work inside other apps. Turn it on by running the launcher install with -InputKeyService."));
 
-        TextView add = PanelUi.row(this, "+  Add a button");
+        View add = PanelRows.row(this, "+  Add a button");
         ((LinearLayout.LayoutParams) add.getLayoutParams()).topMargin = PanelUi.dp(this, 24);
         add.setOnClickListener(v -> showCapture());
         content.addView(add);
@@ -162,12 +161,12 @@ public final class RemoteKeysActivity extends Activity {
         if (all.isEmpty()) {
             content.addView(PanelUi.note(this, "No remote buttons are mapped yet."));
         } else {
-            content.addView(PanelUi.section(this, "Mapped buttons"));
+            content.addView(PanelRows.header(this, "Mapped buttons"));
             List<KeyMap.Entry> entries = new ArrayList<>(all.values());
             Collections.sort(entries, (a, b) -> a.token.compareTo(b.token));
             for (KeyMap.Entry e : entries) {
                 boolean theme = Boolean.TRUE.equals(fromConfig.get(e.id()));
-                TextView row = PanelUi.row(this, buttonLabel(e.token) + "   " + gestureLabel(e.gesture)
+                View row = PanelRows.row(this, buttonLabel(e.token) + "   " + gestureLabel(e.gesture)
                         + "  →  " + targetLabel(e.target) + (theme ? "   (preset)" : ""));
                 row.setOnClickListener(v -> showTarget(e.gesture, e.token, () -> showMain()));
                 content.addView(row);
@@ -212,7 +211,7 @@ public final class RemoteKeysActivity extends Activity {
         content.addView(PanelUi.note(this, "Press the button on your remote that you want to change. The D-pad, OK, "
                 + "Back and Home can't be remapped, so this page always stays usable."));
         content.addView(PanelUi.note(this, "Waiting… (it gives up after 20 seconds)"));
-        TextView cancel = PanelUi.row(this, "Cancel");
+        View cancel = PanelRows.row(this, "Cancel");
         ((LinearLayout.LayoutParams) cancel.getLayoutParams()).topMargin = PanelUi.dp(this, 28);
         cancel.setOnClickListener(v -> showMain());
         content.addView(cancel);
@@ -253,7 +252,7 @@ public final class RemoteKeysActivity extends Activity {
         View first = null;
         for (String[] g : GESTURES) {
             KeyMap.Entry now = all.get(g[0] + token);
-            TextView row = PanelUi.row(this, g[1] + (now == null ? "" : "   →  " + targetLabel(now.target)));
+            View row = PanelRows.row(this, g[1] + (now == null ? "" : "   →  " + targetLabel(now.target)));
             ((LinearLayout.LayoutParams) row.getLayoutParams()).topMargin = PanelUi.dp(this, first == null ? 22 : 10);
             row.setSelected(now != null);
             row.setOnClickListener(v -> showTarget(g[0], token, () -> showGesture(token)));
@@ -275,7 +274,7 @@ public final class RemoteKeysActivity extends Activity {
         boolean saved = false;
         for (KeyMap.Entry e : KeyMap.load(this)) saved |= e.id().equals(gesture + token);
         if (saved) {
-            TextView remove = PanelUi.row(this, "Remove this mapping");
+            View remove = PanelRows.row(this, "Remove this mapping");
             ((LinearLayout.LayoutParams) remove.getLayoutParams()).topMargin = PanelUi.dp(this, 22);
             remove.setOnClickListener(v -> {
                 KeyMap.remove(this, gesture, token);
@@ -290,21 +289,21 @@ public final class RemoteKeysActivity extends Activity {
         Intent launcher = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
         List<ResolveInfo> found = pm.queryIntentActivities(launcher, 0);
         Collections.sort(found, (a, b) -> String.valueOf(a.loadLabel(pm)).compareToIgnoreCase(String.valueOf(b.loadLabel(pm))));
-        content.addView(PanelUi.section(this, "Open an app"));
+        content.addView(PanelRows.header(this, "Open an app"));
         for (ResolveInfo ri : found) {
             String pkg = ri.activityInfo.packageName;
             if (pkg.equals(getPackageName()) || seen.containsKey(pkg)) continue;
             seen.put(pkg, true);
-            TextView row = PanelUi.row(this, String.valueOf(ri.loadLabel(pm)), ri.loadIcon(pm));
+            View row = PanelRows.row(this, String.valueOf(ri.loadLabel(pm)), ri.loadIcon(pm));
             boolean current = now != null && now.target.equals(pkg);
             row.setSelected(current);
             row.setOnClickListener(v -> choose(gesture, token, pkg));
             content.addView(row);
             if (current && focus == null) focus = row;
         }
-        content.addView(PanelUi.section(this, "Or do an action"));
+        content.addView(PanelRows.header(this, "Or do an action"));
         for (String[] a : ACTIONS) {
-            TextView row = PanelUi.row(this, a[1]);
+            View row = PanelRows.row(this, a[1]);
             boolean current = now != null && now.target.equals(a[0]);
             row.setSelected(current);
             row.setOnClickListener(v -> choose(gesture, token, a[0]));

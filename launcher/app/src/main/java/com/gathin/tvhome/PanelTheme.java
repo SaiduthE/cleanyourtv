@@ -6,7 +6,6 @@ import android.graphics.BitmapFactory;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.InsetDrawable;
-import android.graphics.drawable.StateListDrawable;
 
 import org.json.JSONObject;
 
@@ -27,10 +26,6 @@ final class PanelTheme {
     static final int DEFAULT_ACCENT = 0xFF4DAE6D;
     static final int TEXT_PRIMARY = 0xFFFFFFFF;
     static final int TEXT_SECONDARY = 0xFFACB8C1;
-    static final int ROW_FILL = 0xFF242B34;
-    static final int ROW_RADIUS_DP = 14;
-    static final int FOCUS_STROKE_DP = 2;
-    static final int SELECTED_STROKE_DP = 1;
     static final int PANEL_BASE = 0xFF111820;
     static final int PANEL_ALPHA = 0xF2;
     static final float PANEL_TINT = 0.25f;            // share of the theme's background_color mixed into PANEL_BASE
@@ -109,18 +104,6 @@ final class PanelTheme {
     }
 
     // ---- drawables ---------------------------------------------------------------------------------------------
-
-    /** A settings row: focused, selected, else the plain fill. A new drawable each call, so rows do not share state. */
-    Drawable rowBackground() {
-        float radius = px(ROW_RADIUS_DP);
-        StateListDrawable list = new StateListDrawable();
-        list.addState(new int[] {android.R.attr.state_focused},
-                shape(focusFill, radius, px(FOCUS_STROKE_DP), focusStroke));
-        list.addState(new int[] {android.R.attr.state_selected},
-                shape(selectedFill, radius, px(SELECTED_STROKE_DP), selectedStroke));
-        list.addState(new int[0], shape(ROW_FILL, radius, 0, 0));
-        return list;
-    }
 
     /** The settings card on the right edge: inset from the top, right and bottom, rounded, with a hairline edge. */
     Drawable panelBackground() {

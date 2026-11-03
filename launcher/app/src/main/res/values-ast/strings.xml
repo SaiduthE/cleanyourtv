@@ -45,7 +45,6 @@
     <string name="open_on_start_label">Abrir al aniciar</string>
     <string name="open_on_start_state">Abrir al aniciar: %1$s</string>
     <string name="advanced_effects_warning">Eleva les tarxetes, amplía los iconos y anidia les transiciones de color. Pue aumentar l\'usu de memoria; la diferencia real depende del to televisor.</string>
-    <string name="follow_theme">Siguir el tema (reestablecer axustes)</string>
     <string name="follow_theme_hint">Usa\'l diseñu y los efeutos del tema actual o los valores integraos. Aplicar o reestablecer un tema tamién desanicia estos axustes.</string>
     <string name="tv_settings">Axustes del televisor</string>
     <string name="quick_picture">Imaxe</string>

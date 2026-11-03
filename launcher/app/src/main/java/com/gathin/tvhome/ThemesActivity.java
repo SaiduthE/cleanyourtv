@@ -3,7 +3,7 @@ package com.gathin.tvhome;
 import android.app.Activity;
 import android.os.Bundle;
 import android.widget.LinearLayout;
-import android.widget.TextView;
+import android.view.View;
 
 /**
  * The Styles screen ("Clean Look · Styles"): switch the look from the couch, without a computer. The presets are
@@ -27,10 +27,10 @@ public final class ThemesActivity extends Activity {
         content.addView(PanelUi.title(this, getString(R.string.styles_title)));
         content.addView(PanelUi.note(this, getString(R.string.styles_note)));
         String active = StyleInstaller.activeStyleId(this);
-        TextView first = null;
-        TextView focus = null;
+        View first = null;
+        View focus = null;
         for (String[] style : StyleInstaller.styles(this)) {
-            TextView row = PanelUi.row(this, style[1]);
+            View row = PanelRows.row(this, style[1]);
             boolean isActive = style[0].equals(active);
             row.setSelected(isActive);
             row.setOnClickListener(v -> showStyle(style));
@@ -38,8 +38,8 @@ public final class ThemesActivity extends Activity {
             if (first == null) first = row;
             if (isActive) focus = row;
         }
-        content.addView(PanelUi.section(this, getString(R.string.styles_other)));
-        TextView builtin = PanelUi.row(this, getString(R.string.styles_builtin));
+        content.addView(PanelRows.header(this, getString(R.string.styles_other)));
+        View builtin = PanelRows.row(this, getString(R.string.styles_builtin));
         builtin.setOnClickListener(v -> StyleInstaller.apply(this, null, "the built-in look"));
         content.addView(builtin);
         content.addView(PanelUi.note(this, getString(R.string.styles_hint)));
@@ -53,11 +53,11 @@ public final class ThemesActivity extends Activity {
         content.addView(PanelUi.note(this, style[2]));
         boolean isActive = style[0].equals(StyleInstaller.activeStyleId(this));
         if (isActive) content.addView(PanelUi.note(this, getString(R.string.styles_active)));
-        TextView apply = PanelUi.row(this, getString(R.string.styles_apply));
+        View apply = PanelRows.row(this, getString(R.string.styles_apply));
         ((LinearLayout.LayoutParams) apply.getLayoutParams()).topMargin = PanelUi.dp(this, 26);
         apply.setOnClickListener(v -> StyleInstaller.apply(this, style[0], style[1]));
         content.addView(apply);
-        TextView back = PanelUi.row(this, getString(R.string.styles_back));
+        View back = PanelRows.row(this, getString(R.string.styles_back));
         back.setOnClickListener(v -> recreate());
         content.addView(back);
         apply.requestFocus();

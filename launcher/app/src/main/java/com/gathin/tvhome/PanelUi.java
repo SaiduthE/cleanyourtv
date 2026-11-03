@@ -1,8 +1,6 @@
 package com.gathin.tvhome;
 
 import android.content.Context;
-import android.graphics.drawable.Drawable;
-import android.text.TextUtils;
 import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -14,7 +12,7 @@ import android.widget.TextView;
  */
 final class PanelUi {
 
-    /** Height of the fade at the top and bottom of a scrolling panel; matches android:fadingEdgeLength in the settings layout. */
+    /** Height of the fade at the top and bottom of a scrolling panel. */
     static final int FADE_DP = 56;
 
     private PanelUi() { }
@@ -55,41 +53,5 @@ final class PanelUi {
         t.setTextSize(14);
         t.setPadding(0, dp(ctx, 8), 0, 0);
         return t;
-    }
-
-    /** A group heading such as "Apps" or "Actions". */
-    static TextView section(Context ctx, String text) {
-        TextView t = new TextView(ctx);
-        t.setText(text);
-        t.setTextColor(PanelTheme.get(ctx).heading);
-        t.setTextSize(14);
-        t.setAllCaps(true);
-        t.setLetterSpacing(0.08f);
-        t.setPadding(dp(ctx, 4), dp(ctx, 26), 0, 0);
-        return t;
-    }
-
-    /** A focusable settings row, one line, with an optional icon on the left. */
-    static TextView row(Context ctx, String label, Drawable icon) {
-        TextView t = new TextView(ctx, null, 0, R.style.SettingsRow);
-        t.setBackground(PanelTheme.get(ctx).rowBackground());
-        t.setText(label);
-        t.setSingleLine(true);
-        t.setEllipsize(TextUtils.TruncateAt.END);
-        if (icon != null) {
-            int size = dp(ctx, 30);
-            icon.setBounds(0, 0, size, size);
-            t.setCompoundDrawablesRelative(icon, null, null, null);
-            t.setCompoundDrawablePadding(dp(ctx, 14));
-        }
-        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                dp(ctx, 52));
-        lp.topMargin = dp(ctx, 10);
-        t.setLayoutParams(lp);
-        return t;
-    }
-
-    static TextView row(Context ctx, String label) {
-        return row(ctx, label, null);
     }
 }

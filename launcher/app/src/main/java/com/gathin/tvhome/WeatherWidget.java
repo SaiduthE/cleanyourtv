@@ -47,7 +47,7 @@ final class WeatherWidget implements HomeWidget {
         chip = new Chip(wc.activity);
         chip.setVisibility(View.GONE);
         // The clock row's chip is 52 dp and tucks in under the divider; in the top bar it matches the 42 dp pills.
-        boolean inClockRow = wc.slot == WidgetSlot.CLOCK_SIDE;
+        boolean inClockRow = wc.slot.inClockRow();
         mount.add(chip, inClockRow ? 52 : 42, -10);
         chip.setOnClickListener(v -> openSettings());
         source = new WeatherSource(wc.activity, this::onWeather);

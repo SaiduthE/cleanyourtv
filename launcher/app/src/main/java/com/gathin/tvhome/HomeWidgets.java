@@ -51,7 +51,7 @@ final class HomeWidgets implements WidgetOverlays.Host {
         this.nav = nav;
         this.store = new WidgetStore(activity);
         for (WidgetSlot slot : WidgetSlot.values()) {
-            WidgetMount mount = WidgetMount.create(activity, slot, topMenu);
+            WidgetMount mount = WidgetMount.create(activity, slot, topMenu, mounts.get(WidgetSlot.CLOCK_SIDE));
             if (mount != null) mounts.put(slot, mount);
         }
         rebuild();
@@ -101,12 +101,20 @@ final class HomeWidgets implements WidgetOverlays.Host {
 
     // ---- the header's D-pad order --------------------------------------------------------------------------------
 
-    /** Left from the first top-bar button: the widget before the bar, else the one in the clock row. */
+    /** Left from the first top-bar button: the nearest widget before the bar, the clock row's last chip at most. */
     boolean focusBeforeBar() {
-        HomeWidget start = live.get(WidgetSlot.TOP_BAR_START);
-        if (start != null && start.focus()) return true;
-        HomeWidget clock = live.get(WidgetSlot.CLOCK_SIDE);
-        return clock != null && clock.focus();
+        return focusFrom(null, -1);
+    }
+
+    /** The nearest focusable widget before the bar to the left (-1) or right (+1) of {@code from} (null: the bar). */
+    private boolean focusFrom(WidgetSlot from, int direction) {
+        WidgetSlot[] order = WidgetSlot.beforeBar();
+        int i = from == null ? order.length : java.util.Arrays.asList(order).indexOf(from);
+        for (i += direction; i >= 0 && i < order.length; i += direction) {
+            HomeWidget widget = live.get(order[i]);
+            if (widget != null && widget.focus()) return true;
+        }
+        return false;
     }
 
     /** Right from the last top-bar button: the widget after the bar. */
@@ -117,24 +125,12 @@ final class HomeWidgets implements WidgetOverlays.Host {
 
     /** A widget's Left (-1) or Right (+1): the next focusable thing along the header. Always consumes the key. */
     boolean neighbour(WidgetSlot from, int direction) {
-        switch (from) {
-            case CLOCK_SIDE:
-                if (direction > 0) {
-                    HomeWidget start = live.get(WidgetSlot.TOP_BAR_START);
-                    if (start == null || !start.focus()) nav.focusFirstButton();
-                }
-                break;
-            case TOP_BAR_START:
-                if (direction > 0) nav.focusFirstButton();
-                else {
-                    HomeWidget clock = live.get(WidgetSlot.CLOCK_SIDE);
-                    if (clock != null) clock.focus();
-                }
-                break;
-            default:
-                if (direction < 0) nav.focusLastButton();
-                break;
+        if (from == WidgetSlot.TOP_BAR_END) {
+            if (direction < 0) nav.focusLastButton();
+            return true;
         }
+        // Along the clock row and the start of the bar (WidgetSlot.beforeBar); past its right end are the buttons.
+        if (!focusFrom(from, direction) && direction > 0) nav.focusFirstButton();
         return true;
     }
 

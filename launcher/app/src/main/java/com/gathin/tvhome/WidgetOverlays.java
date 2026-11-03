@@ -66,6 +66,7 @@ final class WidgetOverlays {
     static String slotLabel(Context ctx, WidgetSlot slot) {
         switch (slot) {
             case CLOCK_SIDE: return ctx.getString(R.string.widget_slot_clock_side);
+            case BESIDE_WEATHER: return ctx.getString(R.string.widget_slot_beside_weather);
             case TOP_BAR_START: return ctx.getString(R.string.widget_slot_top_bar_start);
             default: return ctx.getString(R.string.widget_slot_top_bar_end);
         }
@@ -414,6 +415,8 @@ final class WidgetOverlays {
                 outline.setVisibility(View.VISIBLE);
                 TextView caption = captions.get(slot);
                 FrameLayout.LayoutParams cp = (FrameLayout.LayoutParams) caption.getLayoutParams();
+                // No wider than its own outline, so the captions of two chips side by side never overlap.
+                cp.width = Math.min(cp.width, r.width() + 2 * pad);
                 int center = r.centerX();
                 cp.leftMargin = Math.max(dp(activity, 8), Math.min(center - cp.width / 2,
                         screenW - cp.width - dp(activity, 8)));

@@ -66,6 +66,13 @@ public final class LauncherSettingsActivity extends Activity {
     private TopShelfLogic.Mode topShelf;
     private boolean animations;
     private boolean advancedEffects;
+    private boolean appArtwork;
+    private boolean photoCredit;
+    /** The add-on's photo settings (switch, themes, status), as last answered; see PhotoSettingsClient. */
+    private PhotoSettings photos = PhotoSettings.unavailable(PhotoSettings.State.LOADING);
+    private PhotoSettingsClient photoClient;
+    /** The Photo themes list while it is open, so a late answer from the add-on can redraw its ticks. */
+    private OptionPopup themesPopup;
 
     private FrameLayout root;
     private FrameLayout card;
@@ -100,6 +107,7 @@ public final class LauncherSettingsActivity extends Activity {
         choices = getSharedPreferences(Config.SETTINGS_NAME, MODE_PRIVATE);
         rtl = getResources().getBoolean(R.bool.rtl_menu_bar);
         loadState();
+        photoClient = new PhotoSettingsClient(this, this::onPhotoSettings);
         PanelRows.fullScreen(this);
         buildUi();
         setContentView(root);
@@ -120,6 +128,7 @@ public final class LauncherSettingsActivity extends Activity {
     protected void onResume() {
         super.onResume();
         if (root != null) updateRows();   // Remote buttons may have changed their count
+        if (photoClient != null) photoClient.load();   // the add-on may have been installed or opened meanwhile
     }
 
     @Override
@@ -130,6 +139,7 @@ public final class LauncherSettingsActivity extends Activity {
     @Override
     protected void onDestroy() {
         handler.removeCallbacksAndMessages(null);
+        if (photoClient != null) photoClient.close();
         super.onDestroy();
     }
 
@@ -140,6 +150,8 @@ public final class LauncherSettingsActivity extends Activity {
         dockOpacity = config.dockOpacity;
         clockFormat = config.clockFormat;
         topShelf = TopShelfLogic.Mode.parse(choices.getString(Config.TOP_SHELF_KEY, null));
+        appArtwork = choices.getBoolean(Config.TOP_SHELF_ARTWORK_KEY, true);
+        photoCredit = choices.getBoolean(Config.TOP_SHELF_CREDIT_KEY, true);
         animations = config.animations;
         advancedEffects = config.animations && config.advancedEffects;
     }
@@ -216,6 +228,7 @@ public final class LauncherSettingsActivity extends Activity {
                 SettingRowView view = new SettingRowView(this, label(row),
                         true, anim(MOVE_MS));
                 view.setTag(row);
+                if (row == Row.REFRESH_PHOTOS) view.setStatusStyle();
                 view.setLayoutParams(PanelRows.rowParams(this));
                 view.setOnClickListener(v -> activate(row, (SettingRowView) v));
                 view.setOnFocusChangeListener((v, focused) -> {
@@ -267,6 +280,7 @@ public final class LauncherSettingsActivity extends Activity {
         switch (group) {
             case HOME_LAYOUT: return getString(R.string.ls_group_home_layout);
             case LOOK: return getString(R.string.ls_group_look);
+            case TOP_SHELF: return getString(R.string.ls_group_top_shelf);
             case BUTTONS: return getString(R.string.ls_group_buttons);
             default: return getString(R.string.ls_group_system);
         }
@@ -281,6 +295,11 @@ public final class LauncherSettingsActivity extends Activity {
             case STYLE: return getString(R.string.ls_style_label);
             case WALLPAPER: return getString(R.string.wallpaper_label);
             case TOP_SHELF: return getString(R.string.ls_top_shelf_label);
+            case APP_ARTWORK: return getString(R.string.ls_app_artwork_label);
+            case PHOTOS: return getString(R.string.ls_photos_label);
+            case PHOTO_THEMES: return getString(R.string.ls_photo_themes_label);
+            case REFRESH_PHOTOS: return getString(R.string.ls_refresh_photos_label);
+            case PHOTO_CREDIT: return getString(R.string.ls_photo_credit_label);
             case CLOCK: return getString(R.string.ls_clock_label);
             case WIDGETS: return getString(R.string.ls_widgets);
             case ANIMATIONS: return getString(R.string.ls_animations_label);
@@ -304,6 +323,13 @@ public final class LauncherSettingsActivity extends Activity {
             case STYLE: return getString(R.string.ls_help_style);
             case WALLPAPER: return getString(R.string.ls_help_wallpaper);
             case TOP_SHELF: return getString(R.string.ls_help_top_shelf);
+            case APP_ARTWORK: return getString(R.string.ls_help_app_artwork);
+            case PHOTOS: return photosAvailabilityHelp(R.string.ls_help_photos);
+            case PHOTO_THEMES: return photosAvailabilityHelp(R.string.ls_help_photo_themes);
+            case REFRESH_PHOTOS:
+                return photos.available() && !photos.enabled ? getString(R.string.ls_help_refresh_photos_off)
+                        : photosAvailabilityHelp(R.string.ls_help_refresh_photos);
+            case PHOTO_CREDIT: return getString(R.string.ls_help_photo_credit);
             case CLOCK: return getString(R.string.ls_help_clock);
             case WIDGETS: return getString(R.string.ls_help_widgets);
             case ANIMATIONS: return getString(R.string.ls_help_animations);
@@ -330,6 +356,11 @@ public final class LauncherSettingsActivity extends Activity {
             case STYLE: return styleLabel();
             case WALLPAPER: return wallpaperLabel();
             case TOP_SHELF: return topShelfLabel(topShelf);
+            case APP_ARTWORK: return getString(appArtwork ? R.string.on : R.string.off);
+            case PHOTOS: return photos.photosValue();
+            case PHOTO_THEMES: return photos.themesValue();
+            case REFRESH_PHOTOS: return photos.refreshValue();
+            case PHOTO_CREDIT: return getString(photoCredit ? R.string.on : R.string.off);
             case CLOCK: return clockLabel(clockFormat);
             case WIDGETS: return WidgetStore.summary(this);
             case ANIMATIONS: return getString(animations ? R.string.on : R.string.off);
@@ -354,7 +385,9 @@ public final class LauncherSettingsActivity extends Activity {
             Row row = e.getKey();
             SettingRowView view = e.getValue();
             view.setValue(value(row));
-            view.setDimmed((row == Row.ADVANCED && !animations) || (row == Row.RESET_THEME && resetCount() == 0));
+            view.setDimmed((row == Row.ADVANCED && !animations) || (row == Row.RESET_THEME && resetCount() == 0)
+                    || (SettingsModel.isAddOnRow(row) && !photos.available())
+                    || (row == Row.REFRESH_PHOTOS && photos.available() && !photos.enabled));
             if (row == Row.STYLE) {
                 String active = StyleInstaller.activeStyleId(this);
                 view.setSwatch(active == null ? null : new StylePreviewDrawable(active));
@@ -469,6 +502,48 @@ public final class LauncherSettingsActivity extends Activity {
                 });
                 break;
             }
+            case APP_ARTWORK:
+                options(row, view, new String[] {getString(R.string.on), getString(R.string.off)},
+                        appArtwork ? 0 : 1, i -> {
+                            appArtwork = i == 0;
+                            choices.edit().putBoolean(Config.TOP_SHELF_ARTWORK_KEY, appArtwork).apply();
+                            committed(row);
+                        });
+                break;
+            case PHOTO_CREDIT:
+                options(row, view, new String[] {getString(R.string.on), getString(R.string.off)},
+                        photoCredit ? 0 : 1, i -> {
+                            photoCredit = i == 0;
+                            choices.edit().putBoolean(Config.TOP_SHELF_CREDIT_KEY, photoCredit).apply();
+                            committed(row);
+                        });
+                break;
+            case PHOTOS:
+                if (!photoRowReady(row, view)) break;
+                options(row, view, new String[] {getString(R.string.on), getString(R.string.off)},
+                        photos.enabled ? 0 : 1, i -> {
+                            boolean on = i == 0;
+                            if (on == photos.enabled) return;
+                            photos = photos.withEnabled(on);
+                            photoClient.setEnabled(on);   // on: the add-on starts the first fetch; off: it deletes the photos
+                            committed(row);
+                        });
+                break;
+            case PHOTO_THEMES:
+                if (photoRowReady(row, view)) showPhotoThemes(view);
+                break;
+            case REFRESH_PHOTOS:
+                if (!photoRowReady(row, view)) break;
+                if (!photos.enabled) {
+                    showHelp(row, view);
+                    break;
+                }
+                if (!photos.refreshing) {
+                    photos = photos.withRefreshing();
+                    photoClient.refresh();   // the status is polled until the add-on is done
+                    updateRows();
+                }
+                break;
             case OPEN_ON_START:
                 showOpenOnStartPicker(view);
                 break;
@@ -626,6 +701,70 @@ public final class LauncherSettingsActivity extends Activity {
             setResult(RESULT_OK);
             updateRows();
             SettingRowView changedRow = views.get(Row.TOP_BAR_BUTTONS);
+            if (changedRow != null) changedRow.flashValue(anim(200) > 0);
+        });
+    }
+
+    // ---- Top Shelf photos (they live in the Continue watching add-on) -------------------------------------------
+
+    /** Why a photo row is greyed, or {@code ready} when it is not. */
+    private String photosAvailabilityHelp(int ready) {
+        switch (photos.state) {
+            case NOT_INSTALLED: return getString(R.string.ls_help_photos_missing);
+            case OUTDATED: return getString(R.string.ls_help_photos_outdated);
+            case READY: return getString(ready);
+            default: return getString(R.string.ls_help_photos_unavailable);
+        }
+    }
+
+    /** False (after explaining why, and asking the add-on again) while the add-on cannot be used. */
+    private boolean photoRowReady(Row row, SettingRowView view) {
+        if (photos.available()) return true;
+        showHelp(row, view);
+        if (photos.state == PhotoSettings.State.NO_ANSWER) photoClient.load();
+        return false;
+    }
+
+    /** The add-on answered (or did not): redraw the rows, the open themes list and the refresh outcome. */
+    private void onPhotoSettings(PhotoSettings next) {
+        boolean wasRefreshing = photos.refreshing;
+        int before = photos.count;
+        photos = next;
+        if (PhotoSettings.ERR_AT_LEAST_ONE.equals(next.error)) {
+            Toast.makeText(this, R.string.ls_photo_themes_last, Toast.LENGTH_SHORT).show();
+        }
+        if (root == null) return;
+        updateRows();
+        if (themesPopup != null && themesPopup.isShowing() && next.available()) {
+            for (int i = 0; i < next.keys.size(); i++) themesPopup.setTicked(i, next.on.contains(next.keys.get(i)));
+        }
+        if (wasRefreshing && !next.refreshing && next.available()) {
+            SettingRowView refresh = views.get(Row.REFRESH_PHOTOS);
+            if (refresh != null) refresh.flashValue(anim(200) > 0);
+            if (next.count != before) changed();   // Home picks the new photos up when it is rebuilt
+        }
+    }
+
+    /** One switch per photo theme; the list stays open so several can be changed. At least one stays on. */
+    private void showPhotoThemes(SettingRowView view) {
+        final List<String> keys = photos.keys;
+        OptionPopup p = newPopup(view, OptionPopup.WIDTH_DP, OptionPopup.ITEM_DP).stayOpen();
+        p.header(getString(R.string.ls_photo_themes_header));
+        for (int i = 0; i < keys.size(); i++) p.add(photos.labels.get(i), null, null, photos.on.contains(keys.get(i)));
+        themesPopup = p;
+        p.show(list, 0, position -> {
+            Set<String> next = PhotoSettings.toggled(photos.keys, photos.on, keys.get(position));
+            if (next == null) {
+                Toast.makeText(this, R.string.ls_photo_themes_last, Toast.LENGTH_SHORT).show();
+                return;
+            }
+            photos = photos.withOn(next);
+            p.setTicked(position, next.contains(keys.get(position)));
+            photoClient.setCategories(next);
+            updateRows();
+        }, () -> {
+            themesPopup = null;
+            SettingRowView changedRow = views.get(Row.PHOTO_THEMES);
             if (changedRow != null) changedRow.flashValue(anim(200) > 0);
         });
     }

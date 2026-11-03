@@ -60,6 +60,7 @@ final class OptionPopup {
     private Runnable onClose;
     private boolean showing;
     private boolean ticks = true;
+    private boolean stayOpen;
     private int current = -1;
 
     /**
@@ -128,6 +129,20 @@ final class OptionPopup {
         return this;
     }
 
+    /**
+     * A list of switches (Photo themes): OK on an option calls {@code pick} but leaves the popup open, so several
+     * can be changed one after the other; {@link #setTicked} redraws a tick. Back or Left/Right close it.
+     */
+    OptionPopup stayOpen() {
+        stayOpen = true;
+        return this;
+    }
+
+    /** Ticks or unticks the option at {@code position} (the switches of a stay-open list). */
+    void setTicked(int position, boolean ticked) {
+        if (position >= 0 && position < views.size()) views.get(position).setTicked(ticked);
+    }
+
     /** Buttons have no tick column. */
     OptionPopup noTicks() {
         ticks = false;
@@ -161,7 +176,7 @@ final class OptionPopup {
             final int position = i;
             views.get(i).setOnClickListener(v -> {
                 if (!showing) return;
-                close(true);
+                if (!stayOpen) close(true);
                 pick.pick(position);
             });
         }
@@ -259,7 +274,7 @@ final class OptionPopup {
 
     /** One option: the label (and caption and picture) with the tick column on the left. */
     private final class ItemView extends LinearLayout {
-        private final boolean ticked;
+        private boolean ticked;
         private final Paint tick = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Path path = new Path();
 
@@ -310,6 +325,11 @@ final class OptionPopup {
             tick.setStrokeCap(Paint.Cap.ROUND);
             tick.setStrokeJoin(Paint.Join.ROUND);
             setWillNotDraw(false);
+        }
+
+        void setTicked(boolean value) {
+            ticked = value && OptionPopup.this.ticks;
+            invalidate();
         }
 
         @Override

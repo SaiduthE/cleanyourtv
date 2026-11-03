@@ -8,16 +8,20 @@ import android.database.Cursor;
 import android.database.MatrixCursor;
 import android.net.Uri;
 import android.os.Binder;
+import android.os.Bundle;
 import android.os.ParcelFileDescriptor;
 import android.os.Process;
 
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The Top Shelf feed for the launcher (contract in README.md): the rows of Continue watching with real artwork
- * as files this app cached, and the Top Shelf photos (/photos, /photo/name). Read-only. Exported, but only {@link ShelfAccess} callers get anything.
+ * as files this app cached, and the Top Shelf photos (/photos, /photo/name). Read-only, except that {@code call()} lets
+ * the launcher's settings read and change the photo settings ({@link PhotoCalls}). Exported, but only {@link ShelfAccess} callers get anything.
  */
 public final class ShelfProvider extends ContentProvider {
     private static final long REFRESH_AFTER_MS = 10 * 60_000L;
@@ -26,15 +30,51 @@ public final class ShelfProvider extends ContentProvider {
         return true;
     }
 
-    private void checkCaller() {
+    private boolean callerAllowed() {
         Context c = getContext();
         int uid = Binder.getCallingUid();
         boolean sameApp = uid == Process.myUid();
         boolean sameKey = !sameApp && c != null
                 && c.getPackageManager().checkSignatures(uid, Process.myUid()) == PackageManager.SIGNATURE_MATCH;
-        if (!ShelfAccess.allowed(sameApp, sameKey, getCallingPackage())) {
-            throw new SecurityException("not a caller of the shelf");
+        return ShelfAccess.allowed(sameApp, sameKey, getCallingPackage());
+    }
+
+    private void checkCaller() {
+        if (!callerAllowed()) throw new SecurityException("not a caller of the shelf");
+    }
+
+    /**
+     * The photo settings for Launcher settings > Top Shelf (see {@link PhotoCalls}): same caller check as the rest of
+     * the feed. Null for a method that is not ours.
+     */
+    @Override public Bundle call(String method, String arg, Bundle extras) {
+        Context c = getContext();
+        boolean allowed = callerAllowed();
+        if (!allowed || c == null) {
+            if (!allowed) throw new SecurityException("not a caller of the shelf");
+            return null;
         }
+        Map<String, Object> in = new HashMap<>();
+        if (extras != null) {
+            if (extras.containsKey(PhotoCalls.EXTRA_ENABLED)) in.put(PhotoCalls.EXTRA_ENABLED, extras.getBoolean(PhotoCalls.EXTRA_ENABLED));
+            String[] on = extras.getStringArray(PhotoCalls.EXTRA_ON);
+            if (on != null) in.put(PhotoCalls.EXTRA_ON, on);
+        }
+        Map<String, Object> out = PhotoCalls.dispatch(true, new PhotoBackend(c), method, in);
+        return out == null ? null : toBundle(out);
+    }
+
+    private static Bundle toBundle(Map<String, Object> m) {
+        Bundle b = new Bundle();
+        for (Map.Entry<String, Object> e : m.entrySet()) {
+            Object v = e.getValue();
+            if (v instanceof Boolean) b.putBoolean(e.getKey(), (Boolean) v);
+            else if (v instanceof Integer) b.putInt(e.getKey(), (Integer) v);
+            else if (v instanceof Long) b.putLong(e.getKey(), (Long) v);
+            else if (v instanceof String[]) b.putStringArray(e.getKey(), (String[]) v);
+            else if (v instanceof String) b.putString(e.getKey(), (String) v);
+        }
+        return b;
     }
 
     @Override public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {

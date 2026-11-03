@@ -24,6 +24,7 @@ final class SettingRowView extends LinearLayout {
     private final View swatch;
     private ImageView icon;
     private ValueAnimator flash;
+    private boolean statusStyle;
 
     SettingRowView(Context ctx, String labelText, boolean chevronShown, int fadeMs) {
         super(ctx);
@@ -77,7 +78,14 @@ final class SettingRowView extends LinearLayout {
         value.setText(has ? text : "");
         value.setVisibility(has ? VISIBLE : GONE);
         // The label gives way first: a long value keeps its room.
-        value.setMaxWidth(PanelRows.dp(getContext(), 150));
+        value.setMaxWidth(PanelRows.dp(getContext(), statusStyle ? 160 : 150));
+    }
+
+    /** A long status (the Refresh photos row): smaller type, a wider value, and no chevron to share the room with. */
+    void setStatusStyle() {
+        value.setTextSize(13);
+        chevron.setVisibility(GONE);
+        statusStyle = true;
     }
 
     /** A small picture before the value (the Style row); null removes it. */

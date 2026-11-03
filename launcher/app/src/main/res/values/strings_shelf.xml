@@ -17,4 +17,23 @@
     <string name="ls_top_shelf_label" translatable="false">Top Shelf</string>
     <string name="ls_top_shelf_layered" translatable="false">Layered</string>
     <string name="ls_help_top_shelf" translatable="false">Layered shows a wallpaper above the dock, or what you can resume in the focused app. Off keeps the plain wallpaper.</string>
+
+    <!-- Launcher settings > Top Shelf group (LauncherSettingsActivity): one row per setting, photos live in the Continue watching add-on. -->
+    <string name="ls_group_top_shelf" translatable="false">Top Shelf</string>
+    <string name="ls_app_artwork_label" translatable="false">App artwork</string>
+    <string name="ls_photos_label" translatable="false">Photos</string>
+    <string name="ls_photo_themes_label" translatable="false">Photo themes</string>
+    <string name="ls_refresh_photos_label" translatable="false">Refresh photos</string>
+    <string name="ls_photo_credit_label" translatable="false">Photo credit</string>
+    <string name="ls_photo_themes_header" translatable="false">Photo themes</string>
+    <string name="ls_photo_themes_last" translatable="false">At least one theme stays on</string>
+    <string name="ls_help_app_artwork" translatable="false">On shows the focused app\'s own artwork behind what you can resume. Off shows the Resume text over your photos or wallpapers instead.</string>
+    <string name="ls_help_photos" translatable="false">Slow scenic photos behind the Top Shelf, from the Continue watching add-on. Off deletes them and uses your wallpapers.</string>
+    <string name="ls_help_photos_missing" translatable="false">Photos come from the Continue watching add-on. Install it, then open it once.</string>
+    <string name="ls_help_photos_outdated" translatable="false">This version of the Continue watching add-on has no photo settings. Update it.</string>
+    <string name="ls_help_photos_unavailable" translatable="false">The Continue watching add-on is not answering. Try again in a moment.</string>
+    <string name="ls_help_photo_themes" translatable="false">Which kinds of scenery the next photos come from. At least one stays on.</string>
+    <string name="ls_help_refresh_photos" translatable="false">Fetches new photos now, on any connection. The line on the right says what happened.</string>
+    <string name="ls_help_refresh_photos_off" translatable="false">Photos are off. Switch Photos on to fetch some.</string>
+    <string name="ls_help_photo_credit" translatable="false">The small author and licence line at the bottom right of the Top Shelf while a photo shows.</string>
 </resources>

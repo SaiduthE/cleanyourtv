@@ -9,8 +9,7 @@ show's own picture, a resume bar and the episode ("S2 · E4 · 23 min left"). OK
 - **Sources are managed on the TV**, with the remote only, and show **only what you added**. **Sources** (top
   right of the page) is a grid of tiles, one per source, each with the app's icon (its banner when that is large
   enough; never enlarged past 1.5 times), its name and a status dot: **N rows** (green), **No rows found**, an
-  error (red: "Sign in again", "Not reachable", "Needs access") or **Off**. The **Top Shelf photos** tile (always
-  there, see [Photos](#photos)) comes before the last tile, **+ Add source**;
+  error (red: "Sign in again", "Not reachable", "Needs access") or **Off**. The last tile is **+ Add source**;
   with nothing added it is the only tile, under a one-line hint. Header buttons: **Allow Watch Next access** (until
   granted), **Rescan apps**, and the **Top Shelf feed** switch (off: the launcher gets nothing and the cached
   pictures are deleted).
@@ -139,10 +138,11 @@ new-tab photos. This app supplies the photos (and only this app touches the inte
 - **When.** The first photos are fetched as soon as the add-on is opened, or the launcher first asks for the photos
   with an empty cache (a quick fill of up to 15, each photo available as soon as it arrives). After that at most
   every 3 days, on an unmetered, connected network (a `JobScheduler` job every 3 days, plus the checks when the add-on
-  opens and when the launcher asks). **Sources > Top Shelf photos > Refresh now** fetches at once on any connection.
-- **On the TV.** In **Sources** the **Top Shelf photos** tile has On/Off (default On; Off deletes the photos and the
-  launcher uses its own wallpapers), a switch per category (at least one stays on), **Refresh now** and a plain
-  status line ("12 photos, updated today", "No network", "Timed out").
+  opens and when the launcher asks). **Launcher settings > Top Shelf > Refresh photos** fetches at once on any connection.
+- **On the TV.** The photo settings live in the launcher: **Launcher settings > Top Shelf** has **Photos** (On/Off,
+  default On; Off deletes the photos and the launcher uses its own wallpapers), **Photo themes** (a switch per
+  category; at least one stays on), **Refresh photos** and the plain status line on its right ("12 photos, updated
+  today", "Refreshing…", "No network", "Timed out"). This app only has the feed; the Sources screen no longer lists it.
 - **Credit.** Each photo carries a plain-text credit, "Author — Licence", at most 80 characters, made from the
   Commons author and licence fields with the markup removed, so the launcher can show it.
 
@@ -162,6 +162,20 @@ only if it is 16 lower-case hex digits and `.jpg` **and** is in the cache folder
 (`..`, a path, another extension, a temporary file) is a `FileNotFoundException`. The cursor of `/photos` notifies
 when a photo arrives or leaves. An empty answer means "use your own wallpapers" (the switch is off, or nothing is
 cached yet).
+
+**Photo settings (`call()`).** The launcher has no network and cannot read this app's preferences, so Launcher
+settings > Top Shelf reads and writes the photo settings with `ContentResolver.call(content://com.cleanlook.continuewatching.shelf, method, null, extras)`.
+Same caller check as above (anyone else gets a `SecurityException`); an unknown method answers `null`. Every answer is
+a Bundle with the current settings: `ok` (boolean; false comes with `error`: `at_least_one`, `off` or `bad_request`),
+`enabled`, `category_keys` / `category_labels` (all categories), `categories_on` (keys), `count`, `refreshing` and
+`status` (the plain line: "12 photos, updated today", "Refreshing…", "No network", "Off").
+
+| Method | Extras | Does |
+|---|---|---|
+| `photos_get_settings`, `photos_status` | none | Reads the current state. |
+| `photos_set_enabled` | `enabled` (boolean) | Photos on (a first fetch starts) or off (the photos are deleted). |
+| `photos_set_categories` | `categories_on` (String[] of keys) | Sets the categories; none left on is refused (`at_least_one`). |
+| `photos_refresh` | none | Starts a refresh on any connection and returns at once; poll `photos_status` until `refreshing` is false. |
 
 ## Jellyfin deep link
 

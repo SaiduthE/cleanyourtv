@@ -71,6 +71,8 @@ final class TopShelf {
     private final Host host;
     private final ContentResolver resolver;
     private final boolean animations, reducedMotion;
+    /** Launcher settings > Top Shelf, read when Home is built (a change rebuilds Home): the app's own artwork, the photo credit. */
+    private final boolean appArtwork, showCredit;
     private final float density;
     private final int accent;
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -134,6 +136,9 @@ final class TopShelf {
         this.resolver = context.getContentResolver();
         this.animations = animations;
         this.reducedMotion = reducedMotion;
+        android.content.SharedPreferences choices = context.getSharedPreferences(Config.SETTINGS_NAME, Context.MODE_PRIVATE);
+        this.appArtwork = choices.getBoolean(Config.TOP_SHELF_ARTWORK_KEY, true);
+        this.showCredit = choices.getBoolean(Config.TOP_SHELF_CREDIT_KEY, true);
         this.density = context.getResources().getDisplayMetrics().density;
         this.accent = accent;
 
@@ -413,7 +418,8 @@ final class TopShelf {
             if (gen != generation) return;
             Bitmap back = null, poster = null;
             Bitmap[] small = new Bitmap[TopShelfLogic.MAX_UP_NEXT];
-            if (found != null) {
+            // App artwork off: the Resume text stands on the photos or wallpapers, so no picture of the app is decoded.
+            if (found != null && appArtwork) {
                 // Each picture is classified by its decoded size: only a genuine landscape picture is a backdrop;
                 // anything else (a poster, a square cover, a composite) is a small card, never stretched.
                 for (String uri : new String[] {found.main.backdropUri(), found.main.posterUri()}) {
@@ -618,7 +624,7 @@ final class TopShelf {
 
     /** Shown only while a photo is up and nothing but the idle shelf is: not over a show, not under an app's name. */
     private void updateCredit() {
-        boolean on = !photoCredit.isEmpty() && shown == TopShelfLogic.Content.REST && !closed;
+        boolean on = showCredit && !photoCredit.isEmpty() && shown == TopShelfLogic.Content.REST && !closed;
         if (on) credit.setText(photoCredit);
         credit.setVisibility(on ? View.VISIBLE : View.GONE);
     }

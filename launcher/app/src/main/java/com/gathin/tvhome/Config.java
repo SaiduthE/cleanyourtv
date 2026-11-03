@@ -46,6 +46,10 @@ final class Config {
     static final String CLOCK_FORMAT_KEY = "clock_format";
     /** The Top Shelf row of Launcher settings: "layered" (the default) or "off". Not a theme setting, so a theme never resets it. */
     static final String TOP_SHELF_KEY = "top_shelf";
+    /** Top Shelf > App artwork: the focused app's own artwork behind its Resume text (default true), else photos/wallpapers. Not a theme setting. */
+    static final String TOP_SHELF_ARTWORK_KEY = "top_shelf_artwork";
+    /** Top Shelf > Photo credit: the small credit line on the idle shelf (default true). Not a theme setting. */
+    static final String TOP_SHELF_CREDIT_KEY = "top_shelf_credit";
     /**
      * Counts the changes made in Launcher settings. Home remembers the count it was built with and rebuilds on
      * resume when it differs, however the settings were left (see MainActivity#onResume).

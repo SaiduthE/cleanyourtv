@@ -11,11 +11,12 @@ import java.util.Locale;
  */
 final class SettingsModel {
 
-    enum Group { HOME_LAYOUT, LOOK, BUTTONS, SYSTEM }
+    enum Group { HOME_LAYOUT, LOOK, TOP_SHELF, BUTTONS, SYSTEM }
 
     enum Row {
         COLUMNS, ROWS_BELOW_DOCK, DOCK_OPACITY, OPEN_ON_START,
-        STYLE, WALLPAPER, TOP_SHELF, CLOCK, WIDGETS, ANIMATIONS, ADVANCED,
+        STYLE, WALLPAPER, CLOCK, WIDGETS, ANIMATIONS, ADVANCED,
+        TOP_SHELF, APP_ARTWORK, PHOTOS, PHOTO_THEMES, REFRESH_PHOTOS, PHOTO_CREDIT,
         REMOTE_BUTTONS, TOP_BAR_BUTTONS, REORDER, EDIT_DOCK,
         DEFAULT_HOME, TV_SETTINGS, RESET_THEME
     }
@@ -27,6 +28,14 @@ final class SettingsModel {
     static final int[] ROWS_BELOW_DOCK = {0, 1, 2, 3};
     static final int[] DOCK_OPACITIES = {100, 70, 50, 30};
     static final String[] CLOCK_FORMATS = {"system", "12", "24"};
+
+    /**
+     * The rows of the Top Shelf group that live in the Continue watching add-on (read and written through its
+     * provider, see PhotoSettingsClient): they are greyed while the add-on is missing.
+     */
+    static boolean isAddOnRow(Row row) {
+        return row == Row.PHOTOS || row == Row.PHOTO_THEMES || row == Row.REFRESH_PHOTOS;
+    }
 
     /**
      * The saved on-TV choices "Reset Theme" clears (keys of Config.SETTINGS_NAME), and the ones that count as
@@ -60,11 +69,18 @@ final class SettingsModel {
             case LOOK:
                 rows.add(Row.STYLE);
                 rows.add(Row.WALLPAPER);
-                rows.add(Row.TOP_SHELF);
                 rows.add(Row.CLOCK);
                 rows.add(Row.WIDGETS);
                 rows.add(Row.ANIMATIONS);
                 rows.add(Row.ADVANCED);
+                break;
+            case TOP_SHELF:
+                rows.add(Row.TOP_SHELF);
+                rows.add(Row.APP_ARTWORK);
+                rows.add(Row.PHOTOS);
+                rows.add(Row.PHOTO_THEMES);
+                rows.add(Row.REFRESH_PHOTOS);
+                rows.add(Row.PHOTO_CREDIT);
                 break;
             case BUTTONS:
                 rows.add(Row.REMOTE_BUTTONS);
@@ -90,6 +106,7 @@ final class SettingsModel {
             case WIDGETS:
             case REORDER:
             case EDIT_DOCK:
+            case REFRESH_PHOTOS:
                 return Kind.ACTION;
             case RESET_THEME:
                 return Kind.CONFIRM;

@@ -62,11 +62,39 @@ public class SettingsModelTest {
         assertEquals(-1, SettingsModel.indexOf(SettingsModel.CLOCK_FORMATS, "x"));
     }
 
-    @Test public void topShelfIsAPopupPickerInTheLookGroup() {
+    @Test public void topShelfHasItsOwnGroupAfterLook() {
+        assertEquals(Arrays.asList(Group.HOME_LAYOUT, Group.LOOK, Group.TOP_SHELF, Group.BUTTONS, Group.SYSTEM),
+                Arrays.asList(SettingsModel.groups()));
+        assertEquals(Arrays.asList(Row.TOP_SHELF, Row.APP_ARTWORK, Row.PHOTOS, Row.PHOTO_THEMES, Row.REFRESH_PHOTOS,
+                Row.PHOTO_CREDIT), SettingsModel.rows(Group.TOP_SHELF, false, false));
+        // the Top Shelf row moved out of Look
+        assertFalse(SettingsModel.rows(Group.LOOK, true, true).contains(Row.TOP_SHELF));
+    }
+
+    @Test public void topShelfRowsArePopupPickersAndRefreshIsAnAction() {
         assertEquals(SettingsModel.Kind.OPTIONS, SettingsModel.kind(Row.TOP_SHELF));
-        assertTrue(SettingsModel.rows(Group.LOOK, false, false).contains(Row.TOP_SHELF));
-        // A choice with no theme default: "Reset Theme" must not clear it.
-        assertFalse(Arrays.asList(SettingsModel.RESET_KEYS).contains(Config.TOP_SHELF_KEY));
+        assertEquals(SettingsModel.Kind.OPTIONS, SettingsModel.kind(Row.APP_ARTWORK));
+        assertEquals(SettingsModel.Kind.OPTIONS, SettingsModel.kind(Row.PHOTOS));
+        assertEquals(SettingsModel.Kind.OPTIONS, SettingsModel.kind(Row.PHOTO_THEMES));
+        assertEquals(SettingsModel.Kind.OPTIONS, SettingsModel.kind(Row.PHOTO_CREDIT));
+        assertEquals(SettingsModel.Kind.ACTION, SettingsModel.kind(Row.REFRESH_PHOTOS));
+    }
+
+    @Test public void topShelfChoicesAreNotThemeSettings() {
+        // No theme default for these: "Reset Theme" must not clear them.
+        for (String key : new String[] {Config.TOP_SHELF_KEY, Config.TOP_SHELF_ARTWORK_KEY, Config.TOP_SHELF_CREDIT_KEY}) {
+            assertFalse(key, Arrays.asList(SettingsModel.RESET_KEYS).contains(key));
+        }
+        assertEquals("top_shelf", Config.TOP_SHELF_KEY);   // the saved key did not change with the move
+    }
+
+    @Test public void onlyThePhotoRowsLiveInTheAddOn() {
+        assertTrue(SettingsModel.isAddOnRow(Row.PHOTOS));
+        assertTrue(SettingsModel.isAddOnRow(Row.PHOTO_THEMES));
+        assertTrue(SettingsModel.isAddOnRow(Row.REFRESH_PHOTOS));
+        assertFalse(SettingsModel.isAddOnRow(Row.TOP_SHELF));
+        assertFalse(SettingsModel.isAddOnRow(Row.APP_ARTWORK));
+        assertFalse(SettingsModel.isAddOnRow(Row.PHOTO_CREDIT));
     }
 
     @Test public void rtlReversesOnlyTheNumericLists() {

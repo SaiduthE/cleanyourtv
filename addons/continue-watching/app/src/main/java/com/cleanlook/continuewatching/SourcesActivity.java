@@ -369,10 +369,11 @@ public final class SourcesActivity extends Activity {
         int rows = c == null ? 0 : c[0];
         int channels = 0;
         int channelsOn = 0;
+        Set<String> started = ChannelFilter.startedKeys(state.ch);
         for (ChannelFilter.Info n : state.chans) {
             if (!n.pkg.equals(key)) continue;
             channels++;
-            if (prefs.channelEnabled(key, n.name)) {
+            if (prefs.channelEnabled(key, n.name, started)) {
                 channelsOn++;
                 rows += n.rows;
             }
@@ -733,8 +734,9 @@ public final class SourcesActivity extends Activity {
         }
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
+        final Set<String> started = ChannelFilter.startedKeys(state.ch);
         for (final ChannelFilter.Info n : mine) {
-            final boolean on = prefs.channelEnabled(pkg, n.name);
+            final boolean on = prefs.channelEnabled(pkg, n.name, started);
             String detail = n.total == 0 ? "empty" : n.rows == n.total ? AddedSources.rows(n.rows)
                     : n.rows + " of " + n.total;
             list.addView(nav(popupRow(n.name, detail, on ? "On" : "Off", on, v -> {

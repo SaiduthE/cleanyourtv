@@ -84,8 +84,14 @@ final class Prefs {
     Set<String> channelsForcedOn() { return new HashSet<>(sp.getStringSet("chan_on", new HashSet<String>())); }
     Set<String> channelsForcedOff() { return new HashSet<>(sp.getStringSet("chan_off", new HashSet<String>())); }
 
+    /** By name only (no item data): used for the migration. The screens use the overload with {@code startedKeys}. */
     boolean channelEnabled(String pkg, String name) {
         return ChannelFilter.enabled(pkg, name, channelsForcedOn(), channelsForcedOff());
+    }
+
+    /** The effective state, the one the hub and Top Shelf apply: see {@link ChannelFilter#startedKeys}. */
+    boolean channelEnabled(String pkg, String name, Set<String> startedKeys) {
+        return ChannelFilter.enabled(pkg, name, channelsForcedOn(), channelsForcedOff(), startedKeys);
     }
 
     void setChannelEnabled(String pkg, String name, boolean enabled) {

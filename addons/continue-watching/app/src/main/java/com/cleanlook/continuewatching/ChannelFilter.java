@@ -96,6 +96,26 @@ final class ChannelFilter {
         return started || isContinueName(name);
     }
 
+    /**
+     * The effective state of a channel: the one function behind what shows (hub, Top Shelf) and the switch on the
+     * Sources screen. {@code startedKeys} comes from {@link #startedKeys}; an explicit choice beats the automatic rule.
+     */
+    static boolean enabled(String pkg, String name, Set<String> forcedOn, Set<String> forcedOff,
+            Set<String> startedKeys) {
+        return enabled(pkg, name, forcedOn, forcedOff, startedKeys != null && startedKeys.contains(key(pkg, name)));
+    }
+
+    /** Keys of the channels holding an item the owner is partway through (a "continue" channel whatever its name). */
+    static Set<String> startedKeys(List<Item> channelItems) {
+        Set<String> started = new HashSet<>();
+        if (channelItems != null) {
+            for (Item it : channelItems) {
+                if (it.kind == Item.RESUME && it.progress > 0f) started.add(key(it.pkg, it.channel));
+            }
+        }
+        return started;
+    }
+
     /** The owner's choice if there is one, else on only for channels named like "Continue watching". */
     static boolean enabled(String pkg, String name, Set<String> forcedOn, Set<String> forcedOff) {
         String k = key(pkg, name);
@@ -224,15 +244,12 @@ final class ChannelFilter {
             }
         }
         // A channel with an item partway through it is a "continue" channel whatever its name.
-        Set<String> started = new HashSet<>();
-        for (Item it : channelItems) {
-            if (it.kind == Item.RESUME && it.progress > 0f) started.add(key(it.pkg, it.channel));
-        }
+        Set<String> started = startedKeys(channelItems);
         List<Item> picked = new ArrayList<>();
         Map<String, Integer> byLink = new HashMap<>();
         Map<String, Integer> byTitle = new HashMap<>();
         for (Item it : channelItems) {
-            if (!enabled(it.pkg, it.channel, forcedOn, forcedOff, started.contains(key(it.pkg, it.channel)))) continue;
+            if (!enabled(it.pkg, it.channel, forcedOn, forcedOff, started)) continue;
             String link = it.pkg + "|" + it.intentUri;
             String title = it.pkg + "|" + Text.normalizeTitle(it.title);
             if (wnLinks.contains(link) || wnTitles.contains(title)) continue;

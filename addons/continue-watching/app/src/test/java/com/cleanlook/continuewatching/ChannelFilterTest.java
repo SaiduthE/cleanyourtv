@@ -175,6 +175,49 @@ public class ChannelFilterTest {
         assertEquals("the owner's switch still wins", 0, ChannelFilter.visible(in, null, off, null).size());
     }
 
+    @Test public void effectiveStateAutoOnByPartialProgressAndNameMatch() {
+        Item next = chItem("plex", "Plex", "Unstarted", "l0", 0f, 0);
+        next.kind = Item.NEXT;
+        List<Item> in = Arrays.asList(chItem("plex", "Plex", "Seinfeld", "l1", 0.4f, 5), next,
+                chItem("plex", "Recently Added", "Movie", "l2", -1f, 0),
+                chItem("netflix", "Continue Watching", "Named", "l3", -1f, 0));
+        Set<String> started = ChannelFilter.startedKeys(in);
+        assertTrue("partly watched item, odd name", ChannelFilter.enabled("plex", "Plex", null, null, started));
+        assertFalse("nothing started, no continue name", ChannelFilter.enabled("plex", "Recently Added", null, null, started));
+        assertTrue("name match without progress", ChannelFilter.enabled("netflix", "Continue Watching", null, null, started));
+        assertFalse(ChannelFilter.enabled("plex", "Plex", null, null, (Set<String>) null));
+    }
+
+    @Test public void effectiveStateExplicitOverrideBeatsTheAutoRule() {
+        List<Item> in = Arrays.asList(chItem("plex", "Plex", "Seinfeld", "l1", 0.4f, 5),
+                chItem("plex", "Recently Added", "Movie", "l2", -1f, 0),
+                chItem("netflix", "Continue Watching", "Named", "l3", 0.2f, 0));
+        Set<String> started = ChannelFilter.startedKeys(in);
+        Set<String> off = new HashSet<>(Arrays.asList(ChannelFilter.key("plex", "Plex"),
+                ChannelFilter.key("netflix", "Continue Watching")));
+        Set<String> on = new HashSet<>(Collections.singleton(ChannelFilter.key("plex", "Recently Added")));
+        assertFalse("explicit Off beats partial progress", ChannelFilter.enabled("plex", "Plex", null, off, started));
+        assertFalse("explicit Off beats the name", ChannelFilter.enabled("netflix", "Continue Watching", null, off, started));
+        assertTrue("explicit On for a channel the rules leave off",
+                ChannelFilter.enabled("plex", "Recently Added", on, off, started));
+        assertTrue("explicit On wins over Off", ChannelFilter.enabled("plex", "Plex",
+                new HashSet<>(Collections.singleton(ChannelFilter.key("plex", "Plex"))), off, started));
+    }
+
+    @Test public void switchStateMatchesWhatShows() {
+        List<Item> in = Arrays.asList(chItem("plex", "Plex", "Seinfeld", "l1", 0.4f, 5),
+                chItem("plex", "Recently Added", "Movie", "l2", -1f, 0));
+        Set<String> started = ChannelFilter.startedKeys(in);
+        for (String ch : new String[] {"Plex", "Recently Added"}) {
+            boolean shown = false;
+            for (Item it : ChannelFilter.visible(in, null, null, null)) if (it.channel.equals(ch)) shown = true;
+            assertEquals(ch, shown, ChannelFilter.enabled("plex", ch, null, null, started));
+        }
+        Set<String> off = new HashSet<>(Collections.singleton(ChannelFilter.key("plex", "Plex")));
+        assertTrue(ChannelFilter.visible(in, null, off, null).isEmpty());
+        assertFalse(ChannelFilter.enabled("plex", "Plex", null, off, started));
+    }
+
     @Test public void duplicatesWithWatchNextAndAcrossChannelsAreRemoved() {
         Item wn = new Item();
         wn.pkg = "a";

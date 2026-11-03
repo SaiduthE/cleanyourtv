@@ -180,6 +180,8 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private int savedDocked = -1;
     /** Reorder mode: no empty dock slots, so every position holds a tile that can move. */
     private boolean reordering;
+    /** Reorder mode: key of the picked-up tile, or null. */
+    private String carriedKey;
     private final TileListener listener;
     private final int dockSize;
     /** config dock_row: false makes the dock apps the first tiles of one plain grid (names shown, no empty slots). */
@@ -488,6 +490,7 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         h.card.setTranslationZ(focused && advancedEffects ? 8f * ctx.getResources().getDisplayMetrics().density : 0f);
         h.banner.setScaleX(focused && advancedEffects ? 1.035f : 1f);
         h.banner.setScaleY(focused && advancedEffects ? 1.035f : 1f);
+        if (carriedKey != null && carriedKey.equals(e.component.flattenToShortString())) h.setLifted(true, false);
         // A fully opaque banner covers the whole card (centerCrop), so the card's own fill under it is drawn for
         // nothing on every frame; keep it under banners with transparent parts and under icon tiles.
         h.card.setBackground(e.banner != null && e.banner.getOpacity() == PixelFormat.OPAQUE ? null : h.cardBackground);
@@ -597,6 +600,11 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         if (savedDocked < 0) return favourites.contains(e.pkg);
         Integer rank = savedRanks.get(e.component.flattenToShortString());
         return rank != null && rank < savedDocked;
+    }
+
+    /** Reorder mode: the tile with this key is picked up (null: none). Its holder is lifted, here and when it rebinds. */
+    void setCarried(String key) {
+        carriedKey = key;
     }
 
     /** Reorder mode on or off; takes effect at the next reload() (empty dock slots are left out while on). */
@@ -899,6 +907,9 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         return 16f * density * Math.min(1f, tileWidthPx / (DESIGN_W_DP * density));
     }
 
+    /** How much bigger than a focused tile the picked-up one is drawn (reorder mode). */
+    static final float CARRY_LIFT = 1.05f;
+
     static final class Holder extends RecyclerView.ViewHolder {
         final View card;
         /** item_app.xml's tile_bg: the dark card behind an icon tile, or behind a banner that has transparent parts. */
@@ -915,6 +926,28 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         final boolean overshoot;
         /** A dock tile: it grows in place without advanced_effects' lift, which reads as off-centre in the band (#2135). */
         boolean inDock;
+
+        /**
+         * Reorder mode: the picked-up tile rises a little above its focused size, up 4dp, with a deeper shadow; false
+         * puts it back to how a focused tile looks. One short property animation, none with Animations off.
+         */
+        void setLifted(boolean lifted, boolean animate) {
+            float density = card.getResources().getDisplayMetrics().density;
+            float base = !animations ? 1f : advancedEffects ? 1.12f : 1.10f;
+            float s = lifted ? base * CARRY_LIFT : base;
+            float ty = lifted || (advancedEffects && !inDock) ? -4f * density : 0f;
+            float tz = lifted ? 16f * density : advancedEffects ? 8f * density : 0f;
+            card.animate().cancel();
+            if (!animate || !animations) {
+                card.setScaleX(s);
+                card.setScaleY(s);
+                card.setTranslationY(ty);
+                card.setTranslationZ(tz);
+                return;
+            }
+            card.animate().scaleX(s).scaleY(s).translationY(ty).translationZ(tz)
+                    .setDuration(reducedMotion ? Motion.REDUCED_MS : 180).start();
+        }
 
         Holder(View v, TileListener listener, boolean animations, boolean advancedEffects,
                boolean reducedMotion, float restNameAlpha, boolean overshoot) {

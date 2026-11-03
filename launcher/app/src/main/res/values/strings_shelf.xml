@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Move mode pill and Top Shelf (ReorderIndicator, TopShelf). English only. -->
+<resources>
+    <string name="pill_moving" translatable="false">Moving %s</string>
+    <string name="pill_hint_carry" translatable="false">Arrows move it  ·  OK drops  ·  Back puts it down</string>
+    <string name="pill_browse" translatable="false">Move apps</string>
+    <string name="pill_hint_browse" translatable="false">OK picks up an app  ·  Back finishes</string>
+    <string name="pill_dock_place" translatable="false">Edit dock</string>
+    <string name="pill_hint_dock_place" translatable="false">OK chooses the place  ·  Back finishes</string>
+    <string name="pill_dock_app" translatable="false">Edit dock</string>
+    <string name="pill_hint_dock_app" translatable="false">OK chooses the app  ·  Back goes back</string>
+
+    <string name="shelf_resume" translatable="false">Resume</string>
+    <string name="shelf_play" translatable="false">Play</string>
+    <string name="shelf_up_next" translatable="false">Up next</string>
+
+    <string name="ls_top_shelf_label" translatable="false">Top Shelf</string>
+    <string name="ls_top_shelf_layered" translatable="false">Layered</string>
+    <string name="ls_help_top_shelf" translatable="false">Layered shows what you are partway through, or the app\'s own artwork, above the dock when focus rests on an app. Off keeps the plain wallpaper.</string>
+</resources>

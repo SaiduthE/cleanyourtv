@@ -63,6 +63,13 @@ public class SettingsModelTest {
         assertEquals(-1, SettingsModel.indexOf(SettingsModel.CLOCK_FORMATS, "x"));
     }
 
+    @Test public void topShelfIsAPopupPickerInTheLookGroup() {
+        assertEquals(SettingsModel.Kind.OPTIONS, SettingsModel.kind(Row.TOP_SHELF));
+        assertTrue(SettingsModel.rows(Group.LOOK, false, false, false).contains(Row.TOP_SHELF));
+        // A choice with no theme default: "Reset Theme" must not clear it.
+        assertFalse(Arrays.asList(SettingsModel.RESET_KEYS).contains(Config.TOP_SHELF_KEY));
+    }
+
     @Test public void rtlReversesOnlyTheNumericLists() {
         assertTrue(SettingsModel.reversesInRtl(Row.COLUMNS));
         assertTrue(SettingsModel.reversesInRtl(Row.CLOCK));

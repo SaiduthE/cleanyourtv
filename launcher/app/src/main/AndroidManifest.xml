@@ -55,6 +55,8 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="com.gathin.tvhome.category.DOCK_CARD" />
         </intent>
+        <!-- The Top Shelf feed of the Continue watching add-on (TopShelf): without this Android 11 hides its provider. -->
+        <provider android:authorities="com.cleanlook.continuewatching.shelf" />
         <!-- stock_home_redirect: HomeKeyService looks up the stock launcher's HOME activity. -->
         <intent>
             <action android:name="android.intent.action.MAIN" />

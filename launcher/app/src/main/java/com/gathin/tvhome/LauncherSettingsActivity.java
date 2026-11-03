@@ -65,6 +65,7 @@ public final class LauncherSettingsActivity extends Activity {
     private int rowsBelowDock;
     private int dockOpacity;
     private String clockFormat;
+    private TopShelfLogic.Mode topShelf;
     private boolean animations;
     private boolean advancedEffects;
 
@@ -148,6 +149,7 @@ public final class LauncherSettingsActivity extends Activity {
         rowsBelowDock = config.rowsBelowDock;
         dockOpacity = config.dockOpacity;
         clockFormat = config.clockFormat;
+        topShelf = TopShelfLogic.Mode.parse(choices.getString(Config.TOP_SHELF_KEY, null));
         animations = config.animations;
         advancedEffects = config.animations && config.advancedEffects;
     }
@@ -324,6 +326,7 @@ public final class LauncherSettingsActivity extends Activity {
             case OPEN_ON_START: return getString(R.string.open_on_start_label);
             case STYLE: return getString(R.string.ls_style_label);
             case WALLPAPER: return getString(R.string.wallpaper_label);
+            case TOP_SHELF: return getString(R.string.ls_top_shelf_label);
             case CLOCK: return getString(R.string.ls_clock_label);
             case WEATHER_ON_HOME: return getString(R.string.ls_weather_on_home);
             case WEATHER_SETTINGS: return getString(R.string.ls_weather_settings);
@@ -346,6 +349,7 @@ public final class LauncherSettingsActivity extends Activity {
             case OPEN_ON_START: return getString(R.string.ls_help_open_on_start);
             case STYLE: return getString(R.string.ls_help_style);
             case WALLPAPER: return getString(R.string.ls_help_wallpaper);
+            case TOP_SHELF: return getString(R.string.ls_help_top_shelf);
             case CLOCK: return getString(R.string.ls_help_clock);
             case WEATHER_ON_HOME: return getString(R.string.ls_help_weather_on_home);
             case WEATHER_SETTINGS: return getString(R.string.ls_help_weather_settings);
@@ -372,6 +376,7 @@ public final class LauncherSettingsActivity extends Activity {
             case OPEN_ON_START: return openOnStartLabel();
             case STYLE: return styleLabel();
             case WALLPAPER: return wallpaperLabel();
+            case TOP_SHELF: return topShelfLabel(topShelf);
             case CLOCK: return clockLabel(clockFormat);
             case ANIMATIONS: return getString(animations ? R.string.on : R.string.off);
             case ADVANCED: return getString(advancedEffects ? R.string.on : R.string.off);
@@ -409,6 +414,10 @@ public final class LauncherSettingsActivity extends Activity {
         if ("12".equals(format)) return getString(R.string.clock_format_12);
         if ("24".equals(format)) return getString(R.string.clock_format_24);
         return getString(R.string.clock_format_system);
+    }
+
+    private String topShelfLabel(TopShelfLogic.Mode mode) {
+        return getString(mode == TopShelfLogic.Mode.OFF ? R.string.off : R.string.ls_top_shelf_layered);
     }
 
     private String wallpaperLabel() {
@@ -493,6 +502,17 @@ public final class LauncherSettingsActivity extends Activity {
             case WALLPAPER:
                 showWallpaperPicker(view);
                 break;
+            case TOP_SHELF: {
+                TopShelfLogic.Mode[] modes = TopShelfLogic.Mode.values();
+                String[] labels = new String[modes.length];
+                for (int i = 0; i < modes.length; i++) labels[i] = topShelfLabel(modes[i]);
+                options(row, view, labels, topShelf.ordinal(), i -> {
+                    topShelf = modes[i];
+                    choices.edit().putString(Config.TOP_SHELF_KEY, topShelf.key).apply();
+                    committed(row);
+                });
+                break;
+            }
             case OPEN_ON_START:
                 showOpenOnStartPicker(view);
                 break;

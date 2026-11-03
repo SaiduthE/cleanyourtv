@@ -15,7 +15,7 @@ final class SettingsModel {
 
     enum Row {
         COLUMNS, ROWS_BELOW_DOCK, DOCK_OPACITY, OPEN_ON_START,
-        STYLE, WALLPAPER, CLOCK, WEATHER_ON_HOME, WEATHER_SETTINGS, ANIMATIONS, ADVANCED,
+        STYLE, WALLPAPER, TOP_SHELF, CLOCK, WEATHER_ON_HOME, WEATHER_SETTINGS, ANIMATIONS, ADVANCED,
         REMOTE_BUTTONS, REORDER, EDIT_DOCK,
         DEFAULT_HOME, TV_SETTINGS, RESET_THEME
     }
@@ -60,6 +60,7 @@ final class SettingsModel {
             case LOOK:
                 rows.add(Row.STYLE);
                 rows.add(Row.WALLPAPER);
+                rows.add(Row.TOP_SHELF);
                 rows.add(Row.CLOCK);
                 if (weatherAvailable) {
                     rows.add(Row.WEATHER_ON_HOME);

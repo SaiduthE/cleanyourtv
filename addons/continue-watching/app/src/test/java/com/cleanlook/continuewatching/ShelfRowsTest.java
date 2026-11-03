@@ -1,6 +1,7 @@
 package com.cleanlook.continuewatching;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -86,15 +87,28 @@ public class ShelfRowsTest {
         assertEquals(ShelfRows.MAX_PER_PACKAGE, ShelfRows.build(in, null, 0, null, null, null).size());
     }
 
-    @Test public void backdropsNarrowerThan320AreLeftOut() {
-        assertEquals(ShelfImages.PICK_BACKDROP, ShelfImages.pickBackdrop(960, 0, 0));
-        assertEquals(ShelfImages.PICK_NONE, ShelfImages.pickBackdrop(319, 0, 0));
-        assertEquals(ShelfImages.PICK_BACKDROP, ShelfImages.pickBackdrop(320, 0, 0));
-        assertEquals("portrait poster is never a backdrop", ShelfImages.PICK_BACKDROP, ShelfImages.pickBackdrop(500, 800, 1200));
-        assertEquals("a wider landscape poster wins", ShelfImages.PICK_POSTER, ShelfImages.pickBackdrop(400, 960, 540));
-        assertEquals("no backdrop, wide poster", ShelfImages.PICK_POSTER, ShelfImages.pickBackdrop(0, 600, 338));
-        assertEquals("small landscape poster", ShelfImages.PICK_NONE, ShelfImages.pickBackdrop(0, 300, 169));
-        assertEquals(ShelfImages.PICK_NONE, ShelfImages.pickBackdrop(0, 0, 0));
+    @Test public void onlyGenuineLandscapePicturesAreBackdrops() {
+        assertTrue(ShelfImages.isBackdrop(960, 540));
+        assertTrue("exactly 1.5 and 640 wide", ShelfImages.isBackdrop(640, 426));
+        assertFalse("narrower than 640", ShelfImages.isBackdrop(639, 300));
+        assertFalse("a square cover or composite", ShelfImages.isBackdrop(960, 960));
+        assertFalse("a 4:3 picture is under 1.5", ShelfImages.isBackdrop(960, 720));
+        assertFalse("a portrait poster", ShelfImages.isBackdrop(800, 1200));
+        assertFalse(ShelfImages.isBackdrop(0, 0));
+        assertFalse(ShelfImages.isBackdrop(960, 0));
+    }
+
+    @Test public void pickBackdropNeverPicksPostersOrSquares() {
+        assertEquals(ShelfImages.PICK_BACKDROP, ShelfImages.pickBackdrop(960, 540, 0, 0));
+        assertEquals(ShelfImages.PICK_NONE, ShelfImages.pickBackdrop(600, 338, 0, 0));
+        assertEquals("a square thumbnail is no backdrop", ShelfImages.PICK_NONE, ShelfImages.pickBackdrop(960, 960, 0, 0));
+        assertEquals("portrait poster is never a backdrop", ShelfImages.PICK_BACKDROP,
+                ShelfImages.pickBackdrop(960, 540, 800, 1200));
+        assertEquals("a wider landscape poster wins", ShelfImages.PICK_POSTER, ShelfImages.pickBackdrop(700, 394, 960, 540));
+        assertEquals("no backdrop, wide poster", ShelfImages.PICK_POSTER, ShelfImages.pickBackdrop(0, 0, 900, 506));
+        assertEquals("small landscape poster", ShelfImages.PICK_NONE, ShelfImages.pickBackdrop(0, 0, 300, 169));
+        assertEquals("square poster and square thumbnail", ShelfImages.PICK_NONE, ShelfImages.pickBackdrop(900, 900, 900, 900));
+        assertEquals(ShelfImages.PICK_NONE, ShelfImages.pickBackdrop(0, 0, 0, 0));
     }
 
     @Test public void filtersByPackageAndCapsAtThreePerApp() {

@@ -36,8 +36,9 @@ import java.util.concurrent.Executors;
  * veil. When focus rests on a dock app for {@link TopShelfLogic#DWELL_MS} the shelf shows what that app has in
  * Continue watching (the show's own backdrop, where you are, a Resume button and up to two up-next items); an app with
  * nothing to resume gets its name in large type, and its icon when that can be drawn without enlarging it more than
- * {@link TopShelfLogic#MAX_UPSCALE} times, over the wallpaper. A backdrop narrower than
- * {@link TopShelfLogic#MIN_BACKDROP_W} is never stretched: the wallpaper stays and the resume block sits on it.
+ * {@link TopShelfLogic#MAX_UPSCALE} times, over the wallpaper. Only a genuine landscape picture
+ * ({@link TopShelfLogic#isBackdrop}) is ever drawn full-bleed; a poster, cover or square picture is a small crisp
+ * card at the right of the resume block, over the wallpaper. A top scrim keeps the clock and date legible.
  * Focus away from the dock for {@link TopShelfLogic#LEAVE_MS} brings the plain wallpaper back. Nothing is blurred and
  * no picture is scaled up beyond that limit. The Resume button and the up-next items take focus (Up from the dock),
  * and the shelf never goes away while one of them has it.
@@ -80,6 +81,10 @@ final class TopShelf {
     private final FrameLayout content;
     private final ImageView art;
     private final View scrim;
+    /** A poster (not landscape) as a small card at the right, never stretched over the shelf. */
+    private final ImageView card;
+    /** Darkens the top (clock, date, weather) so no picture competes with them. */
+    private final View topScrim;
     private final LinearLayout nameRow;
     private final ImageView nameIcon;
     private final TextView nameText;
@@ -92,7 +97,7 @@ final class TopShelf {
     private final List<ImageView> thumbImages = new ArrayList<>();
     private final List<TextView> thumbLabels = new ArrayList<>();
 
-    private Bitmap artBitmap;
+    private Bitmap artBitmap, cardBitmap;
     private final Bitmap[] thumbBitmaps = new Bitmap[TopShelfLogic.MAX_UP_NEXT];
 
     private TopShelfLogic.Content shown = TopShelfLogic.Content.REST;
@@ -137,6 +142,11 @@ final class TopShelf {
         content.forceHasOverlappingRendering(false);
         content.setClipChildren(false);
         container.addView(content, new FrameLayout.LayoutParams(-1, -1));
+        topScrim = new View(context);
+        topScrim.setBackground(topVeil());
+        topScrim.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        container.addView(topScrim, new FrameLayout.LayoutParams(-1, dp(190)));
+        container.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> sizeTopScrim());
 
         art = new ImageView(context);
         art.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -145,6 +155,16 @@ final class TopShelf {
         scrim = new View(context);
         content.addView(scrim, new FrameLayout.LayoutParams(-1, -1));
         scrim.setBackground(scrimOnWallpaper());
+
+        card = new ImageView(context);
+        card.setScaleType(ImageView.ScaleType.CENTER_CROP);
+        card.setBackground(round(NO_PIC, 0, 0, dp(8)));
+        card.setClipToOutline(true);
+        card.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        FrameLayout.LayoutParams cardLp = new FrameLayout.LayoutParams(1, 1, Gravity.BOTTOM | Gravity.END);
+        cardLp.setMarginEnd(dp(58));
+        content.addView(card, cardLp);
+        card.setVisibility(View.GONE);
 
         nameRow = new LinearLayout(context);
         nameRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -329,8 +349,10 @@ final class TopShelf {
         wall.close();
         art.setImageDrawable(null);
         for (ImageView t : thumbImages) t.setImageDrawable(null);
+        card.setImageDrawable(null);
         recycle(artBitmap);
-        artBitmap = null;
+        recycle(cardBitmap);
+        artBitmap = cardBitmap = null;
         for (int i = 0; i < thumbBitmaps.length; i++) {
             recycle(thumbBitmaps[i]);
             thumbBitmaps[i] = null;
@@ -345,54 +367,69 @@ final class TopShelf {
         final int gen = ++generation;
         final TopShelfLogic.Shelf cached = cache.get(pkg, SystemClock.uptimeMillis());
         if (cached == NONE) {
-            show(null, null, null);
+            show(null, null, null, null);
             return;
         }
         worker.execute(() -> {
             TopShelfLogic.Shelf found = cached != null ? cached
                     : TopShelfLogic.shelf(ShelfFeed.query(resolver, pkg), pkg);
             if (gen != generation) return;
-            Bitmap back = null;
+            Bitmap back = null, poster = null;
             Bitmap[] small = new Bitmap[TopShelfLogic.MAX_UP_NEXT];
             if (found != null) {
-                back = ShelfFeed.decode(resolver, found.main.image(), TopShelfLogic.MAX_W, TopShelfLogic.MAX_H);
-                if (back != null && !TopShelfLogic.backdropWideEnough(back.getWidth())) {
-                    recycle(back);   // too small to stretch over the shelf: the wallpaper is used instead
-                    back = null;
+                // Each picture is classified by its decoded size: only a genuine landscape picture is a backdrop;
+                // anything else (a poster, a square cover, a composite) is a small card, never stretched.
+                for (String uri : new String[] {found.main.backdropUri(), found.main.posterUri()}) {
+                    if (uri == null || back != null || poster != null) continue;
+                    Bitmap b = ShelfFeed.decode(resolver, uri, TopShelfLogic.MAX_W, TopShelfLogic.MAX_H);
+                    if (b == null) continue;
+                    switch (TopShelfLogic.classify(b.getWidth(), b.getHeight())) {
+                        case BACKDROP: back = b; break;
+                        case POSTER: poster = b; break;
+                        default: recycle(b);
+                    }
                 }
                 for (int i = 0; i < found.upNext.size() && gen == generation; i++) {
-                    small[i] = ShelfFeed.decode(resolver, found.upNext.get(i).image(),
+                    Bitmap t = ShelfFeed.decode(resolver, found.upNext.get(i).backdropUri(),
                             TopShelfLogic.THUMB_W, TopShelfLogic.THUMB_H);
+                    if (t != null && !TopShelfLogic.thumbFits(t.getWidth(), t.getHeight())) {
+                        recycle(t);   // a poster would be cropped to a sliver: the label stands alone
+                        t = null;
+                    }
+                    small[i] = t;
                 }
             }
             final TopShelfLogic.Shelf result = found;
-            final Bitmap backdrop = back;
+            final Bitmap backdrop = back, cardPic = poster;
             handler.post(() -> {
                 if (gen != generation || closed) {
                     recycle(backdrop);
+                    recycle(cardPic);
                     for (Bitmap b : small) recycle(b);
                     return;
                 }
                 cache.put(pkg, result == null ? NONE : result, SystemClock.uptimeMillis());
-                show(result, backdrop, small);
+                show(result, backdrop, cardPic, small);
             });
         });
     }
 
-    private void show(TopShelfLogic.Shelf shelf, Bitmap backdrop, Bitmap[] small) {
+    private void show(TopShelfLogic.Shelf shelf, Bitmap backdrop, Bitmap cardPic, Bitmap[] small) {
         float room = (wantDockTop - dp(GAP_DP) - host.headerBottom()) / density;
         TopShelfLogic.Content what = TopShelfLogic.select(TopShelfLogic.Mode.LAYERED, true, shelf != null,
                 TopShelfLogic.roomForResume(room), wantLabel != null && !wantLabel.isEmpty());
         if (what == TopShelfLogic.Content.REST) {
             recycle(backdrop);
-            for (Bitmap b : small) recycle(b);
+            recycle(cardPic);
+            if (small != null) for (Bitmap b : small) recycle(b);
             showRest(true);
             return;
         }
         if (what == TopShelfLogic.Content.APP_NAME && shelf != null) {
             // The shelf has a show but no room for it: the app's name stands in; drop the decoded pictures.
             recycle(backdrop);
-            for (Bitmap b : small) recycle(b);
+            recycle(cardPic);
+            if (small != null) for (Bitmap b : small) recycle(b);
         }
         shownPkg = wantPkg;
         shown = what;
@@ -408,9 +445,11 @@ final class TopShelf {
         scrim.setBackground(backdropShown ? scrimOnBackdrop() : scrimOnWallpaper());
         if (what == TopShelfLogic.Content.RESUME) {
             nameRow.setVisibility(View.GONE);
-            fillResume(shelf, backdrop, small);
+            fillResume(shelf, backdrop, cardPic, small);
         } else {
             setArt(null);
+            setCard(null);
+            card.setVisibility(View.GONE);
             block.setVisibility(View.GONE);
             upNext.setVisibility(View.GONE);
             setThumbs(null);
@@ -418,6 +457,7 @@ final class TopShelf {
         }
         // The shelf's own large type takes the place of the app name above the dock.
         host.setTitleHidden(true);
+        sizeTopScrim();
         reveal(backdropShown);
     }
 
@@ -447,7 +487,7 @@ final class TopShelf {
         }
     }
 
-    private void fillResume(TopShelfLogic.Shelf shelf, Bitmap backdrop, Bitmap[] small) {
+    private void fillResume(TopShelfLogic.Shelf shelf, Bitmap backdrop, Bitmap cardPic, Bitmap[] small) {
         TopShelfLogic.Entry main = shelf.main;
         source.setText(wantLabel == null ? "" : wantLabel);
         title.setText(main.title);
@@ -460,6 +500,15 @@ final class TopShelf {
         resumeButton.setOnClickListener(v -> launch(main));
         setArt(backdrop);
         setThumbs(small);
+        // A picture that is not landscape is a small card at the right; with a real backdrop there is none.
+        int cardW = placeCard(backdrop == null ? cardPic : null);
+        if (backdrop != null) recycle(cardPic);
+        FrameLayout.LayoutParams upLp = (FrameLayout.LayoutParams) upNext.getLayoutParams();
+        int upEnd = dp(58) + (cardW > 0 ? cardW + dp(28) : 0);
+        if (upLp.getMarginEnd() != upEnd) {
+            upLp.setMarginEnd(upEnd);
+            upNext.setLayoutParams(upLp);
+        }
         for (int i = 0; i < thumbs.size(); i++) {
             boolean on = i < shelf.upNext.size();
             thumbs.get(i).setVisibility(on ? View.VISIBLE : View.GONE);
@@ -470,7 +519,40 @@ final class TopShelf {
         }
         upNext.setVisibility(shelf.upNext.isEmpty() ? View.GONE : View.VISIBLE);
         block.setVisibility(View.VISIBLE);
-        placeAboveDock(block, upNext);
+        placeAboveDock(block, upNext, card);
+    }
+
+    /** Shows pic as the poster card at its own size (at most 1.5x) when it fits the room; returns its width in px. */
+    private int placeCard(Bitmap pic) {
+        int[] size = null;
+        if (pic != null) {
+            int room = wantDockTop - dp(GAP_DP) - host.headerBottom() - dp(24);
+            size = TopShelfLogic.cardSize(pic.getWidth(), pic.getHeight(), dp(TopShelfLogic.CARD_MAX_W_DP),
+                    Math.min(dp(TopShelfLogic.CARD_MAX_H_DP), room));
+        }
+        if (size == null) {
+            setCard(null);
+            recycle(pic);
+            card.setVisibility(View.GONE);
+            return 0;
+        }
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) card.getLayoutParams();
+        lp.width = size[0];
+        lp.height = size[1];
+        card.setLayoutParams(lp);
+        setCard(pic);
+        card.setVisibility(View.VISIBLE);
+        return size[0];
+    }
+
+    /** The top scrim covers the clock row and a little below it. */
+    private void sizeTopScrim() {
+        int h = host.headerBottom() + dp(40);
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) topScrim.getLayoutParams();
+        if (h > dp(40) && lp.height != h) {
+            lp.height = h;
+            topScrim.setLayoutParams(lp);
+        }
     }
 
     private void launch(TopShelfLogic.Entry e) {
@@ -523,6 +605,8 @@ final class TopShelf {
         content.setAlpha(0f);
         content.setVisibility(View.GONE);
         setArt(null);
+        setCard(null);
+        card.setVisibility(View.GONE);
         setThumbs(null);
         nameIcon.setImageDrawable(null);
     }
@@ -533,6 +617,13 @@ final class TopShelf {
         Bitmap old = artBitmap;
         artBitmap = next;
         art.setImageBitmap(next);
+        retire(old, next);
+    }
+
+    private void setCard(Bitmap next) {
+        Bitmap old = cardBitmap;
+        cardBitmap = next;
+        card.setImageBitmap(next);
         retire(old, next);
     }
 
@@ -557,10 +648,16 @@ final class TopShelf {
 
     // ---- views ---------------------------------------------------------------------------------------------------
 
-    /** Over the wallpaper at rest: just enough dark at the top (clock) and the bottom (dock) to read the type there. */
+    /** Over the wallpaper at rest: a little dark at the top and the bottom; the top scrim adds the clock's own shade. */
     private Drawable lightVeil() {
         return new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[] {0x4D000000, 0x14000000, 0x14000000, 0x73000000});
+    }
+
+    /** Over everything on the shelf, under the clock row: no frame or bright picture competes with the clock text. */
+    private Drawable topVeil() {
+        return new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[] {0xB8000000, 0x80000000, 0x00000000});
     }
 
     /** Behind a real backdrop: the strong shading the picture was always given. */

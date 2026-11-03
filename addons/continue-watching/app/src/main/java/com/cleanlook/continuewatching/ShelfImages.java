@@ -35,7 +35,7 @@ final class ShelfImages {
     static final String NAME_PATTERN = "[0-9a-f]{16}_[bpl]\\.(jpg|png)";
 
     static String fileName(String itemId, String kind) {
-        String stem = Text.sha1Hex("shelf|" + itemId).substring(0, 16);
+        String stem = Text.sha1Hex("shelf2|" + itemId).substring(0, 16);
         switch (kind) {
             case Contract.IMG_BACKDROP: return stem + "_b.jpg";
             case Contract.IMG_POSTER: return stem + "_p.jpg";
@@ -52,8 +52,9 @@ final class ShelfImages {
                 .appendPath(name).build().toString();
     }
 
-    /** A backdrop narrower than this is left out: the launcher would stretch it over a wide card. */
-    static final int MIN_BACKDROP_WIDTH = 320;
+    /** A backdrop must be at least this wide and at least this much wider than tall (aspect = width / height). */
+    static final int MIN_BACKDROP_WIDTH = 640;
+    static final float MIN_BACKDROP_ASPECT = 1.5f;
 
     /** Which decoded picture becomes the backdrop. */
     static final int PICK_NONE = 0;
@@ -61,23 +62,23 @@ final class ShelfImages {
     static final int PICK_POSTER = 2;
 
     /**
-     * The backdrop is the declared landscape picture; a landscape "poster" replaces it when it is wider. Widths are
-     * of the decoded pictures (0 when there is none; the poster's height tells landscape from portrait). A choice
-     * under {@link #MIN_BACKDROP_WIDTH} wide is no backdrop at all.
+     * A genuine landscape picture: aspect 1.5 or more and 640 px wide or more. Square covers, posters and composites
+     * (a framed photo with a logo beside it) are not: stretched over a wide card they look broken.
      */
-    static int pickBackdrop(int backdropWidth, int posterWidth, int posterHeight) {
-        boolean wide = posterWidth > 0 && posterWidth > posterHeight;
-        int pick = PICK_NONE;
-        int width = 0;
-        if (backdropWidth > 0) {
-            pick = PICK_BACKDROP;
-            width = backdropWidth;
-        }
-        if (wide && posterWidth > width) {
-            pick = PICK_POSTER;
-            width = posterWidth;
-        }
-        return width >= MIN_BACKDROP_WIDTH ? pick : PICK_NONE;
+    static boolean isBackdrop(int width, int height) {
+        return width >= MIN_BACKDROP_WIDTH && height > 0 && width >= height * MIN_BACKDROP_ASPECT;
+    }
+
+    /**
+     * The backdrop is the declared landscape picture; a landscape "poster" replaces it when it is wider. Sizes are
+     * of the decoded pictures (0 when there is none). Only a picture that passes {@link #isBackdrop} can be picked;
+     * anything else is a poster at best.
+     */
+    static int pickBackdrop(int backdropWidth, int backdropHeight, int posterWidth, int posterHeight) {
+        boolean bd = isBackdrop(backdropWidth, backdropHeight);
+        boolean pst = isBackdrop(posterWidth, posterHeight);
+        if (pst && (!bd || posterWidth > backdropWidth)) return PICK_POSTER;
+        return bd ? PICK_BACKDROP : PICK_NONE;
     }
 
     /** Makes the pictures for the rows the shelf would return, and deletes every other file. */
@@ -102,16 +103,20 @@ final class ShelfImages {
 
             boolean backdropDone = ready(backdrop);
             boolean needPoster = !ready(poster) && !it.poster.isEmpty();
+            // No poster of its own: a declared thumbnail that is not landscape is the poster.
+            boolean thumbAsPoster = !ready(poster) && it.poster.isEmpty() && !it.backdrop.isEmpty();
             // An app that publishes a wide picture as its "poster" (many do): it can be the backdrop too.
-            Bitmap bd = !backdropDone && !it.backdrop.isEmpty() ? App.images(c).decode(it.backdrop, BACKDROP_WIDTH) : null;
+            Bitmap bd = (!backdropDone || thumbAsPoster) && !it.backdrop.isEmpty()
+                    ? App.images(c).decode(it.backdrop, BACKDROP_WIDTH) : null;
             Bitmap pst = (needPoster || !backdropDone) && !it.poster.isEmpty()
                     ? App.images(c).decode(it.poster, BACKDROP_WIDTH) : null;
             int pick = backdropDone ? PICK_NONE : pickBackdrop(bd == null ? 0 : bd.getWidth(),
-                    pst == null ? 0 : pst.getWidth(), pst == null ? 0 : pst.getHeight());
+                    bd == null ? 0 : bd.getHeight(), pst == null ? 0 : pst.getWidth(), pst == null ? 0 : pst.getHeight());
             if (pick == PICK_BACKDROP) save(bd, BACKDROP_WIDTH, backdrop, false);
             if (pick == PICK_POSTER) save(pst, BACKDROP_WIDTH, backdrop, false);
             // A poster that became the backdrop is not also a poster.
             if (needPoster && pst != null && pick != PICK_POSTER) save(pst, POSTER_WIDTH, poster, false);
+            if (thumbAsPoster && bd != null && !isBackdrop(bd.getWidth(), bd.getHeight())) save(bd, POSTER_WIDTH, poster, false);
             if (!ready(logo) && !it.logo.isEmpty()) make(c, it.logo, LOGO_WIDTH, logo, true);
         }
         File[] all = dir(c).listFiles();

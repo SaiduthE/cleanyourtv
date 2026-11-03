@@ -51,6 +51,10 @@ final class TopShelfLogic {
     static final int RESUME_MIN_DP = 150;
     /** A backdrop narrower than this is never stretched across the shelf: the wallpaper is used instead. */
     static final int MIN_BACKDROP_W = 640;
+    /** A full-bleed picture is at least this much wider than tall; posters, covers and squares are under it. */
+    static final float MIN_BACKDROP_ASPECT = 1.5f;
+    /** The poster card (a picture that is not landscape) is at most this tall and this wide, in dp. */
+    static final int CARD_MAX_H_DP = 220, CARD_MAX_W_DP = 220;
     /** No icon or banner is ever drawn larger than this many times its own size. */
     static final float MAX_UPSCALE = 1.5f;
     /** The wallpaper layer changes picture this often, crossfading over {@link #FADE_MS}. */
@@ -87,9 +91,13 @@ final class TopShelfLogic {
             return "resume".equals(kind);
         }
 
-        /** The picture to show for this row: its backdrop, else its poster, only when it is the add-on's own. */
-        String image() {
-            if (ownUri(backdrop)) return backdrop;
+        /** The add-on's own backdrop picture of this row, or null. It may still turn out not to be landscape. */
+        String backdropUri() {
+            return ownUri(backdrop) ? backdrop : null;
+        }
+
+        /** The add-on's own poster picture of this row, or null. */
+        String posterUri() {
             return ownUri(poster) ? poster : null;
         }
     }
@@ -145,6 +153,37 @@ final class TopShelfLogic {
     /** Whether a decoded backdrop is wide enough to stand in for the wallpaper behind the resume block. */
     static boolean backdropWideEnough(int widthPx) {
         return widthPx >= MIN_BACKDROP_W;
+    }
+
+    /** How a picture may be used. */
+    enum Art { NONE, BACKDROP, POSTER }
+
+    /**
+     * A genuine landscape picture (aspect 1.5 or more, 640 px wide or more) may go full-bleed or into the wallpaper
+     * rotation. Everything else (posters, square covers, composites, small pictures) is only ever a poster card.
+     */
+    static boolean isBackdrop(int widthPx, int heightPx) {
+        return widthPx >= MIN_BACKDROP_W && heightPx > 0 && widthPx >= heightPx * MIN_BACKDROP_ASPECT;
+    }
+
+    static Art classify(int widthPx, int heightPx) {
+        if (widthPx <= 0 || heightPx <= 0) return Art.NONE;
+        return isBackdrop(widthPx, heightPx) ? Art.BACKDROP : Art.POSTER;
+    }
+
+    /**
+     * The size, in px, a poster card is drawn at: as large as fits in maxW x maxH but never more than
+     * {@link #MAX_UPSCALE} times its own size. Null when there is no room or no picture.
+     */
+    static int[] cardSize(int picW, int picH, int maxW, int maxH) {
+        if (picW <= 0 || picH <= 0 || maxW <= 0 || maxH <= 0) return null;
+        float scale = Math.min(MAX_UPSCALE, Math.min(maxW / (float) picW, maxH / (float) picH));
+        return new int[] {Math.max(1, Math.round(picW * scale)), Math.max(1, Math.round(picH * scale))};
+    }
+
+    /** Whether an up-next thumbnail is landscape enough to be cropped to 16:9 (a poster would be mangled). */
+    static boolean thumbFits(int widthPx, int heightPx) {
+        return widthPx > 0 && heightPx > 0 && widthPx >= heightPx * MIN_BACKDROP_ASPECT;
     }
 
     /**

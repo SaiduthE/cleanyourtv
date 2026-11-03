@@ -160,6 +160,21 @@ public class ChannelFilterTest {
         assertEquals(2, ChannelFilter.visible(in, on, null, null).size());
     }
 
+    @Test public void aChannelWithAnItemPartwayThroughIsOnWhateverItIsCalled() {
+        // Plex's row is not always called "Continue watching": started items make it one.
+        Item next = chItem("plex", "Plex", "Unstarted", "l0", 0f, 0);
+        next.kind = Item.NEXT;
+        List<Item> in = Arrays.asList(chItem("plex", "Plex", "Seinfeld", "l1", 0.4f, 5), next,
+                chItem("plex", "Recently Added", "Movie", "l2", -1f, 0),
+                chItem("other", "Recommended", "Elsewhere", "l3", 0f, 0));
+        List<Item> out = ChannelFilter.visible(in, null, null, null);
+        assertEquals(2, out.size());
+        assertEquals("Seinfeld", out.get(0).title);
+        assertEquals("Unstarted", out.get(1).title);
+        Set<String> off = new HashSet<>(Collections.singleton(ChannelFilter.key("plex", "Plex")));
+        assertEquals("the owner's switch still wins", 0, ChannelFilter.visible(in, null, off, null).size());
+    }
+
     @Test public void duplicatesWithWatchNextAndAcrossChannelsAreRemoved() {
         Item wn = new Item();
         wn.pkg = "a";

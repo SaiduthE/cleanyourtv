@@ -113,8 +113,10 @@ public class TopShelfLogicTest {
         assertFalse(TopShelfLogic.ownUri("file:///sdcard/a.jpg"));
         assertFalse(TopShelfLogic.ownUri(null));
         Entry e = new Entry("resume", "T", "", 0, "p", null, "content://evil/x", PIC);
-        assertEquals(PIC, e.image());   // the foreign backdrop is skipped, the poster is the add-on's own
-        assertNull(new Entry("resume", "T", "", 0, "p", null, null, null).image());
+        assertNull(e.backdropUri());   // the foreign backdrop is skipped
+        assertEquals(PIC, e.posterUri());   // the poster is the add-on's own
+        assertNull(new Entry("resume", "T", "", 0, "p", null, null, null).backdropUri());
+        assertNull(new Entry("resume", "T", "", 0, "p", null, null, null).posterUri());
     }
 
     @Test public void theRowsKeepTheirOrderObject() {
@@ -126,6 +128,65 @@ public class TopShelfLogicTest {
         assertFalse(TopShelfLogic.backdropWideEnough(639));
         assertTrue(TopShelfLogic.backdropWideEnough(640));
         assertTrue(TopShelfLogic.backdropWideEnough(960));
+    }
+
+    @Test public void onlyGenuineLandscapePicturesAreBackdrops() {
+        assertTrue(TopShelfLogic.isBackdrop(960, 540));
+        assertTrue(TopShelfLogic.isBackdrop(1920, 1080));
+        assertTrue("exactly 1.5 and 640 wide", TopShelfLogic.isBackdrop(640, 426));
+        assertFalse("narrower than 640", TopShelfLogic.isBackdrop(639, 300));
+        assertFalse("a square cover or composite (Plex)", TopShelfLogic.isBackdrop(960, 960));
+        assertFalse("4:3 is under 1.5", TopShelfLogic.isBackdrop(960, 720));
+        assertFalse("a portrait poster", TopShelfLogic.isBackdrop(400, 600));
+        assertFalse(TopShelfLogic.isBackdrop(0, 0));
+        assertFalse(TopShelfLogic.isBackdrop(960, 0));
+    }
+
+    @Test public void picturesAreClassifiedAsBackdropPosterOrNothing() {
+        assertEquals(TopShelfLogic.Art.BACKDROP, TopShelfLogic.classify(960, 540));
+        assertEquals(TopShelfLogic.Art.POSTER, TopShelfLogic.classify(500, 500));
+        assertEquals(TopShelfLogic.Art.POSTER, TopShelfLogic.classify(400, 600));
+        assertEquals("a small landscape picture is not full-bleed", TopShelfLogic.Art.POSTER, TopShelfLogic.classify(300, 169));
+        assertEquals(TopShelfLogic.Art.NONE, TopShelfLogic.classify(0, 100));
+        assertEquals(TopShelfLogic.Art.NONE, TopShelfLogic.classify(100, -1));
+    }
+
+    @Test public void aPosterCardIsNeverUpscaledBeyondOneAndAHalf() {
+        int[] a = TopShelfLogic.cardSize(400, 600, 1000, 1000);        // room to spare: 1.5x at most
+        assertEquals(600, a[0]);
+        assertEquals(900, a[1]);
+        int[] b = TopShelfLogic.cardSize(400, 600, 880, 450);          // limited by the height: shrunk
+        assertEquals(300, b[0]);
+        assertEquals(450, b[1]);
+        int[] c = TopShelfLogic.cardSize(1000, 1000, 880, 880);        // larger than the room: shrunk to fit
+        assertEquals(880, c[0]);
+        assertEquals(880, c[1]);
+        int[] d = TopShelfLogic.cardSize(100, 100, 880, 880);          // a small picture stays small
+        assertEquals(150, d[0]);
+        assertEquals(150, d[1]);
+        assertNull(TopShelfLogic.cardSize(0, 0, 880, 880));
+        assertNull(TopShelfLogic.cardSize(400, 600, 0, 880));
+    }
+
+    @Test public void upNextThumbnailsNeedALandscapePicture() {
+        assertTrue(TopShelfLogic.thumbFits(244, 138));
+        assertFalse(TopShelfLogic.thumbFits(200, 200));
+        assertFalse(TopShelfLogic.thumbFits(138, 244));
+        assertFalse(TopShelfLogic.thumbFits(0, 0));
+    }
+
+    @Test public void aChannelOnlyAppStillGetsTheResumeLayout() {
+        // Plex: rows from a preview channel, a poster only, no backdrop: still a shelf with a title and Resume.
+        Entry plex = new Entry("resume", "Seinfeld", "S2 \u00b7 E4", 42, "com.plexapp.android", "intent:#Intent;end",
+                null, PIC);
+        Entry next = new Entry("next", "Cheers", "", 0, "com.plexapp.android", null, null, null);
+        Shelf shelf = TopShelfLogic.shelf(Arrays.asList(next, plex), "com.plexapp.android");
+        assertNotNull(shelf);
+        assertSame(plex, shelf.main);
+        assertEquals(Collections.singletonList(next), shelf.upNext);
+        assertEquals(Content.RESUME, TopShelfLogic.select(Mode.LAYERED, true, true, true, true));
+        assertNull("a poster is never offered as a backdrop", plex.backdropUri());
+        assertTrue(TopShelfLogic.backdrops(Collections.singletonList(plex)).isEmpty());
     }
 
     @Test public void anIconIsShownOnlyUnderOneAndAHalfTimesUpscaling() {

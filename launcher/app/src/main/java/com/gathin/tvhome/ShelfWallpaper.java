@@ -216,16 +216,10 @@ final class ShelfWallpaper {
 
     // ---- decoding ---------------------------------------------------------------------------------------------------
 
-    /** A file or a feed picture, no larger than 960x540 to cover; null if it is unreadable or a feed picture is too narrow. */
+    /** A file or a feed picture, no larger than 960x540 to cover; null if it is unreadable or a feed picture is not landscape (aspect 1.5, 640 px wide). */
     private Bitmap decode(String key) {
         boolean feedPicture = TopShelfLogic.ownUri(key);
-        Bitmap b = feedPicture ? decode(() -> resolver.openInputStream(Uri.parse(key)), null)
-                : decode(null, new File(key));
-        if (b != null && feedPicture && !TopShelfLogic.backdropWideEnough(b.getWidth())) {
-            recycle(b);
-            return null;   // too small to stand in for a wallpaper
-        }
-        return b;
+        return feedPicture ? decode(() -> resolver.openInputStream(Uri.parse(key)), null) : decode(null, new File(key));
     }
 
     private interface Opener {
@@ -246,6 +240,8 @@ final class ShelfWallpaper {
             }
             int w = bounds.outWidth, h = bounds.outHeight;
             if (w <= 0 || h <= 0) return null;
+            // A feed picture is a wallpaper only when it is a genuine landscape picture: never a poster or a cover.
+            if (opener != null && !TopShelfLogic.isBackdrop(w, h)) return null;
             int sample = WallpaperSize.sampleSize(w, h, W, H);
             if (!WallpaperSize.accepted(w / sample, h / sample)) return null;
             BitmapFactory.Options options = new BitmapFactory.Options();

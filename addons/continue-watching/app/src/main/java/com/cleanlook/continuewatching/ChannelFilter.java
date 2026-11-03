@@ -84,6 +84,18 @@ final class ChannelFilter {
         return pkg + "|" + (name == null ? "" : name.trim().toLowerCase(Locale.ROOT));
     }
 
+    /**
+     * The owner's choice if there is one, else on for channels named like "Continue watching" and for channels
+     * {@code started} (one the owner is partway through something in, whatever the app calls it: Plex does not always
+     * name its row "Continue watching").
+     */
+    static boolean enabled(String pkg, String name, Set<String> forcedOn, Set<String> forcedOff, boolean started) {
+        String k = key(pkg, name);
+        if (forcedOn != null && forcedOn.contains(k)) return true;
+        if (forcedOff != null && forcedOff.contains(k)) return false;
+        return started || isContinueName(name);
+    }
+
     /** The owner's choice if there is one, else on only for channels named like "Continue watching". */
     static boolean enabled(String pkg, String name, Set<String> forcedOn, Set<String> forcedOff) {
         String k = key(pkg, name);
@@ -211,11 +223,16 @@ final class ChannelFilter {
                 wnTitles.add(w.pkg + "|" + Text.normalizeTitle(w.title));
             }
         }
+        // A channel with an item partway through it is a "continue" channel whatever its name.
+        Set<String> started = new HashSet<>();
+        for (Item it : channelItems) {
+            if (it.kind == Item.RESUME && it.progress > 0f) started.add(key(it.pkg, it.channel));
+        }
         List<Item> picked = new ArrayList<>();
         Map<String, Integer> byLink = new HashMap<>();
         Map<String, Integer> byTitle = new HashMap<>();
         for (Item it : channelItems) {
-            if (!enabled(it.pkg, it.channel, forcedOn, forcedOff)) continue;
+            if (!enabled(it.pkg, it.channel, forcedOn, forcedOff, started.contains(key(it.pkg, it.channel)))) continue;
             String link = it.pkg + "|" + it.intentUri;
             String title = it.pkg + "|" + Text.normalizeTitle(it.title);
             if (wnLinks.contains(link) || wnTitles.contains(title)) continue;

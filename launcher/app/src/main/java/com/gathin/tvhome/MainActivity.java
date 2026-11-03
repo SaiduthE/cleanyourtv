@@ -201,8 +201,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private TextView raceKicker, raceHeadline, raceSessions;
     /** game_day: each team's next game from an add-on, rotating in the race panel; null when the key is off. */
     private GameDay gameDay;
-    /** The weather chip in the clock row, from the Weather add-on; null when off (WeatherWidget). */
-    private WeatherWidget weather;
+    /** The widgets docked in Home's header (weather, brightness), and their manager; see HomeWidgets. */
+    private HomeWidgets widgets;
+    /** The Discover pill in the top bar (DiscoverPill); null in the one-gear top menu. */
+    private DiscoverPill discover;
     private View raceBar;
     private LinearLayout racePager;
     private long rotationStart;
@@ -618,13 +620,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             lunarDate.setTextSize(11f);
             date.setPadding(0, (int) (4 * density), 0, 0);
         }
-        // Weather chip after the date (weather_widget, off without the add-on). Down and Right are its keys.
-        weather = WeatherWidget.create(this, cfg.animations, cfg.reducedMotion, new WeatherWidget.Host() {
-            @Override public void focusGrid() { focusTile(singleRow ? lastFocused : lastFocused % COLUMNS); }
-            @Override public void focusButtons() {
-                (btnInputs.getVisibility() == View.VISIBLE ? btnInputs : firstTopButton()).requestFocus();
-            }
-        });
+        // Widgets (weather chip, brightness chip) in the slots the owner chose, created below once the top bar exists.
         vpnApp = cfg.vpnApp;
         vpnPill = cfg.vpnPill && !cfg.topMenu;
         btnVpn = findViewById(R.id.btnVpn);
@@ -873,6 +869,18 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
         btnLibraryTop.setVisibility(cfg.libraryButton && cfg.appLibrary ? View.VISIBLE : View.GONE);
         addTopBarApps(cfg.topBarApps, cfg.launchActions);
+        // Round compass pill for the Continue watching hub, just before the gear; hidden while that add-on is absent.
+        if (!cfg.topMenu) {
+            discover = DiscoverPill.create(this, findViewById(R.id.topButtons), btnSettings, topAppButtons, this::open);
+        }
+        final View gear = btnSettings;
+        widgets = new HomeWidgets(this, root, cfg.animations, cfg.reducedMotion, cfg.topMenu, new HomeWidgets.Nav() {
+            @Override public void focusGrid() { focusTile(singleRow ? lastFocused : lastFocused % COLUMNS); }
+            @Override public void focusFirstButton() {
+                (btnInputs.getVisibility() == View.VISIBLE ? btnInputs : firstTopButton()).requestFocus();
+            }
+            @Override public void focusLastButton() { gear.requestFocus(); }
+        });
         iconOnlyButtons = cfg.iconOnlyButtons;
         topMenu = cfg.topMenu;
         wifiIconOnly = iconOnlyButtons && cfg.wifiLabelWidth <= 0;
@@ -933,12 +941,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             int firstButton = btnInputs.getVisibility() == View.VISIBLE ? R.id.btnInputs : firstTopButton().getId();
             int leftButton = rtlMenuBar ? R.id.btnSettings : firstButton;
             int rightButton = rtlMenuBar ? firstButton : R.id.btnSettings;
-            // Left from the leftmost button reaches the weather chip, when it is shown.
+            // Left from the leftmost button reaches the widget before the bar, right from the last one the widget after it.
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                if (v.getId() == leftButton && weather != null) weather.focus();
+                if (v.getId() == leftButton && widgets != null) widgets.focusBeforeBar();
                 return v.getId() == leftButton;
             }
-            return keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && v.getId() == rightButton;
+            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && v.getId() == rightButton) {
+                if (widgets != null) widgets.focusAfterBar();
+                return true;
+            }
+            return false;
         };
         btnInputs.setOnKeyListener(pillKeys);
         btnWifi.setOnKeyListener(pillKeys);
@@ -1169,7 +1181,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         if (showStats) startStats();
         if (gameDay != null) gameDay.start();
-        if (weather != null) weather.resume();
+        if (widgets != null) widgets.resume();
+        if (discover != null) discover.resume();
         sky.update();
         wallpaperPlayer.start();
         if (topShelf != null) topShelf.resume();
@@ -1197,9 +1210,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         boolean editDock = data != null && data.getBooleanExtra(LauncherSettingsActivity.EXTRA_EDIT_DOCK, false);
+        boolean widgetsRequest = data != null && data.getBooleanExtra(LauncherSettingsActivity.EXTRA_WIDGETS, false);
         if (requestCode == LAUNCHER_SETTINGS_REQUEST && resultCode == RESULT_OK
-                && data != null && (editDock || data.getBooleanExtra(LauncherSettingsActivity.EXTRA_REORDER, false))) {
-            getIntent().putExtra(editDock ? LauncherSettingsActivity.EXTRA_EDIT_DOCK : LauncherSettingsActivity.EXTRA_REORDER, true);
+                && data != null && (editDock || widgetsRequest || data.getBooleanExtra(LauncherSettingsActivity.EXTRA_REORDER, false))) {
+            getIntent().putExtra(editDock ? LauncherSettingsActivity.EXTRA_EDIT_DOCK
+                    : widgetsRequest ? LauncherSettingsActivity.EXTRA_WIDGETS : LauncherSettingsActivity.EXTRA_REORDER, true);
             // The old activity must not consume the pending action, or rebuild a second time in onResume.
             settingsRecreationPending = true;
             settingsRevision = settingsRevision();
@@ -1209,10 +1224,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private void startPendingSettingsReorder() {
         boolean dock = getIntent().getBooleanExtra(LauncherSettingsActivity.EXTRA_EDIT_DOCK, false);
+        boolean widgetsRequest = getIntent().getBooleanExtra(LauncherSettingsActivity.EXTRA_WIDGETS, false);
         if (settingsRecreationPending || !tilesReady || !hasWindowFocus() || isFinishing()
-                || !(dock || getIntent().getBooleanExtra(LauncherSettingsActivity.EXTRA_REORDER, false))) return;
+                || !(dock || widgetsRequest || getIntent().getBooleanExtra(LauncherSettingsActivity.EXTRA_REORDER, false))) return;
         getIntent().removeExtra(LauncherSettingsActivity.EXTRA_REORDER);
         getIntent().removeExtra(LauncherSettingsActivity.EXTRA_EDIT_DOCK);
+        getIntent().removeExtra(LauncherSettingsActivity.EXTRA_WIDGETS);
+        if (widgetsRequest) {
+            if (widgets != null) widgets.openManager();
+            return;
+        }
         if (dock) startDockEdit();
         else toggleReorder();
     }
@@ -1361,7 +1382,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         startPending = null;   // leaving Home before the network came back: the boot's app stays closed
         stopStats();
         if (gameDay != null) gameDay.stop();
-        if (weather != null) weather.pause();
+        if (widgets != null) widgets.pause();
         handler.removeCallbacks(turnTick);
         if (lamp != null) lamp.stop();
         cancelPendingFocusScroll();
@@ -1472,6 +1493,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // taken after that would arm one nothing releases.
         if (resumed && event.getKeyCode() >= 1000 && RemoteKeys.handle(this, event, homeAppKeys.get(event.getKeyCode()),
                 homeHoldAppKeys.get(event.getKeyCode()))) return true;
+        // The Widgets manager, its slot picker and the brightness control take the arrows, OK and Back while open.
+        if (widgets != null && widgets.dispatchKey(event)) return true;
         if (handleSettingsKey(event)) return true;
         if (holdOk(event)) return true;
         if (tileMenuEnabled && !reordering && openPopup == null && cardPrompt == null
@@ -2723,7 +2746,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         int n = bar.getChildCount();
         for (int k = 0; k < n; k++) {
             View button = bar.getChildAt(rtl ? n - 1 - k : k);
-            if (button != btnInputs && button.getVisibility() == View.VISIBLE) return button;
+            if (button != btnInputs && button.getVisibility() == View.VISIBLE && !WidgetMount.isWidgetView(button)) return button;
         }
         return findViewById(R.id.btnSettings);
     }

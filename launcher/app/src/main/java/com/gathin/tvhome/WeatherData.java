@@ -131,6 +131,13 @@ final class WeatherData {
                 fahrenheit, animated, Collections.unmodifiableList(days));
     }
 
+    /** A copy shown in the owner's unit: true is Fahrenheit, false Celsius, null keeps the add-on's own. */
+    WeatherData withUnit(Boolean useFahrenheit) {
+        if (useFahrenheit == null || useFahrenheit == fahrenheit) return this;
+        return new WeatherData(updatedMs, place, tempC, feelsC, highC, lowC, code, day, humidity, windKmh, aqi,
+                useFahrenheit, animated, daily);
+    }
+
     static Day parseDay(Map<String, Object> row) {
         if (row == null || !(row.get("date") instanceof String)) return null;
         String date = (String) row.get("date");

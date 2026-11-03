@@ -52,6 +52,13 @@
             <meta-data android:name="com.gathin.tvhome.card" android:resource="@xml/module_card" />
         </activity>
 
+        <!-- The launcher's Brightness widget reads and steps the level here (QuickProvider). Exported, but only the
+             launcher and same-key apps are answered (QuickAccess). -->
+        <provider
+            android:name=".QuickProvider"
+            android:authorities="io.github.maxhayim.brightness.quick"
+            android:exported="true" />
+
         <service
             android:name=".DimService"
             android:exported="false"

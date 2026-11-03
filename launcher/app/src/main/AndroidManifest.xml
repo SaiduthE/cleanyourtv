@@ -57,6 +57,8 @@
         </intent>
         <!-- The Top Shelf feed of the Continue watching add-on (TopShelf): without this Android 11 hides its provider. -->
         <provider android:authorities="com.cleanlook.continuewatching.shelf" />
+        <!-- The Discover pill opens that add-on's hub (DiscoverPill); hidden while the package is absent. -->
+        <package android:name="com.cleanlook.continuewatching" />
         <!-- stock_home_redirect: HomeKeyService looks up the stock launcher's HOME activity. -->
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -76,6 +78,9 @@
         <intent>
             <action android:name="io.github.sumyabazar1.weather.action.SETTINGS" />
         </intent>
+        <!-- Brightness add-on (BrightnessSource): its quick provider and its package, for the Brightness widget. -->
+        <provider android:authorities="io.github.maxhayim.brightness.quick" />
+        <package android:name="io.github.maxhayim.brightness" />
     </queries>
 
     <application

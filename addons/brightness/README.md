@@ -36,6 +36,21 @@ dark to find the way, any of these gives the normal screen back:
 - from a computer, `adb shell am broadcast -a io.github.maxhayim.brightness.OFF -n io.github.maxhayim.brightness/.OffReceiver`;
 - `adb shell am force-stop io.github.maxhayim.brightness`, or uninstalling it.
 
+## The launcher's Brightness widget
+
+The [launcher's](../../launcher) Widgets manager can put a Brightness chip on Home (its level, OK opens a small
+quick control: Left/Right step the level, Back closes). It talks to this app through `QuickProvider`, authority
+`io.github.maxhayim.brightness.quick`, so neither side gets a new permission:
+
+| Call | Result |
+|---|---|
+| `query(content://io.github.maxhayim.brightness.quick/level)` | One row: `level` (1 to 100, the one in use now: night brightness at night), `on` (dimming switched on), `night`, `can_draw` (display over other apps is granted). |
+| `call("step")` with extras `direction` (-1 or 1) and optional `size` (percent per press, 0 or absent = the slider's own 5 %, then 1 % steps) | The same four values and `applied` (the overlay can be drawn). Steps exactly as the quick bar does, saves, and starts the service. |
+
+The provider is exported, but only the launcher (`com.gathin.tvhome`), this app and apps signed with the same key are
+answered; anyone else gets a `SecurityException`. Without the overlay permission it changes nothing and reports
+`can_draw` 0, and the launcher says so.
+
 ## The TV's own picture
 
 The dimming layer darkens the picture, but the panel's backlight keeps glowing behind it, and that glow is most

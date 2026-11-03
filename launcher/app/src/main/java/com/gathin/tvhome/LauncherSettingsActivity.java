@@ -49,6 +49,7 @@ public final class LauncherSettingsActivity extends Activity {
 
     static final String EXTRA_REORDER = "com.gathin.tvhome.extra.REORDER_FROM_SETTINGS";
     static final String EXTRA_EDIT_DOCK = "com.gathin.tvhome.extra.EDIT_DOCK_FROM_SETTINGS";
+    static final String EXTRA_WIDGETS = "com.gathin.tvhome.extra.WIDGETS_FROM_SETTINGS";
     private static final int CARD_WIDTH_DP = 326;
     /** One length for the highlight fade and the list glide, so they move together. */
     private static final int MOVE_MS = 180;
@@ -207,9 +208,8 @@ public final class LauncherSettingsActivity extends Activity {
         LinearLayout rows = new LinearLayout(this);
         rows.setOrientation(LinearLayout.VERTICAL);
         rows.setPadding(0, 0, 0, PanelRows.dp(this, 40));
-        boolean weather = weatherAvailable();
         for (Group group : SettingsModel.groups()) {
-            List<Row> inGroup = SettingsModel.rows(group, config.openOnStartChoice, weather, config.dockRow);
+            List<Row> inGroup = SettingsModel.rows(group, config.openOnStartChoice, config.dockRow);
             if (inGroup.isEmpty()) continue;
             TextView header = PanelRows.header(this, groupLabel(group));
             rows.addView(header);
@@ -252,24 +252,10 @@ public final class LauncherSettingsActivity extends Activity {
 
     private Row firstRow() {
         for (Group group : SettingsModel.groups()) {
-            List<Row> inGroup = SettingsModel.rows(group, config.openOnStartChoice, weatherAvailable(), config.dockRow);
+            List<Row> inGroup = SettingsModel.rows(group, config.openOnStartChoice, config.dockRow);
             if (!inGroup.isEmpty()) return inGroup.get(0);
         }
         return Row.COLUMNS;
-    }
-
-    /**
-     * Whether the weather add-on's source is in this build. The two weather rows stay hidden until WeatherSource
-     * exists, so this panel builds without it. When it lands, replace the reflection with a direct reference and
-     * give WEATHER_ON_HOME its On/Off options and WEATHER_SETTINGS its activity in {@link #activate}.
-     */
-    private static boolean weatherAvailable() {
-        try {
-            Class.forName("com.gathin.tvhome.WeatherSource");
-            return true;
-        } catch (ClassNotFoundException | LinkageError e) {
-            return false;
-        }
     }
 
     private void onRowFocused(Row row, View view) {
@@ -297,8 +283,7 @@ public final class LauncherSettingsActivity extends Activity {
             case WALLPAPER: return getString(R.string.wallpaper_label);
             case TOP_SHELF: return getString(R.string.ls_top_shelf_label);
             case CLOCK: return getString(R.string.ls_clock_label);
-            case WEATHER_ON_HOME: return getString(R.string.ls_weather_on_home);
-            case WEATHER_SETTINGS: return getString(R.string.ls_weather_settings);
+            case WIDGETS: return getString(R.string.ls_widgets);
             case ANIMATIONS: return getString(R.string.ls_animations_label);
             case ADVANCED: return getString(R.string.advanced_effects);
             case REMOTE_BUTTONS: return getString(R.string.remote_buttons);
@@ -320,8 +305,7 @@ public final class LauncherSettingsActivity extends Activity {
             case WALLPAPER: return getString(R.string.ls_help_wallpaper);
             case TOP_SHELF: return getString(R.string.ls_help_top_shelf);
             case CLOCK: return getString(R.string.ls_help_clock);
-            case WEATHER_ON_HOME: return getString(R.string.ls_help_weather_on_home);
-            case WEATHER_SETTINGS: return getString(R.string.ls_help_weather_settings);
+            case WIDGETS: return getString(R.string.ls_help_widgets);
             case ANIMATIONS: return getString(R.string.ls_help_animations);
             case ADVANCED:
                 return getString(animations ? R.string.ls_help_advanced : R.string.ls_help_advanced_off);
@@ -346,6 +330,7 @@ public final class LauncherSettingsActivity extends Activity {
             case WALLPAPER: return wallpaperLabel();
             case TOP_SHELF: return topShelfLabel(topShelf);
             case CLOCK: return clockLabel(clockFormat);
+            case WIDGETS: return WidgetStore.summary(this);
             case ANIMATIONS: return getString(animations ? R.string.on : R.string.off);
             case ADVANCED: return getString(advancedEffects ? R.string.on : R.string.off);
             case REMOTE_BUTTONS: {
@@ -490,6 +475,11 @@ public final class LauncherSettingsActivity extends Activity {
             case REMOTE_BUTTONS:
                 open(new Intent(this, RemoteKeysActivity.class));
                 break;
+            case WIDGETS:
+                // Home opens the Widgets manager over itself: the slots are on its own screen.
+                setResult(RESULT_OK, new Intent().putExtra(EXTRA_WIDGETS, true));
+                finish();
+                break;
             case REORDER:
                 setResult(RESULT_OK, new Intent().putExtra(EXTRA_REORDER, true));
                 finish();
@@ -513,7 +503,6 @@ public final class LauncherSettingsActivity extends Activity {
                         getString(R.string.ls_reset), getString(android.R.string.cancel), false, this::resetTheme);
                 break;
             default:
-                // WEATHER_ON_HOME and WEATHER_SETTINGS: hidden until WeatherSource exists (see weatherAvailable).
                 showHelp(row, view);
                 break;
         }

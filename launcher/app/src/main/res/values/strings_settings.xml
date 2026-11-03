@@ -22,8 +22,6 @@
 
     <string name="ls_animations_label" translatable="false">Animations</string>
     <string name="ls_clock_label" translatable="false">Clock</string>
-    <string name="ls_weather_on_home" translatable="false">Weather on Home</string>
-    <string name="ls_weather_settings" translatable="false">Weather settings</string>
     <string name="ls_reorder" translatable="false">Reorder apps</string>
     <string name="ls_reset_theme" translatable="false">Reset Theme</string>
     <string name="ls_reset" translatable="false">Reset</string>
@@ -48,8 +46,6 @@
     <string name="ls_help_animations" translatable="false">Off makes every move instant, for slow TVs.</string>
     <string name="ls_help_advanced" translatable="false">Lifted tile, icon zoom and smooth colours. May use more memory.</string>
     <string name="ls_help_advanced_off" translatable="false">Turn Animations on first. Advanced effects need them.</string>
-    <string name="ls_help_weather_on_home" translatable="false">Weather next to the clock and on the screensaver. Needs the weather add-on.</string>
-    <string name="ls_help_weather_settings" translatable="false">Opens the weather add-on\'s own settings.</string>
     <string name="ls_help_remote_buttons" translatable="false">Map a remote button to an app or action: press, hold or double press.</string>
     <string name="ls_help_reorder" translatable="false">Pick up an app and move it. OK or Back puts it down.</string>
     <string name="ls_help_edit_dock" translatable="false">Choose which apps sit in the dock band.</string>

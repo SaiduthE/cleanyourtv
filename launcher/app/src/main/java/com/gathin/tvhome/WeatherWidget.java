@@ -1,11 +1,9 @@
 package com.gathin.tvhome;
 
-import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Rect;
-import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
@@ -20,31 +18,19 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 /**
- * The weather chip in Home's clock row (design-spec.md 3.1 to 3.3): art, temperature, then the condition over
- * the high, low and (when the owner allows it) the place. Borderless at rest; when focused it becomes the white pill
- * the round buttons use, ringed in the panel accent. OK opens the add-on's settings. Hidden (and the layout left
- * exactly as it was) when the add-on is missing or disabled, has no city, cannot be read, has data older than six
- * hours, or the weather_widget choice is off.
+ * The weather chip (design-spec.md 3.1 to 3.3): art, temperature, then the condition over the high, low and (when the
+ * owner allows it) the place. Borderless at rest; when focused it becomes the white pill the round buttons use, ringed
+ * in the panel accent. OK opens the add-on's settings. It docks in whichever slot the Widgets manager gives it, by default beside
+ * the clock. Hidden (and the layout left exactly as it was) when the add-on is missing or disabled, has no city,
+ * cannot be read, has data older than six hours, or the theme turned weather_widget off.
  *
  * The data comes from {@link WeatherSource}; nothing here touches the network.
  */
-final class WeatherWidget {
-
-    /** What the chip asks of Home for the keys it handles. */
-    interface Host {
-        /** Down: back to the dock tile Up came from. */
-        void focusGrid();
-
-        /** Right: the first top-bar button. */
-        void focusButtons();
-    }
+final class WeatherWidget implements HomeWidget {
 
     private final Context ctx;
-    private final Host host;
-    private final LinearLayout row;
-    private final View dateColumn;
-    private final TextView dateText;
-    private final View divider;
+    private final WidgetContext wc;
+    private final WidgetMount mount;
     private final Chip chip;
     private final WeatherSource source;
     private final boolean animations, reducedMotion;
@@ -52,52 +38,26 @@ final class WeatherWidget {
     private boolean shown;
     private WeatherData data;
 
-    private WeatherWidget(Activity activity, LinearLayout row, View dateColumn, boolean animations,
-                          boolean reducedMotion, Host host) {
-        this.ctx = activity;
-        this.host = host;
-        this.row = row;
-        this.dateColumn = dateColumn;
-        this.animations = animations;
-        this.reducedMotion = reducedMotion;
-        dateText = activity.findViewById(R.id.date);
-        // A second line like the clock's own, in the same colour (white when header_white recoloured it).
-        View first = activity.findViewById(R.id.clockDivider);
-        divider = new View(activity);
-        Drawable bg = first.getBackground();
-        divider.setBackgroundColor(bg instanceof ColorDrawable ? ((ColorDrawable) bg).getColor() : 0x33FFFFFF);
-        divider.setVisibility(View.GONE);
-        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams((LinearLayout.LayoutParams) first.getLayoutParams());
-        int at = row.indexOfChild(dateColumn) + 1;
-        row.addView(divider, at, dlp);
-        chip = new Chip(activity);
+    private WeatherWidget(WidgetContext wc) {
+        this.wc = wc;
+        this.ctx = wc.activity;
+        this.mount = wc.mount;
+        this.animations = wc.animations;
+        this.reducedMotion = wc.reducedMotion;
+        chip = new Chip(wc.activity);
         chip.setVisibility(View.GONE);
-        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(52));
-        clp.gravity = Gravity.CENTER_VERTICAL;
-        clp.setMarginStart(-dp(10));
-        row.addView(chip, at + 1, clp);
-        // A focused chip grows and casts a shadow past the row's edges.
-        row.setClipChildren(false);
-        if (row.getParent() instanceof ViewGroup) ((ViewGroup) row.getParent()).setClipChildren(false);
+        // The clock row's chip is 52 dp and tucks in under the divider; in the top bar it matches the 42 dp pills.
+        boolean inClockRow = wc.slot == WidgetSlot.CLOCK_SIDE;
+        mount.add(chip, inClockRow ? 52 : 42, -10);
         chip.setOnClickListener(v -> openSettings());
-        source = new WeatherSource(activity, this::onWeather);
+        source = new WeatherSource(wc.activity, this::onWeather);
     }
 
-    /**
-     * The chip in Home's clock row, or null when it cannot sit there: weather_widget is off, the header is the
-     * mirrored Hebrew one, or the date was moved below the clock (date_below_clock).
-     */
-    static WeatherWidget create(Activity activity, boolean animations, boolean reducedMotion, Host host) {
+    /** The chip for the slot, or null when the theme turned the weather off (weather_widget false). */
+    static HomeWidget create(WidgetContext wc) {
         try {
-            if (!WeatherSource.enabled(activity, WeatherSource.KEY_CHIP)) return null;
-            if (activity.getResources().getBoolean(R.bool.rtl_menu_bar)) return null;
-            View clock = activity.findViewById(R.id.clock);
-            View date = activity.findViewById(R.id.date);
-            if (clock == null || date == null || !(clock.getParent() instanceof LinearLayout)) return null;
-            LinearLayout row = (LinearLayout) clock.getParent();
-            View column = (View) date.getParent();
-            if (column.getParent() != row) return null;
-            return new WeatherWidget(activity, row, column, animations, reducedMotion, host);
+            if (!WeatherSource.enabled(wc.activity, WeatherSource.KEY_CHIP)) return null;
+            return new WeatherWidget(wc);
         } catch (RuntimeException e) {
             Log.w(WeatherSource.TAG, "weather chip not created", e);
             return null;
@@ -107,7 +67,8 @@ final class WeatherWidget {
     // ---- lifecycle -----------------------------------------------------------------------------------------------
 
     /** Home is in front: check the add-on, read, and watch for changes. */
-    void resume() {
+    @Override
+    public void resume() {
         addOn = WeatherSource.available(ctx);
         if (!addOn) {
             hide();
@@ -117,13 +78,31 @@ final class WeatherWidget {
         source.resume();
     }
 
-    void pause() {
+    @Override
+    public void pause() {
         source.pause();
     }
 
-    /** Left from the leftmost top-bar button: the chip, when it is on screen. */
-    boolean focus() {
+    @Override
+    public boolean focus() {
         return shown && chip.requestFocus();
+    }
+
+    @Override
+    public View shownView() {
+        return shown ? chip : null;
+    }
+
+    @Override
+    public void refresh() {
+        apply();
+    }
+
+    @Override
+    public void detach() {
+        source.pause();
+        shown = false;
+        mount.remove();
     }
 
     // ---- data ----------------------------------------------------------------------------------------------------
@@ -139,45 +118,29 @@ final class WeatherWidget {
             hide();
             return;
         }
-        chip.bind(d, System.currentTimeMillis());
+        chip.bind(unitApplied(d), System.currentTimeMillis(), wc.isOn(WidgetRegistry.WEATHER_PLACE));
         show();
+    }
+
+    /** The owner's unit for the chip: the add-on's own unless the Widgets settings say C or F. */
+    private WeatherData unitApplied(WeatherData d) {
+        String unit = wc.option(WidgetRegistry.WEATHER_UNIT);
+        return d.withUnit("f".equals(unit) ? Boolean.TRUE : "c".equals(unit) ? Boolean.FALSE : null);
     }
 
     private void show() {
         if (shown) return;
         shown = true;
-        setCompactDate(true);
-        divider.setVisibility(View.VISIBLE);
+        mount.setShown(true);
         chip.setVisibility(View.VISIBLE);
     }
 
     private void hide() {
         if (!shown) return;
         shown = false;
-        if (chip.hasFocus()) host.focusButtons();
-        divider.setVisibility(View.GONE);
+        if (chip.hasFocus()) wc.host.nav().focusFirstButton();
         chip.setVisibility(View.GONE);
-        setCompactDate(false);
-    }
-
-    /**
-     * The date column normally fills the rest of the row (weight 1) so nothing can come after it. With the chip it
-     * is as wide as its text, capped so a long date cannot push the chip into the top buttons. Its texts wrap too,
-     * or a longer date tomorrow would keep today's width (as moveDateBelowClock notes).
-     */
-    private void setCompactDate(boolean compact) {
-        LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) dateColumn.getLayoutParams();
-        lp.width = compact ? ViewGroup.LayoutParams.WRAP_CONTENT : 0;
-        lp.weight = compact ? 0f : 1f;
-        dateColumn.setLayoutParams(lp);
-        ViewGroup texts = (ViewGroup) dateColumn;
-        for (int i = 0; i < texts.getChildCount(); i++) {
-            View text = texts.getChildAt(i);
-            ViewGroup.LayoutParams tlp = text.getLayoutParams();
-            tlp.width = compact ? ViewGroup.LayoutParams.WRAP_CONTENT : ViewGroup.LayoutParams.MATCH_PARENT;
-            text.setLayoutParams(tlp);
-        }
-        dateText.setMaxWidth(compact ? dp(240) : Integer.MAX_VALUE);
+        mount.setShown(false);
     }
 
     private void openSettings() {
@@ -296,7 +259,7 @@ final class WeatherWidget {
             return d;
         }
 
-        void bind(WeatherData d, long now) {
+        void bind(WeatherData d, long now, boolean withPlace) {
             boolean stale = d.freshness(now) == WeatherData.Freshness.STALE;
             WeatherData.Condition condition = d.condition();
             art.setWeather(condition, d.day);
@@ -306,7 +269,7 @@ final class WeatherWidget {
             temp.setText(degrees);
             String name = label(ctx, condition);
             line1.setText(name);
-            line2.setText(stale ? ctx.getString(R.string.weather_updated_ago, d.ageHours(now)) : highLow(d, true));
+            line2.setText(stale ? ctx.getString(R.string.weather_updated_ago, d.ageHours(now)) : highLow(d, withPlace));
             setContentDescription(ctx.getString(R.string.weather_chip_description,
                     degrees + (d.fahrenheit ? " Fahrenheit" : " Celsius"), name));
         }
@@ -332,13 +295,15 @@ final class WeatherWidget {
         public boolean onKeyDown(int keyCode, KeyEvent event) {
             switch (keyCode) {
                 case KeyEvent.KEYCODE_DPAD_UP:
-                case KeyEvent.KEYCODE_DPAD_LEFT:
-                    return true;   // nothing above or to its left; the focus finder must not jump to a far tile
+                    return true;   // nothing above it; the focus finder must not jump to a far tile
                 case KeyEvent.KEYCODE_DPAD_DOWN:
-                    host.focusGrid();
+                    wc.host.nav().focusGrid();
+                    return true;
+                case KeyEvent.KEYCODE_DPAD_LEFT:
+                    wc.host.neighbour(wc.slot, -1);
                     return true;
                 case KeyEvent.KEYCODE_DPAD_RIGHT:
-                    host.focusButtons();
+                    wc.host.neighbour(wc.slot, 1);
                     return true;
                 default:
                     return super.onKeyDown(keyCode, event);

@@ -18,32 +18,31 @@ import org.junit.Test;
 
 public class SettingsModelTest {
 
-    private static List<Row> all(boolean openOnStart, boolean weather, boolean dockRow) {
+    private static List<Row> all(boolean openOnStart, boolean dockRow) {
         List<Row> out = new ArrayList<>();
-        for (Group g : SettingsModel.groups()) out.addAll(SettingsModel.rows(g, openOnStart, weather, dockRow));
+        for (Group g : SettingsModel.groups()) out.addAll(SettingsModel.rows(g, openOnStart, dockRow));
         return out;
     }
 
     @Test public void everyRowIsReachableWhenAllOptionalOnesAreOn() {
-        assertEquals(new HashSet<>(Arrays.asList(Row.values())), new HashSet<>(all(true, true, true)));
+        assertEquals(new HashSet<>(Arrays.asList(Row.values())), new HashSet<>(all(true, true)));
     }
 
     @Test public void noRowAppearsTwice() {
-        List<Row> rows = all(true, true, true);
+        List<Row> rows = all(true, true);
         assertEquals(rows.size(), new HashSet<>(rows).size());
     }
 
     @Test public void optionalRowsFollowTheirSwitch() {
-        List<Row> off = all(false, false, false);
+        List<Row> off = all(false, false);
         assertFalse(off.contains(Row.OPEN_ON_START));
-        assertFalse(off.contains(Row.WEATHER_ON_HOME));
-        assertFalse(off.contains(Row.WEATHER_SETTINGS));
+        assertTrue("one Widgets row replaces the two weather rows", off.contains(Row.WIDGETS));
         assertFalse(off.contains(Row.EDIT_DOCK));
         assertTrue(off.contains(Row.REORDER));
     }
 
     @Test public void everyGroupHasRows() {
-        for (Group g : SettingsModel.groups()) assertFalse(SettingsModel.rows(g, false, false, false).isEmpty());
+        for (Group g : SettingsModel.groups()) assertFalse(SettingsModel.rows(g, false, false).isEmpty());
     }
 
     @Test public void rowKinds() {
@@ -65,7 +64,7 @@ public class SettingsModelTest {
 
     @Test public void topShelfIsAPopupPickerInTheLookGroup() {
         assertEquals(SettingsModel.Kind.OPTIONS, SettingsModel.kind(Row.TOP_SHELF));
-        assertTrue(SettingsModel.rows(Group.LOOK, false, false, false).contains(Row.TOP_SHELF));
+        assertTrue(SettingsModel.rows(Group.LOOK, false, false).contains(Row.TOP_SHELF));
         // A choice with no theme default: "Reset Theme" must not clear it.
         assertFalse(Arrays.asList(SettingsModel.RESET_KEYS).contains(Config.TOP_SHELF_KEY));
     }

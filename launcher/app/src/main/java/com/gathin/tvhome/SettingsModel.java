@@ -15,7 +15,7 @@ final class SettingsModel {
 
     enum Row {
         COLUMNS, ROWS_BELOW_DOCK, DOCK_OPACITY, OPEN_ON_START,
-        STYLE, WALLPAPER, TOP_SHELF, CLOCK, WEATHER_ON_HOME, WEATHER_SETTINGS, ANIMATIONS, ADVANCED,
+        STYLE, WALLPAPER, TOP_SHELF, CLOCK, WIDGETS, ANIMATIONS, ADVANCED,
         REMOTE_BUTTONS, REORDER, EDIT_DOCK,
         DEFAULT_HOME, TV_SETTINGS, RESET_THEME
     }
@@ -30,12 +30,12 @@ final class SettingsModel {
 
     /**
      * The saved on-TV choices "Reset Theme" clears (keys of Config.SETTINGS_NAME), and the ones that count as
-     * "changes". One list, so the button and its "N changes" value cannot disagree. weather_widget is the Weather
-     * on Home switch.
+     * "changes". One list, so the button and its "N changes" value cannot disagree. widget_placements is where the
+     * Widgets manager keeps what sits on Home.
      */
     static final String[] RESET_KEYS = {
             "columns", Config.ROWS_BELOW_DOCK_KEY, "animations", "advanced_effects", Config.WALLPAPER_CHOICE_KEY,
-            Config.DOCK_OPACITY_KEY, Config.CLOCK_FORMAT_KEY, OpenOnStart.KEY, "weather_widget",
+            Config.DOCK_OPACITY_KEY, Config.CLOCK_FORMAT_KEY, OpenOnStart.KEY, WidgetStore.PLACEMENTS_KEY,
     };
 
     private SettingsModel() { }
@@ -45,10 +45,10 @@ final class SettingsModel {
     }
 
     /**
-     * The rows of a group, in order. Open on start needs open_on_start_choice, the weather rows need the weather
-     * source, Edit dock needs the dock to be a row of its own.
+     * The rows of a group, in order. Open on start needs open_on_start_choice, Edit dock needs the dock to be a row
+     * of its own.
      */
-    static List<Row> rows(Group group, boolean openOnStartChoice, boolean weatherAvailable, boolean dockRow) {
+    static List<Row> rows(Group group, boolean openOnStartChoice, boolean dockRow) {
         List<Row> rows = new ArrayList<>();
         switch (group) {
             case HOME_LAYOUT:
@@ -62,10 +62,7 @@ final class SettingsModel {
                 rows.add(Row.WALLPAPER);
                 rows.add(Row.TOP_SHELF);
                 rows.add(Row.CLOCK);
-                if (weatherAvailable) {
-                    rows.add(Row.WEATHER_ON_HOME);
-                    rows.add(Row.WEATHER_SETTINGS);
-                }
+                rows.add(Row.WIDGETS);
                 rows.add(Row.ANIMATIONS);
                 rows.add(Row.ADVANCED);
                 break;
@@ -88,8 +85,8 @@ final class SettingsModel {
             case REMOTE_BUTTONS:
             case DEFAULT_HOME:
             case TV_SETTINGS:
-            case WEATHER_SETTINGS:
                 return Kind.NAVIGATE;
+            case WIDGETS:
             case REORDER:
             case EDIT_DOCK:
                 return Kind.ACTION;

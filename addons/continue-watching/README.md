@@ -9,7 +9,14 @@ show's own picture, a resume bar and the episode ("S2 · E4 · 23 min left"). OK
 - **Sources are managed on the TV**, with the remote only. **Sources** (top right of the page) lists:
   - **Watch Next apps**: every app with a TV launcher icon, with how many rows it publishes and an On/Off switch.
     An app that publishes nothing this app can read says **No rows found**; OK on it scans again and says so
-    plainly. An app with only channel rows (YouTube, say) says that those are not used.
+    plainly. The app switch covers its Watch Next rows only; **channels** (below) have their own.
+  - **Channels** (Plex, Netflix, ...): many apps publish their "Continue watching" row as a *preview channel*, not
+    as Watch Next rows, and the stock Android TV home shows those. Under each such app, every channel is listed
+    with its name, its row count ("12 rows", "3 of 5 rows can be shown" when some have no title or link, or "empty
+    right now") and its own On/Off switch (OK toggles). Channels named like *Continue watching*, *Resume*, *Watch
+    Next*, *Up next*, *Keep watching* or *Recently watched* (and a few translations) are **on** by default;
+    every other channel (Recommended, Trending, ...) is **off** until you switch it on. The choice is saved per
+    app and channel name.
   - **Servers**: **Add Jellyfin server** opens a form for the address, the user and a password or an API key.
     **Test** signs in without saving and says what it found ("Connected to Home as sai. 3 titles in progress."
     or why not); **Save** keeps it. Once added: Edit, Resume and Next up switches, **Test Jellyfin**, and Remove
@@ -50,8 +57,10 @@ in its manifest or the provider is invisible:
 ```
 
 **Rows.** `content://com.cleanlook.continuewatching.shelf/items` (optional `?pkg=<source package>`): up to 12 rows,
-at most 3 per source app, titles partway through first and each group newest first, one row per title per app.
-The projection is ignored; every column is returned.
+at most 3 per source app, titles partway through first and each group newest first (then by channel weight, for
+channel rows, which carry no watch time), one row per title per app. With `?pkg=` the app's items are all
+returned (up to 10), so a launcher can show the first as "continue" and the next two as "up next". The projection
+is ignored; every column is returned.
 
 | Column | Type | Meaning |
 |---|---|---|
@@ -61,7 +70,7 @@ The projection is ignored; every column is returned.
 | `kind` | string | `resume` (partway through) or `next` (the next episode). |
 | `title` | string | The show, or the film. |
 | `subtitle` | string | `S2 · E4`, the episode's name, or the year; may be empty. |
-| `progress` | int | Whole percent, 0 to 100; 0 for `next` and when the app did not say. |
+| `progress` | int | Whole percent, 0 to 100; 0 for `next` and when the app did not say (channel rows: from last playback position and duration when both exist). A launcher hides the bar at 0. |
 | `remaining_ms` | long | Time left, or -1. |
 | `updated_ms` | long | When it was last watched (approximate for `next`). |
 | `image` | string | The best single picture: `backdrop`, else `poster`; or null. |
@@ -74,7 +83,10 @@ The cursor has a notification URI: it changes after every refresh, switch or Rem
 minutes (Home resume is fine) also starts a refresh in this app's process, so the launcher needs no timer.
 
 **Artwork.** `content://com.cleanlook.continuewatching.shelf/img/<name>.jpg|.png` is served by `openFile` (read
-only), only for the names the rows return. The pictures are the show's own artwork, downscaled and cached on
+only), only for the names the rows return. The largest suitable picture is used (a landscape thumbnail or poster for the
+backdrop, a portrait poster for the poster), never enlarged; a backdrop under 320 px wide is left out (null) so the
+launcher does not stretch it. Channel rows are merged with Watch Next rows of the same app (the same link or
+title is shown once) and with the other sources. The pictures are the show's own artwork, downscaled and cached on
 disk by this app while it has network, so the launcher needs none. Nothing is blurred; if a row has no picture the
 column is null and the launcher should show a plain surface. An app that publishes a wide image as its poster has
 it used as the backdrop too.

@@ -75,6 +75,25 @@ final class Prefs {
         sp.edit().putStringSet("disabled_pkgs", s).apply();
     }
 
+    // ---- preview channels: only the owner's explicit choices are stored, as "package|channel name"; the rest follows
+    // ChannelFilter.isContinueName
+    Set<String> channelsForcedOn() { return new HashSet<>(sp.getStringSet("chan_on", new HashSet<String>())); }
+    Set<String> channelsForcedOff() { return new HashSet<>(sp.getStringSet("chan_off", new HashSet<String>())); }
+
+    boolean channelEnabled(String pkg, String name) {
+        return ChannelFilter.enabled(pkg, name, channelsForcedOn(), channelsForcedOff());
+    }
+
+    void setChannelEnabled(String pkg, String name, boolean enabled) {
+        String k = ChannelFilter.key(pkg, name);
+        Set<String> on = channelsForcedOn();
+        Set<String> off = channelsForcedOff();
+        on.remove(k);
+        off.remove(k);
+        (enabled ? on : off).add(k);
+        sp.edit().putStringSet("chan_on", on).putStringSet("chan_off", off).apply();
+    }
+
     // ---- shelf provider for the launcher
     boolean shelfEnabled() { return sp.getBoolean("shelf_enabled", true); }
     void setShelfEnabled(boolean v) { sp.edit().putBoolean("shelf_enabled", v).apply(); }

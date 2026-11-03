@@ -82,7 +82,8 @@ final class Merger {
         Collections.sort(out, new Comparator<Entry>() {
             @Override public int compare(Entry a, Entry b) {
                 if (a.isResume() != b.isResume()) return a.isResume() ? -1 : 1;
-                return Long.compare(b.updated(), a.updated());
+                int c = Long.compare(b.updated(), a.updated());
+                return c != 0 ? c : Integer.compare(b.primary.weight, a.primary.weight);
             }
         });
         return out;

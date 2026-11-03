@@ -66,11 +66,43 @@ public class ShelfRowsTest {
         assertEquals(9999L, r.fetchedMs);
     }
 
+    @Test public void ordersByWeightWhenNoWatchTimeIsKnown() {
+        List<Item> in = new ArrayList<>();
+        Item low = item("ch:1", "p", "Low", Item.RESUME, 0, -1f);
+        low.weight = 1;
+        Item high = item("ch:2", "p", "High", Item.RESUME, 0, -1f);
+        high.weight = 9;
+        in.add(low);
+        in.add(high);
+        List<ShelfRows.Row> rows = ShelfRows.build(in, "p", 0, null, null, null);
+        assertEquals("High", rows.get(0).title);
+        assertEquals(0, rows.get(0).progress);
+    }
+
+    @Test public void aPackageQueryReturnsAllItsItemsUpToTheLimit() {
+        List<Item> in = new ArrayList<>();
+        for (int i = 0; i < 15; i++) in.add(item("ch:" + i, "p", "Title " + i, Item.NEXT, 0, -1f));
+        assertEquals(ShelfRows.MAX_FOR_PACKAGE, ShelfRows.build(in, "p", 0, null, null, null).size());
+        assertEquals(ShelfRows.MAX_PER_PACKAGE, ShelfRows.build(in, null, 0, null, null, null).size());
+    }
+
+    @Test public void backdropsNarrowerThan320AreLeftOut() {
+        assertEquals(ShelfImages.PICK_BACKDROP, ShelfImages.pickBackdrop(960, 0, 0));
+        assertEquals(ShelfImages.PICK_NONE, ShelfImages.pickBackdrop(319, 0, 0));
+        assertEquals(ShelfImages.PICK_BACKDROP, ShelfImages.pickBackdrop(320, 0, 0));
+        assertEquals("portrait poster is never a backdrop", ShelfImages.PICK_BACKDROP, ShelfImages.pickBackdrop(500, 800, 1200));
+        assertEquals("a wider landscape poster wins", ShelfImages.PICK_POSTER, ShelfImages.pickBackdrop(400, 960, 540));
+        assertEquals("no backdrop, wide poster", ShelfImages.PICK_POSTER, ShelfImages.pickBackdrop(0, 600, 338));
+        assertEquals("small landscape poster", ShelfImages.PICK_NONE, ShelfImages.pickBackdrop(0, 300, 169));
+        assertEquals(ShelfImages.PICK_NONE, ShelfImages.pickBackdrop(0, 0, 0));
+    }
+
     @Test public void filtersByPackageAndCapsAtThreePerApp() {
         List<Item> in = new ArrayList<>();
         for (int i = 0; i < 6; i++) in.add(item("wn:" + i, "com.netflix.ninja", "Title " + i, Item.RESUME, 1000 + i, 0.1f));
         in.add(item("wn:x", "com.plexapp.android", "Plex title", Item.RESUME, 5, 0.1f));
-        assertEquals(3, ShelfRows.build(in, "com.netflix.ninja", 0, IMAGES, LABELS, null).size());
+        assertEquals("a package query returns all of the app's items", 6,
+                ShelfRows.build(in, "com.netflix.ninja", 0, IMAGES, LABELS, null).size());
         assertEquals(1, ShelfRows.build(in, "com.plexapp.android", 0, IMAGES, LABELS, null).size());
         assertEquals(0, ShelfRows.build(in, "com.none", 0, IMAGES, LABELS, null).size());
         // Unfiltered: three Netflix rows and the Plex row.

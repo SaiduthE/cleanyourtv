@@ -10,6 +10,8 @@ final class Item {
 
     static final String SRC_WATCH_NEXT = "wn";
     static final String SRC_JELLYFIN = "jf";
+    /** A program of a preview channel (Plex's, Netflix's "Continue watching" row). */
+    static final String SRC_CHANNEL = "ch";
 
     static final String JELLYFIN_PKG = "org.jellyfin.androidtv";
 
@@ -45,6 +47,10 @@ final class Item {
     int year = -1;
     /** "New episode" and the like, or empty. */
     String tag = "";
+    /** Channel rows only: the display name of the preview channel it came from. */
+    String channel = "";
+    /** Channel rows only: the program's weight in its channel (higher shows first). */
+    int weight;
 
     /** "S2 · E4", the episode's name, or the year for a film. */
     String subtitle() {
@@ -83,6 +89,8 @@ final class Item {
         if (!overview.isEmpty()) o.put("over", overview);
         if (year > 0) o.put("year", year);
         if (!tag.isEmpty()) o.put("tag", tag);
+        if (!channel.isEmpty()) o.put("chan", channel);
+        if (weight != 0) o.put("w", weight);
         return o;
     }
 
@@ -109,6 +117,8 @@ final class Item {
         it.overview = o.optString("over", "");
         it.year = o.optInt("year", -1);
         it.tag = o.optString("tag", "");
+        it.channel = o.optString("chan", "");
+        it.weight = o.optInt("w", 0);
         return it;
     }
 }

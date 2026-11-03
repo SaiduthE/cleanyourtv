@@ -25,7 +25,8 @@ import java.util.concurrent.Executors;
 
 /**
  * Where Continue watching comes from, managed with the remote alone. Watch Next: every installed app, with how many
- * rows it publishes (or "no rows found") and an on/off switch. Servers: add, test and remove the Jellyfin server.
+ * rows it publishes (or "no rows found") and an on/off switch, and under an app that publishes preview channels
+ * (Plex, Netflix) each channel with its row count and its own switch. Servers: add, test and remove the Jellyfin server.
  * Changes are saved at once and the shelf follows without waiting for the next refresh.
  */
 public final class SourcesActivity extends Activity {
@@ -92,7 +93,11 @@ public final class SourcesActivity extends Activity {
                         else requestPermissions(new String[] {WatchNextReader.PERMISSION}, REQUEST_LISTINGS);
                     }
                 });
-        for (AppRow a : apps()) appRow(a, granted);
+        Store.State state = Store.read(this);
+        for (AppRow a : apps(state)) {
+            appRow(a, granted, state);
+            if (granted) for (ChannelFilter.Info n : state.chans) if (n.pkg.equals(a.pkg)) channelRow(a, n);
+        }
 
         section(getString(R.string.section_servers));
         jellyfinRows();
@@ -157,11 +162,14 @@ public final class SourcesActivity extends Activity {
         String name;
         int rows;
         int channelRows;
+        int channels;
+        int channelItems;
     }
 
-    private List<AppRow> apps() {
+    private List<AppRow> apps(Store.State state) {
         Map<String, int[]> found = Probe.decode(prefs.probeJson());
         Set<String> pkgs = new TreeSet<>(found.keySet());
+        for (ChannelFilter.Info n : state.chans) pkgs.add(n.pkg);
         Intent launcher = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER);
         for (ResolveInfo ri : getPackageManager().queryIntentActivities(launcher, 0)) pkgs.add(ri.activityInfo.packageName);
         pkgs.remove(getPackageName());
@@ -174,27 +182,41 @@ public final class SourcesActivity extends Activity {
             int[] c = found.get(p);
             a.rows = c == null ? 0 : c[0];
             a.channelRows = c == null ? 0 : c[1];
+            for (ChannelFilter.Info n : state.chans) {
+                if (!n.pkg.equals(p)) continue;
+                a.channels++;
+                a.channelItems += n.rows;
+            }
             out.add(a);
         }
         Collections.sort(out, new Comparator<AppRow>() {
             @Override public int compare(AppRow x, AppRow y) {
-                if ((x.rows > 0) != (y.rows > 0)) return x.rows > 0 ? -1 : 1;
-                if (x.rows != y.rows) return y.rows - x.rows;
+                int xs = x.rows + x.channelItems;
+                int ys = y.rows + y.channelItems;
+                if ((xs > 0) != (ys > 0)) return xs > 0 ? -1 : 1;
+                if (xs != ys) return ys - xs;
                 return x.name.compareToIgnoreCase(y.name);
             }
         });
         return out;
     }
 
-    private void appRow(final AppRow a, boolean granted) {
+    private void appRow(final AppRow a, boolean granted, Store.State state) {
         boolean scanned = prefs.probeAt() != 0;
         final boolean on = !prefs.disabledPackages().contains(a.pkg);
         String detail;
         if (!granted) detail = "Needs Watch Next access";
         else if (!scanned) detail = "Not scanned yet";
         else if (a.rows > 0) detail = a.rows + (a.rows == 1 ? " row" : " rows");
-        else if (a.channelRows > 0) detail = "No Watch Next rows (" + a.channelRows + " channel rows are not used)";
-        else detail = "No rows found";
+        else if (a.channels > 0) {
+            detail = "No Watch Next rows · " + a.channels + (a.channels == 1 ? " channel" : " channels") + " below";
+        } else if (a.channelRows > 0) {
+            detail = "No Watch Next rows · " + a.channelRows + " channel rows "
+                    + (state.chStatus.equals("error") ? "could not be read" : "found, none readable");
+        } else detail = "No rows found";
+        if (a.rows > 0 && a.channels > 0) {
+            detail += " · " + a.channels + (a.channels == 1 ? " channel" : " channels") + " below";
+        }
         boolean publishes = granted && a.rows > 0;
         row(App.icon(this, a.pkg), a.name, detail, publishes ? (on ? "On" : "Off") : "", !publishes,
                 new View.OnClickListener() {
@@ -203,6 +225,23 @@ public final class SourcesActivity extends Activity {
                         else scan(a);
                     }
                 });
+    }
+
+    /** One preview channel of an app: its name, how many rows it holds, and its own switch (default: on for "Continue"). */
+    private void channelRow(final AppRow a, final ChannelFilter.Info n) {
+        final boolean on = prefs.channelEnabled(n.pkg, n.name);
+        String detail = a.name + " channel · ";
+        if (n.total == 0) detail += "empty right now";
+        else if (n.rows == n.total) detail += n.rows + (n.rows == 1 ? " row" : " rows");
+        else detail += n.rows + " of " + n.total + " rows can be shown";
+        row(null, n.name, detail, on ? "On" : "Off", false, new View.OnClickListener() {
+            @Override public void onClick(View v) {
+                prefs.setChannelEnabled(n.pkg, n.name, !on);
+                republish();
+                say(n.name + (on ? " is hidden from Continue watching." : " is shown in Continue watching."), NEUTRAL);
+                build();
+            }
+        });
     }
 
     private void toggle(AppRow a, boolean wasOn) {
@@ -242,7 +281,12 @@ public final class SourcesActivity extends Activity {
         Map<String, int[]> found = Probe.decode(prefs.probeJson());
         if (only != null) {
             int[] c = found.get(only.pkg);
-            if (c != null && c[0] > 0) {
+            int channels = 0;
+            for (ChannelFilter.Info i : Store.read(this).chans) if (i.pkg.equals(only.pkg)) channels++;
+            if (channels > 0 && (c == null || c[0] == 0)) {
+                say(only.name + ": " + channels + (channels == 1 ? " channel" : " channels")
+                        + " found. Switch the ones you want on.", GOOD);
+            } else if (c != null && c[0] > 0) {
                 say(only.name + ": " + c[0] + (c[0] == 1 ? " row" : " rows") + " found. It can be switched on or off now.", GOOD);
             } else {
                 say(only.name + ": no Watch Next rows found. Either it publishes none, or none that this app is allowed to read.", BAD);
@@ -251,8 +295,11 @@ public final class SourcesActivity extends Activity {
         }
         int n = 0;
         for (int[] c : found.values()) if (c[0] > 0) n++;
-        say(n == 0 ? "Scanned. No app publishes Watch Next rows this app can read."
-                : "Scanned. " + n + (n == 1 ? " app publishes" : " apps publish") + " Watch Next rows.", n == 0 ? BAD : GOOD);
+        int channels = Store.read(this).chans.size();
+        String ch = channels == 0 ? "" : " " + channels + (channels == 1 ? " channel" : " channels") + " found.";
+        say(n == 0 && channels == 0 ? "Scanned. No app publishes rows this app can read."
+                : "Scanned. " + n + (n == 1 ? " app publishes" : " apps publish") + " Watch Next rows." + ch,
+                n == 0 && channels == 0 ? BAD : GOOD);
     }
 
     // ---- Jellyfin

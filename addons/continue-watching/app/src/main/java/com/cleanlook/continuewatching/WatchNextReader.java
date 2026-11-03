@@ -72,6 +72,74 @@ final class WatchNextReader {
         return out;
     }
 
+    private static final String[] CHANNEL_COLUMNS = {"_id", "package_name", "display_name", "type", "browsable"};
+    private static final String[] CHANNEL_BASIC = {"_id", "package_name", "display_name"};
+    private static final String[] PROGRAM_COLUMNS = {
+        "_id", "channel_id", "title", "episode_title", "season_display_number", "episode_display_number",
+        "poster_art_uri", "poster_art_aspect_ratio", "thumbnail_uri", "thumbnail_aspect_ratio", "intent_uri",
+        "short_description", "last_playback_position_millis", "duration_millis", "weight", "browsable",
+    };
+    private static final String[] PROGRAM_BASIC = {
+        "_id", "channel_id", "title", "poster_art_uri", "thumbnail_uri", "intent_uri",
+        "last_playback_position_millis", "duration_millis",
+    };
+
+    /** Preview channels of every app (the TV inputs' own channels are left out), or a SecurityException. */
+    static List<ChannelFilter.Channel> readChannels(Context c) {
+        Cursor cur = queryWithFallback(c, TvContract.Channels.CONTENT_URI, CHANNEL_COLUMNS, CHANNEL_BASIC);
+        List<ChannelFilter.Channel> out = new ArrayList<>();
+        if (cur == null) return out;
+        try {
+            int n = 0;
+            while (cur.moveToNext() && n++ < MAX_ROWS) {
+                String type = str(cur, "type");
+                // Without a type column every row is taken; with one, only TYPE_PREVIEW is a home-screen row.
+                if (cur.getColumnIndex("type") >= 0 && type != null && !"TYPE_PREVIEW".equals(type)) continue;
+                ChannelFilter.Channel ch = new ChannelFilter.Channel();
+                ch.id = longOf(cur, "_id", -1);
+                ch.pkg = str(cur, "package_name");
+                ch.name = str(cur, "display_name");
+                ch.browsable = longOf(cur, "browsable", 1) != 0;
+                out.add(ch);
+            }
+        } finally {
+            cur.close();
+        }
+        return out;
+    }
+
+    /** Programs of all preview channels, keyed to their channel by channel_id. */
+    static List<ChannelFilter.Program> readChannelPrograms(Context c) {
+        Cursor cur = queryWithFallback(c, TvContract.PreviewPrograms.CONTENT_URI, PROGRAM_COLUMNS, PROGRAM_BASIC);
+        List<ChannelFilter.Program> out = new ArrayList<>();
+        if (cur == null) return out;
+        try {
+            int n = 0;
+            while (cur.moveToNext() && n++ < MAX_ROWS) {
+                ChannelFilter.Program p = new ChannelFilter.Program();
+                p.channelId = longOf(cur, "channel_id", -1);
+                p.title = str(cur, "title");
+                p.episodeTitle = str(cur, "episode_title");
+                p.season = str(cur, "season_display_number");
+                p.episode = str(cur, "episode_display_number");
+                p.poster = str(cur, "poster_art_uri");
+                p.posterAspect = (int) longOf(cur, "poster_art_aspect_ratio", -1);
+                p.thumb = str(cur, "thumbnail_uri");
+                p.thumbAspect = (int) longOf(cur, "thumbnail_aspect_ratio", -1);
+                p.intentUri = str(cur, "intent_uri");
+                p.description = str(cur, "short_description");
+                p.positionMs = longOf(cur, "last_playback_position_millis", -1);
+                p.durationMs = longOf(cur, "duration_millis", -1);
+                p.weight = (int) longOf(cur, "weight", 0);
+                p.browsable = longOf(cur, "browsable", 1) != 0;
+                out.add(p);
+            }
+        } finally {
+            cur.close();
+        }
+        return out;
+    }
+
     /** Watch Next and preview rows for the first-run probe. */
     static List<Probe.Sample> readSamples(Context c) {
         List<Probe.Sample> out = new ArrayList<>();

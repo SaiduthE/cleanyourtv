@@ -7,7 +7,9 @@ import android.net.Uri;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -50,10 +52,45 @@ final class ShelfImages {
                 .appendPath(name).build().toString();
     }
 
+    /** A backdrop narrower than this is left out: the launcher would stretch it over a wide card. */
+    static final int MIN_BACKDROP_WIDTH = 320;
+
+    /** Which decoded picture becomes the backdrop. */
+    static final int PICK_NONE = 0;
+    static final int PICK_BACKDROP = 1;
+    static final int PICK_POSTER = 2;
+
+    /**
+     * The backdrop is the declared landscape picture; a landscape "poster" replaces it when it is wider. Widths are
+     * of the decoded pictures (0 when there is none; the poster's height tells landscape from portrait). A choice
+     * under {@link #MIN_BACKDROP_WIDTH} wide is no backdrop at all.
+     */
+    static int pickBackdrop(int backdropWidth, int posterWidth, int posterHeight) {
+        boolean wide = posterWidth > 0 && posterWidth > posterHeight;
+        int pick = PICK_NONE;
+        int width = 0;
+        if (backdropWidth > 0) {
+            pick = PICK_BACKDROP;
+            width = backdropWidth;
+        }
+        if (wide && posterWidth > width) {
+            pick = PICK_POSTER;
+            width = posterWidth;
+        }
+        return width >= MIN_BACKDROP_WIDTH ? pick : PICK_NONE;
+    }
+
     /** Makes the pictures for the rows the shelf would return, and deletes every other file. */
     static void sync(Context c, List<Item> visible) {
         Set<String> keep = new HashSet<>();
-        for (ShelfRows.Row r : ShelfRows.build(visible, null, 0, null, null, null)) {
+        Set<String> seen = new HashSet<>();
+        List<ShelfRows.Row> rows = new ArrayList<>(ShelfRows.build(visible, null, 0, null, null, null));
+        Set<String> pkgs = new LinkedHashSet<>();
+        for (Item it : visible) pkgs.add(it.pkg);
+        // A launcher may ask for one app (?pkg=) and get more of its items than the overview has.
+        for (String pkg : pkgs) rows.addAll(ShelfRows.build(visible, pkg, 0, null, null, null));
+        for (ShelfRows.Row r : rows) {
+            if (!seen.add(r.itemId)) continue;
             Item it = Store.find(visible, r.itemId);
             if (it == null) continue;
             File backdrop = new File(dir(c), fileName(it.id, Contract.IMG_BACKDROP));
@@ -63,20 +100,18 @@ final class ShelfImages {
             keep.add(poster.getName());
             keep.add(logo.getName());
 
-            if (!ready(backdrop) && !it.backdrop.isEmpty()) {
-                make(c, it.backdrop, BACKDROP_WIDTH, backdrop, false);
-            }
-            if (!ready(poster) && !it.poster.isEmpty()) {
-                Bitmap b = App.images(c).decode(it.poster, BACKDROP_WIDTH);
-                if (b != null) {
-                    // An app that publishes a wide picture as its "poster" (many do): it is also the backdrop.
-                    if (b.getWidth() > b.getHeight() && !ready(backdrop) && it.backdrop.isEmpty()) {
-                        save(b, BACKDROP_WIDTH, backdrop, false);
-                    } else {
-                        save(b, POSTER_WIDTH, poster, false);
-                    }
-                }
-            }
+            boolean backdropDone = ready(backdrop);
+            boolean needPoster = !ready(poster) && !it.poster.isEmpty();
+            // An app that publishes a wide picture as its "poster" (many do): it can be the backdrop too.
+            Bitmap bd = !backdropDone && !it.backdrop.isEmpty() ? App.images(c).decode(it.backdrop, BACKDROP_WIDTH) : null;
+            Bitmap pst = (needPoster || !backdropDone) && !it.poster.isEmpty()
+                    ? App.images(c).decode(it.poster, BACKDROP_WIDTH) : null;
+            int pick = backdropDone ? PICK_NONE : pickBackdrop(bd == null ? 0 : bd.getWidth(),
+                    pst == null ? 0 : pst.getWidth(), pst == null ? 0 : pst.getHeight());
+            if (pick == PICK_BACKDROP) save(bd, BACKDROP_WIDTH, backdrop, false);
+            if (pick == PICK_POSTER) save(pst, BACKDROP_WIDTH, backdrop, false);
+            // A poster that became the backdrop is not also a poster.
+            if (needPoster && pst != null && pick != PICK_POSTER) save(pst, POSTER_WIDTH, poster, false);
             if (!ready(logo) && !it.logo.isEmpty()) make(c, it.logo, LOGO_WIDTH, logo, true);
         }
         File[] all = dir(c).listFiles();

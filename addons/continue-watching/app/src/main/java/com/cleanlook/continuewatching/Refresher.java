@@ -59,11 +59,17 @@ final class Refresher {
             next.wnAt = s.wnAt;
             next.jfAt = s.jfAt;
             next.wnStatus = s.wnStatus;
+            next.ch = s.ch;
+            next.chans = s.chans;
+            next.chStatus = s.chStatus;
 
             if (watchNext) {
                 if (!WatchNextReader.granted(app)) {
                     next.wn = new ArrayList<>();
                     next.wnStatus = "denied";
+                    next.ch = new ArrayList<>();
+                    next.chans = new ArrayList<>();
+                    next.chStatus = "denied";
                 } else {
                     try {
                         List<WatchNextFilter.Row> rows = WatchNextReader.readWatchNext(app);
@@ -77,6 +83,7 @@ final class Refresher {
                         Log.w(Contract.TAG, "watch next read failed: " + e.getClass().getSimpleName());
                         next.wnStatus = "error";
                     }
+                    readChannels(app, next);
                 }
             }
 
@@ -110,6 +117,24 @@ final class Refresher {
                 return;
             }
             publish(app, next);
+        }
+    }
+
+    /** Preview channels (Plex, Netflix): all of them are saved; the owner's switches pick at display time. */
+    private static void readChannels(Context app, Store.State next) {
+        try {
+            List<ChannelFilter.Info> infos = new ArrayList<>();
+            next.ch = ChannelFilter.convert(WatchNextReader.readChannels(app), WatchNextReader.readChannelPrograms(app),
+                    app.getPackageName(), infos);
+            next.chans = infos;
+            next.chStatus = "ok";
+        } catch (SecurityException e) {
+            next.ch = new ArrayList<>();
+            next.chans = new ArrayList<>();
+            next.chStatus = "denied";
+        } catch (RuntimeException e) {
+            Log.w(Contract.TAG, "channel read failed: " + e.getClass().getSimpleName());
+            next.chStatus = "error";
         }
     }
 

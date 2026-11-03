@@ -16,6 +16,8 @@ final class ShelfRows {
 
     static final int MAX_PER_PACKAGE = 3;
     static final int MAX_TOTAL = 12;
+    /** When the launcher asks for one app (?pkg=), it gets all of that app's items, so it can show "up next". */
+    static final int MAX_FOR_PACKAGE = 10;
 
     /** The content:// URI of an item's cached picture ({@link Contract#IMG_BACKDROP} and the like), or null. */
     interface Images {
@@ -57,15 +59,17 @@ final class ShelfRows {
         Collections.sort(sorted, new Comparator<Item>() {
             @Override public int compare(Item a, Item b) {
                 if (a.kind != b.kind) return a.kind == Item.RESUME ? -1 : 1;
-                return Long.compare(b.updatedMs, a.updatedMs);
+                int c = Long.compare(b.updatedMs, a.updatedMs);
+                return c != 0 ? c : Integer.compare(b.weight, a.weight);
             }
         });
+        boolean one = pkgFilter != null && !pkgFilter.isEmpty();
         Map<String, Integer> perPkg = new HashMap<>();
         List<Row> out = new ArrayList<>();
         for (Item it : sorted) {
             if (pkgFilter != null && !pkgFilter.isEmpty() && !pkgFilter.equals(it.pkg)) continue;
             Integer n = perPkg.get(it.pkg);
-            if (n != null && n >= MAX_PER_PACKAGE) continue;
+            if (!one && n != null && n >= MAX_PER_PACKAGE) continue;
             perPkg.put(it.pkg, n == null ? 1 : n + 1);
             Row r = new Row();
             r.itemId = it.id;
@@ -84,7 +88,7 @@ final class ShelfRows {
             r.sourceLabel = labels == null ? it.pkg : labels.labelFor(it.pkg);
             r.fetchedMs = fetchedMs;
             out.add(r);
-            if (out.size() >= MAX_TOTAL) break;
+            if (out.size() >= (one ? MAX_FOR_PACKAGE : MAX_TOTAL)) break;
         }
         return out;
     }

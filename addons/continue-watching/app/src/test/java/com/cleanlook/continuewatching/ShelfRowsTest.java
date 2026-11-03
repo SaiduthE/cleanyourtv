@@ -153,4 +153,25 @@ public class ShelfRowsTest {
             assertTrue(f.getName(), !n.contains("url") && !n.contains("token") && !n.contains("server"));
         }
     }
+
+    @Test public void subtitleNeverSaysSeasonZeroEpisodeOne() {
+        List<Item> in = new ArrayList<>();
+        Item trailer = item("wn:1", "com.plexapp.android", "Grand Theft Auto VI", Item.RESUME, 5000, 0.1f);
+        trailer.season = 0;
+        trailer.episode = 1;
+        in.add(trailer);
+        assertEquals("Special", ShelfRows.build(in, null, 1, IMAGES, LABELS, LINKS).get(0).subtitle);
+
+        Item film = item("wn:2", "com.plexapp.android", "A Film", Item.RESUME, 5000, 0.1f);
+        film.season = -1;
+        film.episode = -1;
+        film.year = 2024;
+        assertEquals("2024", film.subtitle());
+        film.year = -1;
+        assertEquals("1 h", film.subtitle());
+        film.durationMs = -1;
+        assertEquals("", film.subtitle());
+        film.episodeTitle = "The Pilot";
+        assertEquals("The Pilot", film.subtitle());
+    }
 }

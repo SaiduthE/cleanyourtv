@@ -52,12 +52,13 @@ final class Item {
     /** Channel rows only: the program's weight in its channel (higher shows first). */
     int weight;
 
-    /** "S2 · E4", the episode's name, or the year for a film. */
+    /** "S2 · E4", "Special", the episode's name, the year, or the length; empty when none is known. */
     String subtitle() {
         String e = Text.episodeLabel(season, episode);
         if (e != null) return e;
         if (!episodeTitle.isEmpty()) return episodeTitle;
         if (year > 0) return String.valueOf(year);
+        if (durationMs > 0) return Text.duration(durationMs);
         return "";
     }
 

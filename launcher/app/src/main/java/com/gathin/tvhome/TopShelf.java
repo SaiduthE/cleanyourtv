@@ -60,7 +60,6 @@ final class TopShelf {
 
     private static final int ICON_DP = 56;
     private static final int GAP_DP = 28;
-    private static final int THUMB_W_DP = 122, THUMB_H_DP = 69;
     private static final int NO_PIC = 0xFF1C1F26;
 
     private final Context context;
@@ -162,7 +161,7 @@ final class TopShelf {
         card.setClipToOutline(true);
         card.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         FrameLayout.LayoutParams cardLp = new FrameLayout.LayoutParams(1, 1, Gravity.BOTTOM | Gravity.END);
-        cardLp.setMarginEnd(dp(58));
+        cardLp.setMarginEnd(dp(TopShelfLogic.SAFE_MARGIN_DP));
         content.addView(card, cardLp);
         card.setVisibility(View.GONE);
 
@@ -179,7 +178,7 @@ final class TopShelf {
         nameText.setShadowLayer(dp(14), 0, dp(2), 0x80000000);
         nameRow.addView(nameText);
         FrameLayout.LayoutParams nameLp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.START);
-        nameLp.setMarginStart(dp(58));
+        nameLp.setMarginStart(dp(TopShelfLogic.SAFE_MARGIN_DP));
         content.addView(nameRow, nameLp);
         nameRow.setVisibility(View.GONE);
 
@@ -212,7 +211,7 @@ final class TopShelf {
         focusable(resumeButton, 1.05f);
         block.addView(resumeButton, margins(0, 16, 0, 0, -2, 40));
         FrameLayout.LayoutParams blockLp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.START);
-        blockLp.setMarginStart(dp(58));
+        blockLp.setMarginStart(dp(TopShelfLogic.SAFE_MARGIN_DP));
         content.addView(block, blockLp);
 
         upNext = new LinearLayout(context);
@@ -222,7 +221,7 @@ final class TopShelf {
         upLabel.setText(R.string.shelf_up_next);
         upNext.addView(upLabel, margins(0, 0, 0, 8));
         LinearLayout row = new LinearLayout(context);
-        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setOrientation(LinearLayout.VERTICAL);
         row.setClipChildren(false);
         for (int i = 0; i < TopShelfLogic.MAX_UP_NEXT; i++) {
             FrameLayout thumb = new FrameLayout(context);
@@ -236,20 +235,21 @@ final class TopShelf {
                     new int[] {0x00000000, 0xB3000000});
             shade.setBackground(fade);
             thumb.addView(shade, new FrameLayout.LayoutParams(-1, -1));
-            TextView label = text(11, R.string.font_medium, 0xF2FFFFFF);
+            TextView label = text(12, R.string.font_medium, 0xF2FFFFFF);
             label.setMaxLines(2);
             label.setPadding(dp(8), 0, dp(8), dp(7));
             thumb.addView(label, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
             thumb.setForeground(stateBackground(0, 0, 0, dp(8), 0xFFFFFFFF));
             focusable(thumb, 1.08f);
-            row.addView(thumb, margins(i == 0 ? 0 : 12, 0, 0, 0, THUMB_W_DP, THUMB_H_DP));
+            row.addView(thumb, margins(0, i == 0 ? 0 : TopShelfLogic.UP_NEXT_GAP_DP, 0, 0,
+                    TopShelfLogic.UP_NEXT_W_DP, TopShelfLogic.UP_NEXT_W_DP * 9 / 16));
             thumbs.add(thumb);
             thumbImages.add(image);
             thumbLabels.add(label);
         }
         upNext.addView(row);
         FrameLayout.LayoutParams upLp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
-        upLp.setMarginEnd(dp(58));
+        upLp.setMarginEnd(dp(TopShelfLogic.SAFE_MARGIN_DP));
         content.addView(upNext, upLp);
         block.setVisibility(View.GONE);
         upNext.setVisibility(View.GONE);
@@ -504,20 +504,30 @@ final class TopShelf {
         int cardW = placeCard(backdrop == null ? cardPic : null);
         if (backdrop != null) recycle(cardPic);
         FrameLayout.LayoutParams upLp = (FrameLayout.LayoutParams) upNext.getLayoutParams();
-        int upEnd = dp(58) + (cardW > 0 ? cardW + dp(28) : 0);
+        int upEnd = dp(TopShelfLogic.SAFE_MARGIN_DP) + (cardW > 0 ? cardW + dp(28) : 0);
+        int canvasDp = Math.round(container.getWidth() / density);
+        if (canvasDp <= 0) canvasDp = 960;
+        float roomDp = (wantDockTop - dp(GAP_DP) - host.headerBottom()) / density - 24;
+        TopShelfLogic.UpNextPlan plan = TopShelfLogic.upNextPlan(canvasDp, Math.round(cardW / density) + (cardW > 0 ? 28 : 0),
+                Math.round(roomDp), shelf.upNext.size());
+        title.setMaxWidth(dp(plan.titleMaxW));
         if (upLp.getMarginEnd() != upEnd) {
             upLp.setMarginEnd(upEnd);
             upNext.setLayoutParams(upLp);
         }
         for (int i = 0; i < thumbs.size(); i++) {
-            boolean on = i < shelf.upNext.size();
+            boolean on = i < plan.count;
             thumbs.get(i).setVisibility(on ? View.VISIBLE : View.GONE);
             if (!on) continue;
+            ViewGroup.LayoutParams tlp = thumbs.get(i).getLayoutParams();
+            tlp.width = dp(plan.cardW);
+            tlp.height = dp(plan.cardH);
+            thumbs.get(i).setLayoutParams(tlp);
             TopShelfLogic.Entry e = shelf.upNext.get(i);
             thumbLabels.get(i).setText(e.subtitle.isEmpty() ? e.title : e.subtitle + "\n" + e.title);
             thumbs.get(i).setOnClickListener(v -> launch(e));
         }
-        upNext.setVisibility(shelf.upNext.isEmpty() ? View.GONE : View.VISIBLE);
+        upNext.setVisibility(plan.count == 0 ? View.GONE : View.VISIBLE);
         block.setVisibility(View.VISIBLE);
         placeAboveDock(block, upNext, card);
     }
@@ -728,22 +738,25 @@ final class TopShelf {
         });
         v.setOnKeyListener((view, keyCode, event) -> {
             if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+            int at = thumbs.indexOf(view);
+            // The up-next cards are a column: Down and Up move between them, Down from the last one goes to the dock.
             if (keyCode == KeyEvent.KEYCODE_DPAD_DOWN) {
+                if (at >= 0 && at + 1 < thumbs.size() && thumbs.get(at + 1).getVisibility() == View.VISIBLE) {
+                    thumbs.get(at + 1).requestFocus();
+                    return true;
+                }
                 host.focusTiles();
                 return true;
             }
-            // Left of Resume and right of the last item have nowhere to go: stay put rather than leave the shelf.
+            if (keyCode == KeyEvent.KEYCODE_DPAD_UP && at > 0) {
+                thumbs.get(at - 1).requestFocus();
+                return true;
+            }
+            // Left of Resume and right of the cards have nowhere to go: stay put rather than leave the shelf.
             if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) return view == resumeButton;
-            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) return view == lastFocusable();
+            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) return at >= 0 || upNext.getVisibility() != View.VISIBLE;
             return false;
         });
-    }
-
-    private View lastFocusable() {
-        for (int i = thumbs.size() - 1; i >= 0; i--) {
-            if (thumbs.get(i).getVisibility() == View.VISIBLE && upNext.getVisibility() == View.VISIBLE) return thumbs.get(i);
-        }
-        return resumeButton;
     }
 
     private LinearLayout.LayoutParams margins(int l, int t, int r, int b) {

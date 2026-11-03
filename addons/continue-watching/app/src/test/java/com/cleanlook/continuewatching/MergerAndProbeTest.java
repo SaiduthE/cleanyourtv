@@ -1,6 +1,7 @@
 package com.cleanlook.continuewatching;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
@@ -120,6 +121,13 @@ public class MergerAndProbeTest {
         assertEquals(2, Text.digits("Season 2"));
         assertEquals(-1, Text.digits("Special"));
         assertEquals("S2 · E4", Text.episodeLabel(2, 4));
+        assertEquals("S1 · E14", Text.episodeLabel(1, 14));
+        assertEquals("Special", Text.episodeLabel(0, 1));
+        assertEquals("Special", Text.episodeLabel(0, -1));
+        assertNull(Text.episodeLabel(2, 0));
+        assertNull(Text.episodeLabel(2, -1));
+        assertNull(Text.episodeLabel(-1, 3));
+        assertNull(Text.episodeLabel(-1, -1));
         assertEquals("23 min left", Text.left(23 * 60_000L - 10));
         assertEquals("1 h 11 min left", Text.left(71 * 60_000L));
         assertEquals("2 h left", Text.left(120 * 60_000L));

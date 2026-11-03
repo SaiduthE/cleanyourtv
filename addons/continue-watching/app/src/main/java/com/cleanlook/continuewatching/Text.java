@@ -35,11 +35,10 @@ final class Text {
         return (int) v;
     }
 
-    /** "S2 · E4", "E4", or null. */
+    /** "S2 · E4" for season >= 1 and episode >= 1, "Special" for season 0, otherwise null (never "S0 · E1"). */
     static String episodeLabel(int season, int episode) {
-        if (season >= 0 && episode >= 0) return "S" + season + " · E" + episode;
-        if (episode >= 0) return "E" + episode;
-        if (season >= 0) return "S" + season;
+        if (season == 0) return "Special";
+        if (season >= 1 && episode >= 1) return "S" + season + " · E" + episode;
         return null;
     }
 

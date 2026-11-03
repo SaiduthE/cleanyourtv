@@ -243,4 +243,39 @@ public class TopShelfLogicTest {
         assertTrue(TopShelfLogic.ROTATE_MS >= 10_000 && TopShelfLogic.ROTATE_MS <= 12_000);
         assertEquals(1.5f, TopShelfLogic.MAX_UPSCALE, 0f);
     }
+
+    @Test public void upNextColumnStaysInsideTheSafeArea() {
+        // 960 dp canvas, plenty of height: two stacked 220 dp wide 16:9 cards.
+        TopShelfLogic.UpNextPlan p = TopShelfLogic.upNextPlan(960, 0, 300, 2);
+        assertEquals(2, p.count);
+        assertEquals(220, p.cardW);
+        assertEquals(123, p.cardH);
+        assertEquals(460, p.titleMaxW);
+        // The column's left edge clears the title block and its right edge is the safe margin.
+        int left = 960 - TopShelfLogic.SAFE_MARGIN_DP - p.cardW;
+        assertTrue(left >= TopShelfLogic.SAFE_MARGIN_DP + p.titleMaxW + TopShelfLogic.BLOCK_GAP_DP);
+        // Never more than the cards given, nor than the limit.
+        assertEquals(1, TopShelfLogic.upNextPlan(960, 0, 300, 1).count);
+        assertEquals(0, TopShelfLogic.upNextPlan(960, 0, 300, 0).count);
+        assertEquals(2, TopShelfLogic.upNextPlan(960, 0, 600, 5).count);
+    }
+
+    @Test public void upNextFitsTheHeightItIsGiven() {
+        // 255 dp: the caption (24) leaves 231, enough for one card (123) but not two (258).
+        assertEquals(1, TopShelfLogic.upNextPlan(960, 0, 255, 2).count);
+        // Even less room: one card, shortened but never below the minimum.
+        TopShelfLogic.UpNextPlan tight = TopShelfLogic.upNextPlan(960, 0, 110, 2);
+        assertEquals(1, tight.count);
+        assertEquals(86, tight.cardH);
+        assertEquals(TopShelfLogic.UP_NEXT_MIN_H_DP, TopShelfLogic.upNextPlan(960, 0, 40, 2).cardH);
+    }
+
+    @Test public void upNextNarrowsAndTheTitleYieldsBesideAPosterCard() {
+        // A 220 dp poster card (plus its 28 dp gap) leaves too little width: cards narrow, the title gives way.
+        TopShelfLogic.UpNextPlan p = TopShelfLogic.upNextPlan(960, 248, 300, 2);
+        assertEquals(TopShelfLogic.UP_NEXT_MIN_W_DP, p.cardW);
+        assertTrue(p.titleMaxW < TopShelfLogic.TITLE_MAX_W_DP);
+        int left = 960 - TopShelfLogic.SAFE_MARGIN_DP - 248 - p.cardW;
+        assertTrue(left >= TopShelfLogic.SAFE_MARGIN_DP + p.titleMaxW + TopShelfLogic.BLOCK_GAP_DP);
+    }
 }

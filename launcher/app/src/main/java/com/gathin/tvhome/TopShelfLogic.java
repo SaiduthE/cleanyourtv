@@ -44,9 +44,16 @@ final class TopShelfLogic {
     /** The largest picture decoded (the canvas of a 4K TV at 4x density). */
     static final int MAX_W = 960, MAX_H = 540;
     /** The up-next thumbnails are decoded at twice their on-screen size at most. */
-    static final int THUMB_W = 244, THUMB_H = 138;
+    static final int THUMB_W = 440, THUMB_H = 248;
     /** At most two up-next items next to the one to resume. */
     static final int MAX_UP_NEXT = 2;
+    /** The safe margin of the 960x540 canvas: the title's left margin, and the same at the right edge. */
+    static final int SAFE_MARGIN_DP = 58;
+    /** Up-next cards: a fixed width (16:9), the gap between stacked cards, and the "Up next" caption above them. */
+    static final int UP_NEXT_W_DP = 220, UP_NEXT_MIN_W_DP = 150, UP_NEXT_GAP_DP = 12, UP_NEXT_CAPTION_DP = 24;
+    static final int UP_NEXT_MIN_H_DP = 56;
+    /** The title is at most this wide; the up-next column keeps {@link #BLOCK_GAP_DP} clear of it. */
+    static final int TITLE_MAX_W_DP = 460, BLOCK_GAP_DP = 24;
     /** The room the resume block needs between the header and the dock. */
     static final int RESUME_MIN_DP = 150;
     /** A backdrop narrower than this is never stretched across the shelf: the wallpaper is used instead. */
@@ -224,6 +231,42 @@ final class TopShelfLogic {
         if (size == 1) return 0;
         int pick = random.nextInt(size - 1);
         return current >= 0 && pick >= current ? pick + 1 : pick;
+    }
+
+    /** Where the up-next column goes, in dp: how many cards, how big, and how wide the title may be. */
+    static final class UpNextPlan {
+        final int count, cardW, cardH, titleMaxW;
+
+        UpNextPlan(int count, int cardW, int cardH, int titleMaxW) {
+            this.count = count;
+            this.cardW = cardW;
+            this.cardH = cardH;
+            this.titleMaxW = titleMaxW;
+        }
+    }
+
+    /**
+     * Places the up-next cards in a column against the right safe margin (a poster card, if any, takes rightReserveDp
+     * beside it). Cards are stacked, {@link #UP_NEXT_W_DP} wide and 16:9, as many of count as fit in roomH under the
+     * caption (at least one, shortened when even one is too tall). When the column would touch the title block, the
+     * cards narrow to at most {@link #UP_NEXT_MIN_W_DP} and the title's maximum width gives way, so nothing overlaps.
+     */
+    static UpNextPlan upNextPlan(int canvasWDp, int rightReserveDp, int roomHDp, int count) {
+        int rightEdge = canvasWDp - SAFE_MARGIN_DP - Math.max(0, rightReserveDp);
+        int blockRight = SAFE_MARGIN_DP + TITLE_MAX_W_DP;
+        int availW = rightEdge - blockRight - BLOCK_GAP_DP;
+        int w = Math.max(UP_NEXT_MIN_W_DP, Math.min(UP_NEXT_W_DP, availW));
+        int titleMax = Math.max(0, Math.min(TITLE_MAX_W_DP, rightEdge - w - BLOCK_GAP_DP - SAFE_MARGIN_DP));
+        if (count <= 0) return new UpNextPlan(0, w, w * 9 / 16, titleMax);
+        int h = w * 9 / 16;
+        int avail = roomHDp - UP_NEXT_CAPTION_DP;
+        int fit = (avail + UP_NEXT_GAP_DP) / (h + UP_NEXT_GAP_DP);
+        int n = Math.min(count, Math.min(MAX_UP_NEXT, fit));
+        if (n < 1) {
+            n = 1;
+            h = Math.max(UP_NEXT_MIN_H_DP, Math.min(h, avail));
+        }
+        return new UpNextPlan(n, w, h, titleMax);
     }
 
     static boolean roomForResume(float availableDp) {

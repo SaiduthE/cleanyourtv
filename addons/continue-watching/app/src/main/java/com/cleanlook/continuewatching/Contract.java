@@ -25,7 +25,7 @@ public final class Contract {
     /** "resume" (partway through) or "next" (the next episode). */
     public static final String COL_KIND = "kind";
     public static final String COL_TITLE = "title";
-    /** "S2 · E4", the episode's name, or the year of a film. */
+    /** "S2 · E4", "Special", the episode's name, the year or the length of a film; empty when unknown. */
     public static final String COL_SUBTITLE = "subtitle";
     /** Whole percent, 0 to 100; 0 for "next" rows and for apps that did not say. */
     public static final String COL_PROGRESS = "progress";

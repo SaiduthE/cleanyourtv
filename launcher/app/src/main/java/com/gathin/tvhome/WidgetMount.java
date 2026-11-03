@@ -32,6 +32,7 @@ final class WidgetMount {
     private View dateColumn;
     private TextView dateText;
     private View divider;
+    private boolean dateBelow;
     // The top bar (TOP_BAR_START, TOP_BAR_END).
     private ViewGroup bar;
 
@@ -71,7 +72,9 @@ final class WidgetMount {
         if (clock == null || date == null || !(clock.getParent() instanceof LinearLayout)) return false;
         row = (LinearLayout) clock.getParent();
         dateColumn = (View) date.getParent();
-        if (dateColumn.getParent() != row) return false;
+        // date_below_clock moves the date column under the clock: the row then ends with the time.
+        dateBelow = dateColumn.getParent() != row && dateColumn.getParent() == row.getParent();
+        if (dateColumn.getParent() != row && !dateBelow) return false;
         dateText = (TextView) date;
         // A second line like the clock's own, in the same colour (white when header_white recoloured it).
         View first = activity.findViewById(R.id.clockDivider);
@@ -80,7 +83,9 @@ final class WidgetMount {
         Drawable bg = first.getBackground();
         divider.setBackgroundColor(bg instanceof ColorDrawable ? ((ColorDrawable) bg).getColor() : 0x33FFFFFF);
         divider.setVisibility(View.GONE);
-        row.addView(divider, row.indexOfChild(dateColumn) + 1,
+        // Below the clock the widget follows the time directly, so its divider goes at the end of the row.
+        int at = dateBelow ? row.getChildCount() : row.indexOfChild(dateColumn) + 1;
+        row.addView(divider, at,
                 new LinearLayout.LayoutParams((LinearLayout.LayoutParams) first.getLayoutParams()));
         // A focused chip grows and casts a shadow past the row's edges.
         row.setClipChildren(false);
@@ -128,8 +133,9 @@ final class WidgetMount {
     private void apply() {
         if (slot != WidgetSlot.CLOCK_SIDE) return;
         boolean room = contentShown || previewing;
-        divider.setVisibility(room ? View.VISIBLE : View.GONE);
-        setCompactDate(room);
+        // Below the clock there is no date beside the time to separate from, so no divider and no compact date.
+        divider.setVisibility(room && !dateBelow ? View.VISIBLE : View.GONE);
+        if (!dateBelow) setCompactDate(room);
     }
 
     /**

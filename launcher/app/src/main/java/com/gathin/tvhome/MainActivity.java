@@ -620,6 +620,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             lunarDate.setTextSize(11f);
             date.setPadding(0, (int) (4 * density), 0, 0);
         }
+        if (cfg.dateBelowClock) {
+            // The date line under the time at 60% of its size, never below 12 sp (after the shamsi size above).
+            TextView dateView = findViewById(R.id.date);
+            dateView.setTextSize(Math.max(12f, dateView.getTextSize() / getResources().getDisplayMetrics().scaledDensity * 0.6f));
+        }
         // Widgets (weather chip, brightness chip) in the slots the owner chose, created below once the top bar exists.
         vpnApp = cfg.vpnApp;
         vpnPill = cfg.vpnPill && !cfg.topMenu;

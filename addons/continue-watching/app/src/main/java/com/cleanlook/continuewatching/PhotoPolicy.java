@@ -75,7 +75,7 @@ final class PhotoPolicy {
         return on.toArray(new Category[0]);
     }
 
-    /** "12 photos, updated today"; or the note of the last try ("No network", "Failed: timed out") when there is one. */
+    /** "12 photos, updated today"; or the note of the last try ("No network", "3 of 15 photos fetched: server busy, try again later") when there is one. */
     static String status(boolean refreshing, int count, long okMs, long now, String note) {
         if (refreshing) return "Refreshing…";
         if (note != null && !note.isEmpty()) return note;

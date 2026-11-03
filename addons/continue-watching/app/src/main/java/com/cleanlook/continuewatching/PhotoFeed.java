@@ -7,16 +7,11 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.util.Log;
 
-import org.json.JSONException;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.net.SocketTimeoutException;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -35,10 +30,9 @@ final class PhotoFeed {
 
     private static final String USER_AGENT = "CleanTV-Photos/1.0 (Android TV)";
     private static final Set<String> HOSTS = new HashSet<>(Arrays.asList(PhotoFilter.API_HOST, PhotoFilter.UPLOAD_HOST));
-    private static final int BATCH = 20;
-    /** From one batch of one category at most this many are taken, so the photos come from several categories. */
-    private static final int PER_ROUND = 3;
-    private static final int MAX_CALLS = 30;
+    /** The API answers fast; a 1920 px picture rendered for the first time can take its time. */
+    private static final int JSON_READ_MS = 15000;
+    private static final int IMAGE_READ_MS = 20000;
     private static final int MIN_DECODED_WIDTH = 1200;
 
     private static final AtomicBoolean RUNNING = new AtomicBoolean(false);
@@ -135,20 +129,15 @@ final class PhotoFeed {
                 return;
             }
             prefs.photosTried(now);
-            String error = null;
-            int added = 0;
             try {
-                added = fetch(app, prefs, record);
-            } catch (SocketTimeoutException e) {
-                error = "Timed out";
-            } catch (UnknownHostException e) {
-                error = "No network";
-            } catch (IOException | JSONException e) {
-                Log.w(Contract.TAG, "photos refresh failed: " + e.getClass().getSimpleName());
-                error = "Failed";
+                PhotoRun.Result res = fetch(app, prefs, record);
+                if (res.failure != null) Log.w(Contract.TAG, "photos refresh: " + res.failure.kind + " " + res.failure.code);
+                // A refresh that brought at least one new photo is a good one; the note says what went wrong on the way.
+                prefs.photosDone(res.added > 0 || res.failure == null ? System.currentTimeMillis() : 0, PhotoRun.note(res));
+            } catch (RuntimeException e) {
+                Log.w(Contract.TAG, "photos refresh crashed: " + e.getClass().getSimpleName());
+                prefs.photosDone(0, "Something went wrong, try again later");
             }
-            // Photos that arrived before an error still count; the note only says so when nothing new came.
-            prefs.photosDone(error == null || added > 0 ? System.currentTimeMillis() : 0, added > 0 ? "" : error);
         } finally {
             RUNNING.set(false);
         }
@@ -170,48 +159,44 @@ final class PhotoFeed {
         return keep;
     }
 
-    private static int fetch(Context app, Prefs prefs, List<PhotoCache.Photo> record) throws IOException, JSONException {
-        Random rnd = new Random();
-        int want = PhotoCache.wanted(record.size());
-        List<PhotoPolicy.Category> cats = new ArrayList<>(Arrays.asList(PhotoPolicy.enabled(prefs.photosOff())));
-        Collections.shuffle(cats, rnd);
-        Map<String, List<Long>> pools = new HashMap<>();
+    private static PhotoRun.Result fetch(final Context app, final Prefs prefs, List<PhotoCache.Photo> record) {
+        final List<PhotoCache.Photo> kept = new ArrayList<>(record);
         Set<String> have = new HashSet<>();
         for (PhotoCache.Photo p : record) have.add(p.name);
-        int added = 0;
-        int calls = 0;
-        int empty = 0;
-        for (int round = 0; added < want && calls < MAX_CALLS && empty < cats.size(); round++) {
-            PhotoPolicy.Category cat = cats.get(round % cats.size());
-            List<Long> pool = pools.get(cat.key);
-            if (pool == null) {
-                calls++;
-                pool = new ArrayList<>(PhotoFilter.pageIds(get(PhotoFilter.listUrl(cat.commons))));
-                Collections.shuffle(pool, rnd);
-                pools.put(cat.key, pool);
+        PhotoRun.Net net = new PhotoRun.Net() {
+            @Override public byte[] get(String url, boolean image) throws IOException {
+                return Http.getGuarded(url, headers(image ? "image/jpeg" : "application/json"),
+                        image ? PhotoCache.MAX_FILE_BYTES : Http.JSON_MAX, HOSTS, image ? IMAGE_READ_MS : JSON_READ_MS).body;
             }
-            if (pool.isEmpty()) {
-                empty++;
-                continue;
+        };
+        PhotoRun.Env env = new PhotoRun.Env() {
+            @Override public boolean sleep(long ms) {
+                try {
+                    Thread.sleep(ms);
+                    return true;
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    return false;
+                }
             }
-            empty = 0;
-            List<Long> batch = new ArrayList<>(pool.subList(0, Math.min(BATCH, pool.size())));
-            pool.subList(0, batch.size()).clear();
-            calls++;
-            int fromThisBatch = 0;
-            for (PhotoFilter.Candidate cand : PhotoFilter.candidates(get(PhotoFilter.infoUrl(batch)))) {
-                if (added >= want || fromThisBatch >= PER_ROUND) break;
-                String name = PhotoCache.fileName(cand.title);
-                if (have.contains(name)) continue;
-                PhotoCache.Photo p = download(app, cand, name);
-                if (p == null) continue;
-                have.add(name);
-                fromThisBatch++;
-                added++;
-                record = add(app, prefs, record, p);
+
+            @Override public long now() {
+                return System.currentTimeMillis();
             }
-        }
-        return added;
+        };
+        PhotoRun.Saver saver = new PhotoRun.Saver() {
+            @Override public PhotoCache.Photo store(PhotoFilter.Candidate cand, String name, byte[] body) throws IOException {
+                PhotoCache.Photo p = save(app, cand, name, body);
+                if (p != null) {
+                    List<PhotoCache.Photo> next = add(app, prefs, kept, p);
+                    kept.clear();
+                    kept.addAll(next);
+                }
+                return p;
+            }
+        };
+        return new PhotoRun(net, env, saver).run(PhotoPolicy.enabled(prefs.photosOff()), PhotoCache.wanted(record.size()),
+                have, new Random());
     }
 
     /** Adds the photo to the record, drops what no longer fits (the oldest first), saves and tells the launcher. */
@@ -229,10 +214,6 @@ final class PhotoFeed {
         return kept;
     }
 
-    private static String get(String url) throws IOException {
-        return Http.getGuarded(url, headers("application/json"), Http.JSON_MAX, HOSTS).text();
-    }
-
     private static Map<String, String> headers(String accept) {
         Map<String, String> h = new HashMap<>();
         h.put("User-Agent", USER_AGENT);
@@ -240,16 +221,9 @@ final class PhotoFeed {
         return h;
     }
 
-    /** Downloads one picture into the cache folder; null when it is too big, not a JPEG or not what it said. */
-    private static PhotoCache.Photo download(Context app, PhotoFilter.Candidate cand, String name) throws IOException {
-        byte[] body;
-        try {
-            body = Http.getGuarded(cand.url, headers("image/jpeg"), PhotoCache.MAX_FILE_BYTES, HOSTS).body;
-        } catch (SocketTimeoutException | UnknownHostException e) {
-            throw e;
-        } catch (IOException e) {
-            return null; // too big, or this one picture is not served: the next candidate does
-        }
+    /** Keeps one downloaded picture in the cache folder; null when it is not a JPEG, too narrow or not the right shape. */
+    private static PhotoCache.Photo save(Context app, PhotoFilter.Candidate cand, String name, byte[] body)
+            throws IOException {
         BitmapFactory.Options bounds = new BitmapFactory.Options();
         bounds.inJustDecodeBounds = true;
         BitmapFactory.decodeByteArray(body, 0, body.length, bounds);

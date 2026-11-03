@@ -20,6 +20,36 @@ final class Http {
     static final int JSON_MAX = 4 * 1024 * 1024;
     static final int IMAGE_MAX = 12 * 1024 * 1024;
 
+    /** A non-2xx answer: the status code and, for a busy server, how long it asked us to wait (0 when it did not say). */
+    static final class HttpException extends IOException {
+        final int code;
+        final long retryAfterMs;
+
+        HttpException(int code, long retryAfterMs) {
+            super("HTTP " + code);
+            this.code = code;
+            this.retryAfterMs = retryAfterMs;
+        }
+    }
+
+    /** The body is bigger than the caller allows. */
+    static final class TooLarge extends IOException {
+        TooLarge() {
+            super("response too large");
+        }
+    }
+
+    /** The {@code Retry-After} header in milliseconds when it is a number of seconds (the form Wikimedia uses), else 0. */
+    static long retryAfterMs(String header) {
+        if (header == null) return 0;
+        try {
+            long s = Long.parseLong(header.trim());
+            return s < 0 ? 0 : Math.min(s, 3600) * 1000;
+        } catch (NumberFormatException e) {
+            return 0;
+        }
+    }
+
     static final class Response {
         int code;
         byte[] body = new byte[0];
@@ -85,14 +115,20 @@ final class Http {
      */
     static Response getGuarded(String url, Map<String, String> headers, int maxBytes, Set<String> hosts)
             throws IOException {
+        return getGuarded(url, headers, maxBytes, hosts, 15000);
+    }
+
+    /** As above with the read timeout chosen by the caller (a thumbnail rendered for the first time can be slow). */
+    static Response getGuarded(String url, Map<String, String> headers, int maxBytes, Set<String> hosts,
+            int readTimeoutMs) throws IOException {
         String at = url;
         for (int hop = 0; hop <= MAX_REDIRECTS; hop++) {
             if (!allowedHttps(at, hosts)) throw new IOException("address not allowed");
             HttpURLConnection c = (HttpURLConnection) new URL(at).openConnection();
             try {
                 c.setRequestMethod("GET");
-                c.setConnectTimeout(6000);
-                c.setReadTimeout(15000);
+                c.setConnectTimeout(8000);
+                c.setReadTimeout(readTimeoutMs);
                 c.setUseCaches(false);
                 c.setInstanceFollowRedirects(false);
                 if (headers != null) {
@@ -105,7 +141,7 @@ final class Http {
                     at = new URL(new URL(at), loc).toString();
                     continue;
                 }
-                if (code < 200 || code >= 300) throw new IOException("HTTP " + code);
+                if (code < 200 || code >= 300) throw new HttpException(code, retryAfterMs(c.getHeaderField("Retry-After")));
                 Response r = new Response();
                 r.code = code;
                 try (InputStream in = c.getInputStream()) {
@@ -131,7 +167,7 @@ final class Http {
         int n;
         while ((n = in.read(buf)) > 0) {
             out.write(buf, 0, n);
-            if (out.size() > max) throw new IOException("response too large");
+            if (out.size() > max) throw new TooLarge();
         }
         return out.toByteArray();
     }

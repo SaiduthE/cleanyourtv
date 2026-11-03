@@ -16,7 +16,7 @@ final class SettingsModel {
     enum Row {
         COLUMNS, ROWS_BELOW_DOCK, DOCK_OPACITY, OPEN_ON_START,
         STYLE, WALLPAPER, CLOCK, WIDGETS, ANIMATIONS, ADVANCED,
-        TOP_SHELF, APP_ARTWORK, PHOTOS, PHOTO_THEMES, REFRESH_PHOTOS, PHOTO_CREDIT,
+        TOP_SHELF, APP_ARTWORK, PHOTOS, PHOTO_THEMES, REFRESH_PHOTOS, CHANGE_EVERY, PHOTO_CREDIT,
         REMOTE_BUTTONS, TOP_BAR_BUTTONS, REORDER, EDIT_DOCK,
         DEFAULT_HOME, TV_SETTINGS, RESET_THEME
     }
@@ -27,6 +27,34 @@ final class SettingsModel {
     static final int[] COLUMNS = {4, 5, 6, 7};
     static final int[] ROWS_BELOW_DOCK = {0, 1, 2, 3};
     static final String[] CLOCK_FORMATS = {"system", "12", "24"};
+
+    // ---- Top Shelf > Change every ----------------------------------------------------------------------------------
+
+    /** How long each idle-shelf picture stays before the next crossfade, in the order the picker lists them. */
+    static final long[] SHELF_INTERVALS_MS = {10_000L, 15_000L, 30_000L, 60_000L, 5 * 60_000L, 15 * 60_000L, 60 * 60_000L};
+    static final String[] SHELF_INTERVAL_LABELS = {"10 s", "15 s", "30 s", "1 min", "5 min", "15 min", "1 hour"};
+    static final long SHELF_INTERVAL_DEFAULT_MS = 15_000L;
+
+    /** Reads one saved number (SharedPreferences::getLong fits); a test hands in a map. */
+    interface LongReader {
+        long get(String key, long fallback);
+    }
+
+    /** The saved interval, or the default when nothing is saved or the saved value is not one of the choices. */
+    static long shelfInterval(long stored) {
+        for (long ms : SHELF_INTERVALS_MS) if (ms == stored) return ms;
+        return SHELF_INTERVAL_DEFAULT_MS;
+    }
+
+    /** The interval saved under {@link Config#TOP_SHELF_INTERVAL_KEY}; the default for a launcher that never saved one. */
+    static long shelfInterval(LongReader saved) {
+        return shelfInterval(saved.get(Config.TOP_SHELF_INTERVAL_KEY, SHELF_INTERVAL_DEFAULT_MS));
+    }
+
+    static int shelfIntervalIndex(long ms) {
+        for (int i = 0; i < SHELF_INTERVALS_MS.length; i++) if (SHELF_INTERVALS_MS[i] == shelfInterval(ms)) return i;
+        return 1;
+    }
 
     /**
      * The rows of the Top Shelf group that live in the Continue watching add-on (read and written through its
@@ -79,6 +107,7 @@ final class SettingsModel {
                 rows.add(Row.PHOTOS);
                 rows.add(Row.PHOTO_THEMES);
                 rows.add(Row.REFRESH_PHOTOS);
+                rows.add(Row.CHANGE_EVERY);
                 rows.add(Row.PHOTO_CREDIT);
                 break;
             case BUTTONS:

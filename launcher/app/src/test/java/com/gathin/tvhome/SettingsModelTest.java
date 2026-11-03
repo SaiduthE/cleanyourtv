@@ -66,7 +66,7 @@ public class SettingsModelTest {
         assertEquals(Arrays.asList(Group.HOME_LAYOUT, Group.LOOK, Group.TOP_SHELF, Group.BUTTONS, Group.SYSTEM),
                 Arrays.asList(SettingsModel.groups()));
         assertEquals(Arrays.asList(Row.TOP_SHELF, Row.APP_ARTWORK, Row.PHOTOS, Row.PHOTO_THEMES, Row.REFRESH_PHOTOS,
-                Row.PHOTO_CREDIT), SettingsModel.rows(Group.TOP_SHELF, false, false));
+                Row.CHANGE_EVERY, Row.PHOTO_CREDIT), SettingsModel.rows(Group.TOP_SHELF, false, false));
         // the Top Shelf row moved out of Look
         assertFalse(SettingsModel.rows(Group.LOOK, true, true).contains(Row.TOP_SHELF));
     }
@@ -110,6 +110,56 @@ public class SettingsModelTest {
         assertEquals(2, SettingsModel.resetCount(saved::contains));
         assertEquals(0, SettingsModel.resetCount(k -> false));
         assertEquals(SettingsModel.RESET_KEYS.length, SettingsModel.resetCount(k -> true));
+    }
+
+    // ---- Top Shelf > Change every
+
+    @Test public void changeEveryOffersTheSevenIntervalsWithFifteenSecondsAsTheDefault() {
+        assertArrayEquals(new long[] {10_000, 15_000, 30_000, 60_000, 300_000, 900_000, 3_600_000},
+                SettingsModel.SHELF_INTERVALS_MS);
+        assertArrayEquals(new String[] {"10 s", "15 s", "30 s", "1 min", "5 min", "15 min", "1 hour"},
+                SettingsModel.SHELF_INTERVAL_LABELS);
+        assertEquals(SettingsModel.SHELF_INTERVALS_MS.length, SettingsModel.SHELF_INTERVAL_LABELS.length);
+        assertEquals(15_000, SettingsModel.SHELF_INTERVAL_DEFAULT_MS);
+        assertEquals("15 s", SettingsModel.SHELF_INTERVAL_LABELS[SettingsModel.shelfIntervalIndex(15_000)]);
+    }
+
+    @Test public void changeEverySitsInTheTopShelfGroupAndIsAPlainOptionsRow() {
+        List<Row> shelf = SettingsModel.rows(Group.TOP_SHELF, false, false);
+        assertTrue(shelf.contains(Row.CHANGE_EVERY));
+        assertEquals("after the photo rows", shelf.indexOf(Row.REFRESH_PHOTOS) + 1, shelf.indexOf(Row.CHANGE_EVERY));
+        assertEquals(SettingsModel.Kind.OPTIONS, SettingsModel.kind(Row.CHANGE_EVERY));
+        assertFalse("it lives in the launcher, not the add-on", SettingsModel.isAddOnRow(Row.CHANGE_EVERY));
+        assertFalse("not a theme setting: Reset Theme leaves it", Arrays.asList(SettingsModel.RESET_KEYS)
+                .contains(Config.TOP_SHELF_INTERVAL_KEY));
+    }
+
+    @Test public void aLauncherThatNeverSavedAnIntervalGetsTheDefault() {
+        java.util.Map<String, Long> prefs = new java.util.HashMap<>();
+        assertEquals(15_000, SettingsModel.shelfInterval((k, d) -> prefs.containsKey(k) ? prefs.get(k) : d));
+    }
+
+    @Test public void everyChoiceSurvivesSavingAndReading() {
+        for (int i = 0; i < SettingsModel.SHELF_INTERVALS_MS.length; i++) {
+            java.util.Map<String, Long> prefs = new java.util.HashMap<>();
+            prefs.put(Config.TOP_SHELF_INTERVAL_KEY, SettingsModel.SHELF_INTERVALS_MS[i]);
+            long read = SettingsModel.shelfInterval((k, d) -> prefs.containsKey(k) ? prefs.get(k) : d);
+            assertEquals(SettingsModel.SHELF_INTERVALS_MS[i], read);
+            assertEquals(i, SettingsModel.shelfIntervalIndex(read));
+        }
+    }
+
+    @Test public void aSavedValueThatIsNotAChoiceFallsBackToTheDefault() {
+        assertEquals(15_000, SettingsModel.shelfInterval(12_000));
+        assertEquals(15_000, SettingsModel.shelfInterval(0));
+        assertEquals(15_000, SettingsModel.shelfInterval(-5));
+        assertEquals(1, SettingsModel.shelfIntervalIndex(12_000));
+    }
+
+    @Test public void followingAFetchStopsAfterThirtySeconds() {
+        assertFalse(PhotoSettingsClient.pollGivenUp(29_999, 0));
+        assertFalse(PhotoSettingsClient.pollGivenUp(10_000 + 29_999, 10_000));
+        assertTrue(PhotoSettingsClient.pollGivenUp(10_000 + 30_000, 10_000));
     }
 
     @Test public void motionIsInstantWithoutAnimationsAndShortWithReducedMotion() {

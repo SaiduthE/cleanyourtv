@@ -23,7 +23,8 @@
     <string name="ls_app_artwork_label" translatable="false">App artwork</string>
     <string name="ls_photos_label" translatable="false">Photos</string>
     <string name="ls_photo_themes_label" translatable="false">Photo themes</string>
-    <string name="ls_refresh_photos_label" translatable="false">Refresh photos</string>
+    <string name="ls_refresh_photos_label" translatable="false">Fetch a new photo</string>
+    <string name="ls_change_every_label" translatable="false">Change every</string>
     <string name="ls_photo_credit_label" translatable="false">Photo credit</string>
     <string name="ls_photo_themes_header" translatable="false">Photo themes</string>
     <string name="ls_photo_themes_last" translatable="false">At least one theme stays on</string>
@@ -33,7 +34,8 @@
     <string name="ls_help_photos_outdated" translatable="false">This version of the Continue watching add-on has no photo settings. Update it.</string>
     <string name="ls_help_photos_unavailable" translatable="false">The Continue watching add-on is not answering. Try again in a moment.</string>
     <string name="ls_help_photo_themes" translatable="false">Which kinds of scenery the next photos come from. At least one stays on.</string>
-    <string name="ls_help_refresh_photos" translatable="false">Fetches new photos now, on any connection. The line on the right says what happened.</string>
+    <string name="ls_help_refresh_photos" translatable="false">Fetches one new photo now, on any connection, and drops the oldest. The line on the right says what happened.</string>
+    <string name="ls_help_change_every" translatable="false">How long each Top Shelf picture stays before the next one fades in. Longer means fewer downloads.</string>
     <string name="ls_help_refresh_photos_off" translatable="false">Photos are off. Switch Photos on to fetch some.</string>
     <string name="ls_help_photo_credit" translatable="false">The small author and licence line at the bottom right of the Top Shelf while a photo shows.</string>
 </resources>

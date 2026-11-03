@@ -3,18 +3,19 @@ package com.cleanlook.continuewatching;
 import java.util.HashSet;
 import java.util.Set;
 
-/** When the Top Shelf photos are fetched, which categories they come from, and the plain status line. Pure. */
+/** When a Top Shelf photo may be fetched, which categories they come from, and the plain status line. Pure. */
 final class PhotoPolicy {
     private PhotoPolicy() {}
 
-    static final long REFRESH_EVERY_MS = 3L * 24 * 60 * 60 * 1000;
-    /** After a try (good or not) the automatic refresh waits at least this long. */
-    static final long RETRY_AFTER_MS = 60L * 60 * 1000;
-    /** Fewer photos than this in the cache counts as a fresh install: the automatic refresh does not wait for the schedule. */
-    static final int FIRST_FILL = 6;
-    /** A scheduled job that fires a little early still counts as the three days being up. */
-    private static final long DUE_SLACK_MS = 2L * 60 * 60 * 1000;
-    private static final long DAY_MS = 24L * 60 * 60 * 1000;
+    /** The scheduled job only tops the ring up; it wakes about this often (on an unmetered network). */
+    static final long JOB_EVERY_MS = 24L * 60 * 60 * 1000;
+    /** Photo requests are spaced at least this far apart (upload.wikimedia.org answers 429 to quick ones). */
+    static final long SPACING_MS = 6_000;
+    /** The status line says "Fetching..." for at most this long, whatever the fetch is still doing. */
+    static final long FETCHING_MAX_MS = 30_000;
+    /** After a failed fetch the automatic top-ups wait this long (doubling with each failure in a row, up to the cap). */
+    static final long FAIL_WAIT_MS = 20_000;
+    static final long FAIL_WAIT_MAX_MS = 10L * 60 * 1000;
 
     /** A category: its key in the preferences, the name on the TV and the Commons category it reads. */
     static final class Category {
@@ -44,17 +45,21 @@ final class PhotoPolicy {
     };
 
     /**
-     * Whether to start a refresh now. Manual ("Refresh now") needs only a connection. Automatic needs an unmetered
-     * connection, the switch on, three days (less two hours) since the last good refresh (or fewer than six photos
-     * cached) and an hour since the last try. A clock that went backwards counts as due.
+     * Whether a fetch may start. Needs the switch on and a connection. "Fetch a new photo now" (manual) and a ring with
+     * fewer than {@link PhotoCache#MIN_READY} photos (nothing to show) go on any connection; the rest only on an
+     * unmetered one.
      */
-    static boolean due(boolean enabled, boolean connected, boolean unmetered, boolean manual, long now, long lastOkMs,
-            long lastTryMs, int cached) {
+    static boolean mayFetch(boolean enabled, boolean connected, boolean unmetered, boolean manual, int ready) {
         if (!enabled || !connected) return false;
-        if (manual) return true;
-        if (!unmetered) return false;
-        if (lastTryMs != 0 && now >= lastTryMs && now - lastTryMs < RETRY_AFTER_MS) return false;
-        return cached < FIRST_FILL || lastOkMs == 0 || now < lastOkMs || now - lastOkMs >= REFRESH_EVERY_MS - DUE_SLACK_MS;
+        return manual || unmetered || ready < PhotoCache.MIN_READY;
+    }
+
+    /** How long automatic fetches rest after {@code streak} failures in a row (the server's Retry-After counts). */
+    static long failWaitMs(int streak, long retryAfterMs) {
+        if (streak <= 0) return 0;
+        long w = FAIL_WAIT_MS;
+        for (int i = 1; i < streak && w < FAIL_WAIT_MAX_MS; i++) w *= 2;
+        return Math.min(FAIL_WAIT_MAX_MS, Math.max(w, retryAfterMs));
     }
 
     /** The set of switched-off category keys after the owner presses {@code key}; the last one on cannot be switched off. */
@@ -75,14 +80,17 @@ final class PhotoPolicy {
         return on.toArray(new Category[0]);
     }
 
-    /** "12 photos, updated today"; or the note of the last try ("No network", "3 of 15 photos fetched: server busy, try again later") when there is one. */
-    static String status(boolean refreshing, int count, long okMs, long now, String note) {
-        if (refreshing) return "Refreshing…";
+    /**
+     * The one plain status line. {@code flightMs} is how long the current fetch has been going (negative: none).
+     * "Fetching..." shows for at most {@link #FETCHING_MAX_MS}; after that the line says what is going on instead:
+     * "Server busy, retrying" when the server is making it wait, else the last failure or "Ready: 4 photos".
+     */
+    static String status(boolean enabled, long flightMs, boolean busyNow, int count, String note) {
+        if (!enabled) return "Off";
+        if (flightMs >= 0 && flightMs < FETCHING_MAX_MS) return "Fetching...";
+        if (flightMs >= FETCHING_MAX_MS && busyNow) return "Server busy, retrying";
         if (note != null && !note.isEmpty()) return note;
-        if (count == 0) return "No photos yet";
-        String n = count + (count == 1 ? " photo" : " photos");
-        if (okMs <= 0) return n;
-        long days = Math.max(0, (now - okMs) / DAY_MS);
-        return n + ", updated " + (days == 0 ? "today" : days == 1 ? "yesterday" : days + " days ago");
+        if (count <= 0) return "No photos yet";
+        return "Ready: " + count + (count == 1 ? " photo" : " photos");
     }
 }

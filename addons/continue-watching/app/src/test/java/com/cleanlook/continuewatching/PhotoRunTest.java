@@ -90,22 +90,6 @@ public class PhotoRunTest {
         }
     }
 
-    private static class FakeEnv implements PhotoRun.Env {
-        long now = 1_000_000;
-        final List<Long> sleeps = new ArrayList<>();
-        boolean interruptAt;
-
-        @Override public boolean sleep(long ms) {
-            sleeps.add(ms);
-            now += ms;
-            return !interruptAt;
-        }
-
-        @Override public long now() {
-            return now;
-        }
-    }
-
     private static final class FakeSaver implements PhotoRun.Saver {
         final List<String> saved = new ArrayList<>();
         int rejectNext;
@@ -125,8 +109,39 @@ public class PhotoRunTest {
         }
     }
 
-    private static PhotoRun.Result run(FakeNet net, FakeEnv env, FakeSaver saver, int want) {
-        return new PhotoRun(net, env, saver).run(ONE, want, new HashSet<String>(), new Random(1));
+    private static class FakeEnv implements PhotoRun.Env {
+        long now = 1_000_000;
+        final List<Long> sleeps = new ArrayList<>();
+        boolean interruptAt;
+        boolean waitingNow;
+        int waitingTrue;
+
+        @Override public boolean sleep(long ms) {
+            sleeps.add(ms);
+            now += ms;
+            return !interruptAt;
+        }
+
+        @Override public long now() {
+            return now;
+        }
+
+        @Override public void waiting(boolean busy) {
+            waitingNow = busy;
+            if (busy) waitingTrue++;
+        }
+    }
+
+    private static final PhotoPolicy.Category[] OTHER = {
+        new PhotoPolicy.Category("lakes", "Lakes", "Category:Featured pictures of lakes"),
+    };
+
+    private static PhotoRun.Result one(PhotoRun run) {
+        return run.fetchOne(ONE, new HashSet<String>(), new Random(1));
+    }
+
+    private static PhotoRun make(FakeNet net, FakeEnv env, FakeSaver saver) {
+        return new PhotoRun(net, env, saver);
     }
 
     private static Http.HttpException http(int code, long retryAfterMs) {
@@ -139,38 +154,80 @@ public class PhotoRunTest {
         return n;
     }
 
-    // ---- a good run
+    // ---- one photo, one picture request
 
-    @Test public void aGoodRunFetchesWhatWasWantedWithAPauseBetweenRequests() {
+    @Test public void aFirstCallListsTheCategoryAsksForTheInfoAndDownloadsOnePicture() {
         FakeNet net = new FakeNet(200);
-        FakeEnv env = new FakeEnv();
         FakeSaver saver = new FakeSaver();
-        PhotoRun.Result r = run(net, env, saver, 8);
-        assertEquals(8, r.added);
+        PhotoRun.Result r = one(make(net, new FakeEnv(), saver));
+        assertEquals(1, r.added);
         assertNull(r.failure);
         assertEquals("", PhotoRun.note(r));
+        assertEquals(3, net.log.size());
+        assertEquals(1, pictureRequests(net));
+        assertEquals(1, saver.saved.size());
+    }
+
+    @Test public void theNextCallCostsASinglePictureRequest() {
+        FakeNet net = new FakeNet(200);
+        FakeEnv env = new FakeEnv();
+        PhotoRun run = make(net, env, new FakeSaver());
+        Set<String> have = new HashSet<>();
+        assertEquals(1, run.fetchOne(ONE, have, new Random(1)).added);
+        net.log.clear();
+        env.sleeps.clear();
+        assertEquals(1, run.fetchOne(ONE, have, new Random(1)).added);
+        assertEquals(1, net.log.size());
+        assertTrue(net.log.get(0).contains("/thumb/"));
+        assertTrue("no pause with a single request", env.sleeps.isEmpty());
+    }
+
+    @Test public void requestsWithinOneCallArePausedApart() {
+        FakeNet net = new FakeNet(200);
+        FakeEnv env = new FakeEnv();
+        one(make(net, env, new FakeSaver()));
         assertEquals(net.log.size() - 1, env.sleeps.size());
         for (long s : env.sleeps) assertEquals(PhotoRun.PAUSE_MS, s);
     }
 
-    @Test public void photosAlreadyCachedAreNotFetchedAgain() {
+    @Test public void aPhotoAlreadyInTheRingIsNotFetchedAgain() {
         FakeNet net = new FakeNet(200);
         Set<String> have = new HashSet<>();
-        have.add(PhotoCache.fileName("File:Pic0.jpg"));
+        for (int i = 0; i < 200; i++) have.add(PhotoCache.fileName("File:Pic" + i + ".jpg"));
+        have.remove(PhotoCache.fileName("File:Pic7.jpg"));
         FakeSaver saver = new FakeSaver();
-        PhotoRun.Result r = new PhotoRun(net, new FakeEnv(), saver).run(ONE, 15, have, new Random(1));
-        assertEquals(15, r.added);
-        assertFalse(saver.saved.contains("File:Pic0.jpg"));
+        PhotoRun.Result r = new PhotoRun(net, new FakeEnv(), saver).fetchOne(ONE, have, new Random(1));
+        assertEquals(1, r.added);
+        assertEquals("File:Pic7.jpg", saver.saved.get(0));
     }
 
-    // ---- one bad picture does not end the run
+    @Test public void candidatesOfACategorySwitchedOffAreDropped() {
+        FakeNet net = new FakeNet(200);
+        PhotoRun run = make(net, new FakeEnv(), new FakeSaver());
+        Set<String> have = new HashSet<>();
+        run.fetchOne(ONE, have, new Random(1));
+        net.log.clear();
+        assertEquals(1, run.fetchOne(OTHER, have, new Random(1)).added);
+        boolean listedLakes = false;
+        for (String u : net.log) listedLakes |= u.contains("list=categorymembers") && u.contains("lakes");
+        assertTrue("the new category was listed, the old queue not used", listedLakes);
+    }
 
-    @Test public void aTimedOutPictureIsSkippedAndTheRunGoesOn() {
+    @Test public void aCategoryWithNothingLeftSaysSo() {
+        FakeNet net = new FakeNet(0);
+        PhotoRun.Result r = one(make(net, new FakeEnv(), new FakeSaver()));
+        assertEquals(0, r.added);
+        assertEquals("No new photo found", PhotoRun.note(r));
+    }
+
+    // ---- one bad picture does not end the call
+
+    @Test public void aTimedOutPictureIsSkippedAndTheNextOneTried() {
         FakeNet net = new FakeNet(200);
         net.failFirst(new SocketTimeoutException("read"));
-        PhotoRun.Result r = run(net, new FakeEnv(), new FakeSaver(), 6);
-        assertEquals(6, r.added);
-        assertEquals("timed out once, then everything worked", PhotoRun.Kind.TIMEOUT, r.failure.kind);
+        PhotoRun.Result r = one(make(net, new FakeEnv(), new FakeSaver()));
+        assertEquals(1, r.added);
+        assertEquals(PhotoRun.Kind.TIMEOUT, r.failure.kind);
         assertEquals(1, net.requestsForFirst());
         assertEquals("", PhotoRun.note(r));
     }
@@ -180,60 +237,76 @@ public class PhotoRunTest {
         FakeSaver saver = new FakeSaver();
         saver.rejectNext = 1;
         saver.failNext = 1;
-        PhotoRun.Result r = run(net, new FakeEnv(), saver, 5);
-        assertEquals(5, r.added);
-        assertEquals(5, saver.saved.size());
+        PhotoRun.Result r = one(make(net, new FakeEnv(), saver));
+        assertEquals(1, r.added);
         assertEquals(1, r.rejected);
     }
 
-    @Test public void aMissingOrOversizedPictureIsSkippedWithoutCountingAgainstTheRun() {
+    @Test public void missingOrOversizedPicturesAreSkippedWithoutCountingAgainstTheCall() {
         FakeNet net = new FakeNet(200);
-        for (int i = 0; i < 12; i++) net.fail(i, i % 2 == 0 ? http(404, 0) : new Http.TooLarge());
-        PhotoRun.Result r = run(net, new FakeEnv(), new FakeSaver(), 5);
-        assertEquals(5, r.added);
-        assertFalse("not stopped by 12 skipped pictures", r.stopped);
+        for (int i = 0; i < 200; i++) if (i % 3 != 0) net.fail(i, i % 2 == 0 ? http(404, 0) : new Http.TooLarge());
+        PhotoRun.Result r = new PhotoRun(net, new FakeEnv(), new FakeSaver()).fetchOne(ONE, new HashSet<String>(), new Random(1));
+        assertEquals(1, r.added);
+        assertFalse(r.stopped);
         assertNull(r.failure);
     }
 
-    @Test public void aFailedInfoCallLosesOnlyThatBatch() {
-        FakeNet net = new FakeNet(200) {
-            int infoCalls;
+    @Test public void aCallGivesUpAfterAFewPicturesThatAllFail() {
+        FakeNet net = new FakeNet(200);
+        for (int i = 0; i < 200; i++) net.fail(i, new SocketTimeoutException("x"));
+        PhotoRun.Result r = one(make(net, new FakeEnv(), new FakeSaver()));
+        assertEquals(0, r.added);
+        assertEquals(PhotoRun.MAX_PICTURES, pictureRequests(net));
+        assertEquals("Server slow, retrying", PhotoRun.note(r));
+    }
 
-            @Override public byte[] get(String url, boolean image) throws IOException {
-                if (!image && !url.contains("list=categorymembers") && infoCalls++ == 0) throw new SocketTimeoutException("x");
-                return super.get(url, image);
-            }
-        };
-        PhotoRun.Result r = run(net, new FakeEnv(), new FakeSaver(), 5);
-        assertEquals(5, r.added);
+    @Test public void aFailedInfoCallEndsTheCallWithItsReason() {
+        FakeNet net = new FakeNet(200);
+        net.infoFailure = new SocketTimeoutException("x");
+        PhotoRun.Result r = one(make(net, new FakeEnv(), new FakeSaver()));
+        assertEquals(0, r.added);
+        assertEquals("Server slow, retrying", PhotoRun.note(r));
     }
 
     // ---- a busy server
 
-    @Test public void aBusyServerIsWaitedOutByItsRetryAfterAndTriedAgain() {
+    @Test public void aBusyServerIsWaitedOutByItsRetryAfterAtLeastFourSecondsAndTriedAgain() {
         FakeNet net = new FakeNet(200);
         net.failFirst(http(429, 10_000));
         FakeEnv env = new FakeEnv();
-        PhotoRun.Result r = run(net, env, new FakeSaver(), 3);
-        assertEquals(3, r.added);
+        PhotoRun.Result r = one(make(net, env, new FakeSaver()));
+        assertEquals(1, r.added);
         assertTrue("waited the 10 s it asked for", env.sleeps.contains(10_500L));
         assertEquals("the same picture was asked for again", 2, net.requestsForFirst());
-        assertEquals("no picture was lost to the busy answer", 4, pictureRequests(net));
+        assertEquals(2, pictureRequests(net));
+        assertTrue("told it is waiting for the server", env.waitingTrue > 0);
+        assertFalse("and that it is over", env.waitingNow);
     }
 
-    @Test public void thereAreAtMostTwoRetriesPerRequest() {
+    @Test public void aShortRetryAfterIsStretchedToFourSeconds() {
+        FakeNet net = new FakeNet(200);
+        net.failFirst(http(429, 1000));
+        FakeEnv env = new FakeEnv();
+        one(make(net, env, new FakeSaver()));
+        assertTrue(env.sleeps.contains(PhotoRun.RETRY_MIN_MS));
+    }
+
+    @Test public void thereAreAtMostTwoRetriesAndThenTheCallStopsInsteadOfTryingOtherPictures() {
         FakeNet net = new FakeNet(200);
         net.failFirst(http(429, 1000), http(429, 1000), http(429, 1000), http(429, 1000));
-        PhotoRun.Result r = run(net, new FakeEnv(), new FakeSaver(), 1);
-        assertEquals("the next picture was taken instead", 1, r.added);
+        PhotoRun.Result r = one(make(net, new FakeEnv(), new FakeSaver()));
+        assertEquals(0, r.added);
         assertEquals("first try plus two retries", 3, net.requestsForFirst());
+        assertEquals("no other picture was tried", 3, pictureRequests(net));
+        assertEquals(PhotoRun.Kind.BUSY, r.failure.kind);
+        assertEquals("Server busy, retrying", PhotoRun.note(r));
     }
 
     @Test public void aServerUnavailableAnswerIsRetriedToo() {
         FakeNet net = new FakeNet(200);
         net.failFirst(http(503, 0));
         FakeEnv env = new FakeEnv();
-        PhotoRun.Result r = run(net, env, new FakeSaver(), 1);
+        PhotoRun.Result r = one(make(net, env, new FakeSaver()));
         assertEquals(1, r.added);
         assertTrue("no Retry-After: the default backoff", env.sleeps.contains(PhotoRun.RETRY_DEFAULT_MS));
     }
@@ -241,7 +314,7 @@ public class PhotoRunTest {
     @Test public void aRefusalIsNotRetried() {
         FakeNet net = new FakeNet(200);
         net.failFirst(http(404, 0));
-        PhotoRun.Result r = run(net, new FakeEnv(), new FakeSaver(), 1);
+        PhotoRun.Result r = one(make(net, new FakeEnv(), new FakeSaver()));
         assertEquals(1, net.requestsForFirst());
         assertEquals(1, r.added);
     }
@@ -249,111 +322,77 @@ public class PhotoRunTest {
     @Test public void backoffFollowsRetryAfterWithinLimits() {
         assertEquals(10_500, PhotoRun.backoffMs(10_000, 0));
         assertEquals(PhotoRun.RETRY_MAX_MS, PhotoRun.backoffMs(600_000, 0));
-        assertEquals(3000, PhotoRun.backoffMs(0, 0));
-        assertEquals(6000, PhotoRun.backoffMs(0, 1));
-        assertEquals(1000, PhotoRun.backoffMs(1, 0));
+        assertEquals(4000, PhotoRun.backoffMs(0, 0));
+        assertEquals(8000, PhotoRun.backoffMs(0, 1));
+        assertEquals(PhotoRun.RETRY_MIN_MS, PhotoRun.backoffMs(1, 0));
     }
 
-    @Test public void aServerThatStaysBusyEndsTheRunAfterAFewPictures() {
+    @Test public void aRetryThatWouldRunPastTheDeadlineIsNotStarted() {
         FakeNet net = new FakeNet(200);
-        for (int i = 0; i < 200; i++) net.fail(i, http(429, 1000), http(429, 1000), http(429, 1000));
-        PhotoRun.Result r = run(net, new FakeEnv(), new FakeSaver(), 15);
+        net.failFirst(http(429, 14_000), http(429, 14_000), http(429, 14_000));
+        FakeEnv env = new FakeEnv();
+        PhotoRun.Result r = one(make(net, env, new FakeSaver()));
+        long spent = env.now - 1_000_000;
+        assertTrue("a call never runs much past its deadline: " + spent, spent <= PhotoRun.DEADLINE_MS);
         assertEquals(0, r.added);
-        assertTrue(r.stopped);
         assertEquals(PhotoRun.Kind.BUSY, r.failure.kind);
-        assertEquals(PhotoRun.MAX_STREAK * (PhotoRun.MAX_RETRIES + 1), pictureRequests(net));
-        assertEquals("Server busy, try again later", PhotoRun.note(r));
-    }
-
-    @Test public void aBusyPictureInTheMiddleOfAGoodRunDoesNotEndIt() {
-        FakeNet net = new FakeNet(200);
-        for (int i = 0; i < 3; i++) net.fail(i, http(429, 1000), http(429, 1000), http(429, 1000));
-        PhotoRun.Result r = run(net, new FakeEnv(), new FakeSaver(), 15);
-        assertEquals(15, r.added);
-        assertFalse(r.stopped);
     }
 
     // ---- the status words
 
-    @Test public void partialRunSaysHowManyAndWhy() {
-        PhotoRun.Result r = new PhotoRun.Result();
-        r.added = 3;
-        r.want = 15;
-        r.failure = new PhotoRun.Failure(PhotoRun.Kind.BUSY, 429);
-        assertEquals("3 of 15 photos fetched: server busy, try again later", PhotoRun.note(r));
-        r.failure = new PhotoRun.Failure(PhotoRun.Kind.TIMEOUT, 0);
-        assertEquals("3 of 15 photos fetched: timed out, try again later", PhotoRun.note(r));
-        r.failure = new PhotoRun.Failure(PhotoRun.Kind.OFFLINE, 0);
-        assertEquals("3 of 15 photos fetched: no network", PhotoRun.note(r));
-    }
-
     @Test public void nothingFetchedSaysWhat() {
         PhotoRun.Result r = new PhotoRun.Result();
-        r.want = 15;
         r.failure = new PhotoRun.Failure(PhotoRun.Kind.REFUSED, 403);
         assertEquals("Wikimedia refused: HTTP 403", PhotoRun.note(r));
         r.failure = new PhotoRun.Failure(PhotoRun.Kind.OFFLINE, 0);
         assertEquals("No network", PhotoRun.note(r));
         r.failure = new PhotoRun.Failure(PhotoRun.Kind.TIMEOUT, 0);
-        assertEquals("Timed out, try again later", PhotoRun.note(r));
+        assertEquals("Server slow, retrying", PhotoRun.note(r));
+        r.failure = new PhotoRun.Failure(PhotoRun.Kind.BUSY, 429);
+        assertEquals("Server busy, retrying", PhotoRun.note(r));
         r.failure = new PhotoRun.Failure(PhotoRun.Kind.OTHER, 0);
-        assertEquals("Could not reach Wikimedia, try again later", PhotoRun.note(r));
+        assertEquals("Could not reach Wikimedia", PhotoRun.note(r));
         r.failure = null;
-        assertEquals("No new photos found", PhotoRun.note(r));
+        assertEquals("No new photo found", PhotoRun.note(r));
     }
 
-    @Test public void fullRunHasNoNoteEvenWithASkippedPicture() {
+    @Test public void aPhotoThatWasAddedHasNoNoteEvenAfterAnEarlierFailure() {
         PhotoRun.Result r = new PhotoRun.Result();
-        r.added = 5;
-        r.want = 5;
-        r.soft = new PhotoRun.Failure(PhotoRun.Kind.REFUSED, 404);
+        r.added = 1;
+        r.failure = new PhotoRun.Failure(PhotoRun.Kind.TIMEOUT, 0);
         assertEquals("", PhotoRun.note(r));
     }
 
-    // ---- the whole-run failures
+    // ---- the whole-call failures
 
-    @Test public void noNetworkEndsTheRunAtOnce() {
+    @Test public void noNetworkEndsTheCallAtOnce() {
         FakeNet net = new FakeNet(200);
         net.listFailure = new UnknownHostException("commons.wikimedia.org");
-        PhotoRun.Result r = run(net, new FakeEnv(), new FakeSaver(), 15);
+        PhotoRun.Result r = one(make(net, new FakeEnv(), new FakeSaver()));
         assertEquals(0, r.added);
         assertEquals(1, net.log.size());
         assertEquals("No network", PhotoRun.note(r));
     }
 
-    @Test public void aRefusedApiCallEndsTheRunWithTheStatusCode() {
+    @Test public void aRefusedApiCallEndsTheCallWithTheStatusCode() {
         FakeNet net = new FakeNet(200);
         net.listFailure = http(403, 0);
-        PhotoRun.Result r = run(net, new FakeEnv(), new FakeSaver(), 15);
+        PhotoRun.Result r = one(make(net, new FakeEnv(), new FakeSaver()));
         assertEquals(0, r.added);
         assertEquals(1, net.log.size());
         assertEquals("Wikimedia refused: HTTP 403", PhotoRun.note(r));
     }
 
-    @Test public void photosThatArrivedBeforeTheNetworkWentAreKept() {
-        FakeNet net = new FakeNet(200) {
-            @Override public byte[] get(String url, boolean image) throws IOException {
-                if (image && log.size() > 6) throw new UnknownHostException("gone");
-                return super.get(url, image);
-            }
-        };
-        FakeSaver saver = new FakeSaver();
-        PhotoRun.Result r = run(net, new FakeEnv(), saver, 15);
-        assertTrue(r.added > 0);
-        assertEquals(r.added, saver.saved.size());
-        assertTrue(PhotoRun.note(r).startsWith(r.added + " of 15 photos fetched: no network"));
-    }
-
-    @Test public void anInterruptedWaitStopsTheRun() {
+    @Test public void anInterruptedWaitStopsTheCall() {
         FakeNet net = new FakeNet(200);
         FakeEnv env = new FakeEnv();
         env.interruptAt = true;
-        PhotoRun.Result r = run(net, env, new FakeSaver(), 15);
+        PhotoRun.Result r = one(make(net, env, new FakeSaver()));
         assertTrue(r.stopped);
-        assertTrue(r.added <= 1);
+        assertEquals(0, r.added);
     }
 
-    @Test public void aRunThatTakesTooLongStopsWithWhatItHas() {
+    @Test public void aCallThatTakesTooLongStopsWithoutAPhoto() {
         FakeNet net = new FakeNet(200);
         FakeEnv env = new FakeEnv() {
             @Override public boolean sleep(long ms) {
@@ -361,9 +400,9 @@ public class PhotoRunTest {
                 return true;
             }
         };
-        PhotoRun.Result r = run(net, env, new FakeSaver(), 15);
+        PhotoRun.Result r = one(make(net, env, new FakeSaver()));
         assertTrue(r.stopped);
-        assertTrue(r.added < 15);
+        assertEquals(0, r.added);
     }
 
     @Test public void failuresAreClassified() {
@@ -373,6 +412,7 @@ public class PhotoRunTest {
         assertEquals(PhotoRun.Kind.BUSY, PhotoRun.classify(http(503, 0)).kind);
         assertEquals(PhotoRun.Kind.REFUSED, PhotoRun.classify(http(403, 0)).kind);
         assertEquals(403, PhotoRun.classify(http(403, 0)).code);
+        assertEquals(7000, PhotoRun.classify(http(429, 7000)).retryAfterMs);
         assertEquals(PhotoRun.Kind.SKIP, PhotoRun.classify(new Http.TooLarge()).kind);
         assertEquals(PhotoRun.Kind.OTHER, PhotoRun.classify(new IOException("address not allowed")).kind);
         assertNotNull(PhotoRun.classify(new IOException()));

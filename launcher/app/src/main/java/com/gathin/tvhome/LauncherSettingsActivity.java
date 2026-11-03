@@ -68,6 +68,8 @@ public final class LauncherSettingsActivity extends Activity {
     private boolean advancedEffects;
     private boolean appArtwork;
     private boolean photoCredit;
+    /** Top Shelf > Change every, in ms (one of SettingsModel.SHELF_INTERVALS_MS). */
+    private long shelfInterval;
     /** The add-on's photo settings (switch, themes, status), as last answered; see PhotoSettingsClient. */
     private PhotoSettings photos = PhotoSettings.unavailable(PhotoSettings.State.LOADING);
     private PhotoSettingsClient photoClient;
@@ -154,6 +156,7 @@ public final class LauncherSettingsActivity extends Activity {
         topShelf = TopShelfLogic.Mode.parse(choices.getString(Config.TOP_SHELF_KEY, null));
         appArtwork = choices.getBoolean(Config.TOP_SHELF_ARTWORK_KEY, true);
         photoCredit = choices.getBoolean(Config.TOP_SHELF_CREDIT_KEY, true);
+        shelfInterval = SettingsModel.shelfInterval(choices::getLong);
         animations = config.animations;
         advancedEffects = config.animations && config.advancedEffects;
     }
@@ -301,6 +304,7 @@ public final class LauncherSettingsActivity extends Activity {
             case PHOTOS: return getString(R.string.ls_photos_label);
             case PHOTO_THEMES: return getString(R.string.ls_photo_themes_label);
             case REFRESH_PHOTOS: return getString(R.string.ls_refresh_photos_label);
+            case CHANGE_EVERY: return getString(R.string.ls_change_every_label);
             case PHOTO_CREDIT: return getString(R.string.ls_photo_credit_label);
             case CLOCK: return getString(R.string.ls_clock_label);
             case WIDGETS: return getString(R.string.ls_widgets);
@@ -331,6 +335,7 @@ public final class LauncherSettingsActivity extends Activity {
             case REFRESH_PHOTOS:
                 return photos.available() && !photos.enabled ? getString(R.string.ls_help_refresh_photos_off)
                         : photosAvailabilityHelp(R.string.ls_help_refresh_photos);
+            case CHANGE_EVERY: return getString(R.string.ls_help_change_every);
             case PHOTO_CREDIT: return getString(R.string.ls_help_photo_credit);
             case CLOCK: return getString(R.string.ls_help_clock);
             case WIDGETS: return getString(R.string.ls_help_widgets);
@@ -362,6 +367,7 @@ public final class LauncherSettingsActivity extends Activity {
             case PHOTOS: return photos.photosValue();
             case PHOTO_THEMES: return photos.themesValue();
             case REFRESH_PHOTOS: return photos.refreshValue();
+            case CHANGE_EVERY: return SettingsModel.SHELF_INTERVAL_LABELS[SettingsModel.shelfIntervalIndex(shelfInterval)];
             case PHOTO_CREDIT: return getString(photoCredit ? R.string.on : R.string.off);
             case CLOCK: return clockLabel(clockFormat);
             case WIDGETS: return WidgetStore.summary(this);
@@ -506,6 +512,13 @@ public final class LauncherSettingsActivity extends Activity {
                             choices.edit().putBoolean(Config.TOP_SHELF_ARTWORK_KEY, appArtwork).apply();
                             committed(row);
                         });
+                break;
+            case CHANGE_EVERY:
+                options(row, view, SettingsModel.SHELF_INTERVAL_LABELS, SettingsModel.shelfIntervalIndex(shelfInterval), i -> {
+                    shelfInterval = SettingsModel.SHELF_INTERVALS_MS[i];
+                    choices.edit().putLong(Config.TOP_SHELF_INTERVAL_KEY, shelfInterval).apply();   // the shelf reads it at each change
+                    committed(row);
+                });
                 break;
             case PHOTO_CREDIT:
                 options(row, view, new String[] {getString(R.string.on), getString(R.string.off)},

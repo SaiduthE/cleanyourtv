@@ -50,6 +50,8 @@ final class Config {
     static final String TOP_SHELF_ARTWORK_KEY = "top_shelf_artwork";
     /** Top Shelf > Photo credit: the small credit line on the idle shelf (default true). Not a theme setting. */
     static final String TOP_SHELF_CREDIT_KEY = "top_shelf_credit";
+    /** Top Shelf > Change every: how long each idle-shelf picture stays, in ms (see SettingsModel.SHELF_INTERVALS_MS; default 15 s). Not a theme setting. */
+    static final String TOP_SHELF_INTERVAL_KEY = "top_shelf_interval_ms";
     /**
      * Counts the changes made in Launcher settings. Home remembers the count it was built with and rebuilds on
      * resume when it differs, however the settings were left (see MainActivity#onResume).

@@ -55,12 +55,12 @@ show's own picture, a resume bar and the episode ("S2 · E4 · 23 min left"). OK
 |---|---|
 | `READ_TV_LISTINGS` | Reads the Watch Next rows of other apps. Ask for it from **Sources > Allow Watch Next access**, or grant it: `adb shell pm grant com.cleanlook.continuewatching android.permission.READ_TV_LISTINGS`. |
 | `INTERNET` | Your Jellyfin server, and the pictures: the server's own, and the picture addresses other apps put in their Watch Next rows (those are plain image downloads from the app's own servers, sent with no account, cookie or identifier). Also the [Photos](#photos): `https` to `commons.wikimedia.org` and `upload.wikimedia.org` only. |
-| `ACCESS_NETWORK_STATE` | Whether the TV is connected, and whether the connection is unmetered, before the Photos are refreshed. |
+| `ACCESS_NETWORK_STATE` | Whether the TV is connected, and whether the connection is unmetered, before a photo is fetched. |
 
 Also: `usesCleartextTraffic`, because a Jellyfin server on the home network is normally `http://`; a `<queries>`
 entry, because Android 11 hides other apps otherwise (it lists apps that have a TV launcher icon, and the Jellyfin
 client). No analytics, no ads, no boot receiver, no service of its own that stays running: only the system's
-three-day job for the [Photos](#photos), which ends when it has checked. Credentials: the password is only sent to
+daily job for the [Photos](#photos), which ends when it has topped the buffer up. Credentials: the password is only sent to
 your server to sign in and is never stored; the access token (or API key) is stored encrypted with a key in the
 Android Keystore (`SecureStore`). Addresses, tokens and titles are never written to logcat. Backups are off.
 
@@ -133,16 +133,27 @@ new-tab photos. This app supplies the photos (and only this app touches the inte
   unlabelled is dropped). Pictures whose file name or Commons categories point to maps, diagrams, paintings,
   portraits, people, trains and railways, buildings or interiors are skipped. Each photo is stored as the 1920 px
   JPEG (normally under 1 MB; one over 3 MB is refused).
-- **Cache.** 15 photos, about 12 to 14 MB, in this app's private files. A refresh fetches 5 new ones (or enough to
-  fill an emptier cache) and drops the 5 oldest, the oldest also going first if the size limit is hit.
-- **When.** The first photos are fetched as soon as the add-on is opened, or the launcher first asks for the photos
-  with an empty cache (a quick fill of up to 15, each photo available as soon as it arrives). After that at most
-  every 3 days, on an unmetered, connected network (a `JobScheduler` job every 3 days, plus the checks when the add-on
-  opens and when the launcher asks). **Launcher settings > Top Shelf > Refresh photos** fetches at once on any connection.
+- **Rolling buffer.** The add-on keeps a small ring of ready photos in its private files: a target of 4, never more
+  than 6, at most about 6 MB. It does not download in bursts: a single-flight background top-up fetches ONE photo at a
+  time, at least 6 s apart (upload.wikimedia.org answers HTTP 429 to quick requests; measured: nearly every request
+  made 1 s after the last is refused, none made 8 s after it, and a refused one is served about 4 s later, so a 429 is
+  waited out for its `Retry-After`, at least 4 s, at most twice, then the top-up stops and the automatic ones rest 20 s,
+  doubling, up to 10 min). The 1920 px copy the API names is used as it is: a 1280 px copy was refused just as often,
+  so the smaller size buys nothing. A photo is written under a temporary name and renamed when whole, so `/photos`
+  lists only finished files.
+- **When.** A top-up runs (a) when the add-on is opened and the ring is below its target, (b) when the launcher reads
+  `/photos` and finds fewer than 2 photos, (c) when the launcher calls `photos_advance`, and (d) from the daily
+  `JobScheduler` job, which only runs on an unmetered network and only fills the ring up to its target. (a), (b) and
+  (c) also need a connection and an unmetered one unless the ring has fewer than 2 photos. The launcher calls
+  `photos_advance` each time the idle shelf crosses to the next picture (every "Change every" interval); the add-on adds
+  one new photo and then deletes the photo that was shown longest ago (never the new one nor the one on screen), so the
+  set keeps changing. At most one top-up is in flight; an advance that arrives meanwhile is remembered once.
 - **On the TV.** The photo settings live in the launcher: **Launcher settings > Top Shelf** has **Photos** (On/Off,
   default On; Off deletes the photos and the launcher uses its own wallpapers), **Photo themes** (a switch per
-  category; at least one stays on), **Refresh photos** and the plain status line on its right ("12 photos, updated
-  today", "Refreshing…", "No network", "Timed out"). This app only has the feed; the Sources screen no longer lists it.
+  category; at least one stays on), **Fetch a new photo** (adds one new photo now on any connection and drops the
+  oldest) with the plain status line on its right ("Fetching..." for at most 30 s, then "Ready: 4 photos" or a plain
+  failure such as "No network" or "Server busy, retrying"), and **Change every** (launcher only). This app only has the
+  feed; the Sources screen no longer lists it.
 - **Credit.** Each photo carries a plain-text credit, "Author — Licence", at most 80 characters, made from the
   Commons author and licence fields with the markup removed, so the launcher can show it.
 
@@ -158,24 +169,26 @@ new-tab photos. This app supplies the photos (and only this app touches the inte
 | `credit` | string | "Author — Licence", plain text, at most 80 characters. |
 
 `content://com.cleanlook.continuewatching.shelf/photo/<name>.jpg` is one JPEG, opened read only. A name is served
-only if it is 16 lower-case hex digits and `.jpg` **and** is in the cache folder's listing; anything else
+only if it is 16 lower-case hex digits and `.jpg` **and** is in the ring's folder listing; anything else
 (`..`, a path, another extension, a temporary file) is a `FileNotFoundException`. The cursor of `/photos` notifies
 when a photo arrives or leaves. An empty answer means "use your own wallpapers" (the switch is off, or nothing is
-cached yet).
+ready yet); the launcher uses whatever is ready, even one photo, and asks again after about 20 s while there are fewer than 2.
 
 **Photo settings (`call()`).** The launcher has no network and cannot read this app's preferences, so Launcher
 settings > Top Shelf reads and writes the photo settings with `ContentResolver.call(content://com.cleanlook.continuewatching.shelf, method, null, extras)`.
 Same caller check as above (anyone else gets a `SecurityException`); an unknown method answers `null`. Every answer is
 a Bundle with the current settings: `ok` (boolean; false comes with `error`: `at_least_one`, `off` or `bad_request`),
-`enabled`, `category_keys` / `category_labels` (all categories), `categories_on` (keys), `count`, `refreshing` and
-`status` (the plain line: "12 photos, updated today", "Refreshing…", "No network", "Off").
+`enabled`, `category_keys` / `category_labels` (all categories), `categories_on` (keys), `count`, `refreshing` (a fetch has
+been in flight for less than 30 s) and `status` (the plain line: "Fetching...", "Ready: 4 photos", "No network",
+"Server busy, retrying", "Off").
 
 | Method | Extras | Does |
 |---|---|---|
 | `photos_get_settings`, `photos_status` | none | Reads the current state. |
-| `photos_set_enabled` | `enabled` (boolean) | Photos on (a first fetch starts) or off (the photos are deleted). |
+| `photos_set_enabled` | `enabled` (boolean) | Photos on (the ring is filled) or off (the photos are deleted). |
 | `photos_set_categories` | `categories_on` (String[] of keys) | Sets the categories; none left on is refused (`at_least_one`). |
-| `photos_refresh` | none | Starts a refresh on any connection and returns at once; poll `photos_status` until `refreshing` is false. |
+| `photos_refresh` | none | "Fetch a new photo now": one new photo into the ring on any connection, returns at once; poll `photos_status` until `refreshing` is false (30 s at most). |
+| `photos_advance` | `shown` (String, optional: file name of the photo now on screen) | The launcher moved to the next picture: marks `shown`, adds one new photo in the background (single-flight), returns at once. `ok` false with `off` when photos are off. |
 
 ## Jellyfin deep link
 

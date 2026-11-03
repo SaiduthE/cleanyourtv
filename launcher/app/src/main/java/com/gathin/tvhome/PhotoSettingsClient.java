@@ -24,7 +24,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * (README of the add-on, "Photo settings"; the provider applies the same caller check as for the feed). Every call
  * runs on a background thread, one at a time and in order, never on the main thread; each answer reaches the
  * {@link Listener} on the main thread, and an add-on that does not answer within {@link #TIMEOUT_MS} is reported as
- * "no answer" (a late answer is still delivered). A refresh is followed by status polls until the add-on says it is done.
+ * "no answer" (a late answer is still delivered). "Fetch a new photo" is followed by status polls until the add-on says
+ * it is done, but never for longer than {@link #FOLLOW_MS}: then one last plain status is asked for and shown (the
+ * add-on itself stops saying "Fetching..." after the same 30 s), so the row cannot stay on "Fetching..." for good.
  */
 final class PhotoSettingsClient {
 
@@ -37,8 +39,8 @@ final class PhotoSettingsClient {
     static final String PACKAGE = "com.cleanlook.continuewatching";
     static final long TIMEOUT_MS = 8_000;
     static final long POLL_MS = 1_500;
-    /** A refresh that has not ended after this long is no longer followed. */
-    static final long POLL_GIVE_UP_MS = 4 * 60_000;
+    /** A fetch that has not ended after this long is no longer followed; the add-on's own limit is the same. */
+    static final long FOLLOW_MS = 30_000;
 
     private static final String GET_SETTINGS = "photos_get_settings";
     private static final String SET_ENABLED = "photos_set_enabled";
@@ -135,9 +137,9 @@ final class PhotoSettingsClient {
         if (closed || pollWaiting) return;
         long now = android.os.SystemClock.uptimeMillis();
         if (pollStarted == 0) pollStarted = now;
-        if (now - pollStarted > POLL_GIVE_UP_MS) {
+        if (pollGivenUp(now, pollStarted)) {
             pollStarted = 0;
-            listener.onPhotoSettings(PhotoSettings.unavailable(PhotoSettings.State.NO_ANSWER));
+            submit(GET_SETTINGS, null);   // one last plain status; the add-on no longer calls it "Fetching..." by now
             return;
         }
         pollWaiting = true;
@@ -147,6 +149,11 @@ final class PhotoSettingsClient {
                 if (!closed) submit(STATUS, null);
             }
         }, POLL_MS);
+    }
+
+    /** True once a fetch has been followed for {@link #FOLLOW_MS}. */
+    static boolean pollGivenUp(long now, long started) {
+        return started != 0 && now - started >= FOLLOW_MS;
     }
 
     /** One blocking call; never on the main thread. */

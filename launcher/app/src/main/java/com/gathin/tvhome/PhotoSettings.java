@@ -21,7 +21,7 @@ final class PhotoSettings {
     static final String DENIED_TEXT = "Not allowed";
     static final String NO_ANSWER_TEXT = "No answer";
     static final String LOADING_TEXT = "Loading…";
-    static final String REFRESHING_TEXT = "Refreshing…";
+    static final String REFRESHING_TEXT = "Fetching...";
 
     /** The error code the add-on gives when the last category would be switched off. */
     static final String ERR_AT_LEAST_ONE = "at_least_one";
@@ -82,15 +82,15 @@ final class PhotoSettings {
     }
 
     /**
-     * The Refresh photos row: the add-on's plain status ("12 photos, updated today", the last failure such as
-     * "No network"), "Refreshing…" while a refresh runs, "Off" with photos off, or why the add-on cannot be asked.
+     * The Fetch a new photo row: the add-on's plain status ("Ready: 4 photos", the last failure such as
+     * "No network"), "Fetching..." while a fetch runs, "Off" with photos off, or why the add-on cannot be asked.
      */
     String refreshValue() {
         if (!available()) return unavailableText();
         if (refreshing) return REFRESHING_TEXT;
         if (!enabled) return "Off";
         if (!status.isEmpty()) return status;
-        return count == 0 ? "No photos yet" : count + (count == 1 ? " photo" : " photos");
+        return count == 0 ? "No photos yet" : "Ready: " + count + (count == 1 ? " photo" : " photos");
     }
 
     private String unavailableText() {

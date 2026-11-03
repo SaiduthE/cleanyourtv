@@ -144,7 +144,9 @@ final class TopShelf {
         this.density = context.getResources().getDisplayMetrics().density;
         this.accent = accent;
 
-        wall = new ShelfWallpaper(context, container, wallpapers, animations, reducedMotion, this::onCredit);
+        // The interval is read at every change of picture, so Launcher settings > Change every applies without a restart.
+        wall = new ShelfWallpaper(context, container, wallpapers, animations, reducedMotion,
+                () -> SettingsModel.shelfInterval(choices::getLong), this::onCredit);
         float bottomPeak = ShelfGradients.bottomPeak(dockOpacity, dockBand);
         scrimWallpaper = edgeFade(Edge.LEFT, ShelfGradients.LEFT_SPAN, ShelfGradients.LEFT_SHELF_PEAK);
         scrimBackdrop = new LayerDrawable(new Drawable[] {

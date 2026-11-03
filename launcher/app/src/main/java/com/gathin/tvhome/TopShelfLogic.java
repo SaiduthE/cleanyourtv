@@ -66,13 +66,17 @@ final class TopShelfLogic {
     static final int CARD_MAX_H_DP = 220, CARD_MAX_W_DP = 220;
     /** No icon or banner is ever drawn larger than this many times its own size. */
     static final float MAX_UPSCALE = 1.5f;
-    /** The wallpaper layer changes picture this often, crossfading over {@link #FADE_MS}. */
-    static final long ROTATE_MS = 12_000;
+    /** The picture changes every Launcher settings > Top Shelf > Change every (SettingsModel; 15 s by default), crossfading over {@link #FADE_MS}. */
     static final int FADE_MS = 1600;
     /** The most pictures the wallpaper pool will hold. */
     static final int POOL_MAX = 40;
-    /** The photo list is read again at most this often; photos are decoded no larger than this. */
-    static final long PHOTOS_CACHE_MS = 600_000;
+    /**
+     * The add-on changes the photo list after every "advance", so it is read again at each change of picture (at
+     * most this often); with fewer than {@link #PHOTOS_MIN_READY} photos it is read again after about 20 s, never held.
+     */
+    static final long PHOTOS_REREAD_MS = 5_000;
+    static final long PHOTOS_RECHECK_MS = 20_000;
+    static final int PHOTOS_MIN_READY = 2;
     static final int PHOTO_W = 1920, PHOTO_H = 1080;
 
     static final String AUTHORITY = "com.cleanlook.continuewatching.shelf";
@@ -266,9 +270,23 @@ final class TopShelfLogic {
         return new int[] {Math.min(PHOTO_W, screenW), Math.min(PHOTO_H, screenH)};
     }
 
-    /** Whether the photo list read at {@code at} must be read again at {@code now}. */
-    static boolean photosStale(long now, long at) {
-        return now - at >= PHOTOS_CACHE_MS;
+    /** Whether the photo list read at {@code at} (it had {@code count} photos) must be read again at {@code now}. */
+    static boolean photosStale(long now, long at, int count) {
+        long age = now - at;
+        if (age < 0) return true;
+        return age >= (photosShort(count) ? PHOTOS_RECHECK_MS : PHOTOS_REREAD_MS);
+    }
+
+    /** True when a list of {@code count} photos is too short to rest on: look again in {@link #PHOTOS_RECHECK_MS}. */
+    static boolean photosShort(int count) {
+        return count < PHOTOS_MIN_READY;
+    }
+
+    /** The add-on's file name of a photo address (content://AUTHORITY/photo/name.jpg), or null for anything else. */
+    static String photoName(String uri) {
+        if (!isPhotoUri(uri)) return null;
+        String name = uri.substring(PHOTO_URI_PREFIX.length());
+        return name.matches("[0-9a-f]{16}\\.jpg") ? name : null;
     }
 
     /** The next picture to show: any but the current one (when there is a choice); -1 for an empty pool. */

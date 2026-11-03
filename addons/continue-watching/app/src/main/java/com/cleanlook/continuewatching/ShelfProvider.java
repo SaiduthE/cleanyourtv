@@ -57,6 +57,8 @@ public final class ShelfProvider extends ContentProvider {
         Map<String, Object> in = new HashMap<>();
         if (extras != null) {
             if (extras.containsKey(PhotoCalls.EXTRA_ENABLED)) in.put(PhotoCalls.EXTRA_ENABLED, extras.getBoolean(PhotoCalls.EXTRA_ENABLED));
+            String shown = extras.getString(PhotoCalls.EXTRA_SHOWN);
+            if (shown != null) in.put(PhotoCalls.EXTRA_SHOWN, shown);
             String[] on = extras.getStringArray(PhotoCalls.EXTRA_ON);
             if (on != null) in.put(PhotoCalls.EXTRA_ON, on);
         }
@@ -125,7 +127,7 @@ public final class ShelfProvider extends ContentProvider {
         return out;
     }
 
-    /** The Top Shelf photos, newest first. An empty cache is the cue to fetch the first ones (or any that are due). */
+    /** The Top Shelf photos, newest first (whole files only). A ring with fewer than two photos is the cue to top it up. */
     private Cursor photos() {
         checkCaller();
         Context c = getContext();
@@ -140,7 +142,7 @@ public final class ShelfProvider extends ContentProvider {
                     .appendPath(p.name).build().toString();
             out.addRow(new Object[] {++id, uri, p.width, p.height, p.credit});
         }
-        PhotoFeed.kick(app);
+        if (id < PhotoCache.MIN_READY) PhotoFeed.kick(app);
         return out;
     }
 

@@ -50,54 +50,75 @@ public class PhotoCacheTest {
         }
     }
 
-    // ---- eviction
+    // ---- eviction: the ring keeps its target, the photo shown longest ago goes
 
-    @Test public void nothingLeavesWhileTheCacheFits() {
-        assertTrue(PhotoCache.evict(photos(15, 700_000), PhotoCache.MAX_PHOTOS, PhotoCache.MAX_BYTES).isEmpty());
-        assertTrue(PhotoCache.evict(new ArrayList<PhotoCache.Photo>(), 15, 100).isEmpty());
+    private static PhotoCache.Photo shown(int n, long addedMs, long shownMs) {
+        return photo(n, addedMs, 500_000).shownAt(shownMs);
     }
 
-    @Test public void theOldestFivePhotosLeaveWhenFiveNewOnesArrive() {
-        List<PhotoCache.Photo> all = photos(20, 500_000);
-        List<String> gone = PhotoCache.evict(all, PhotoCache.MAX_PHOTOS, PhotoCache.MAX_BYTES);
-        assertEquals(5, gone.size());
-        for (int i = 1; i <= 5; i++) assertEquals(photo(i, 0, 0).name, gone.get(i - 1));
+    @Test public void nothingLeavesWhileTheRingFits() {
+        assertTrue(PhotoCache.evict(photos(PhotoCache.TARGET, 700_000), PhotoCache.TARGET, PhotoCache.MAX_BYTES).isEmpty());
+        assertTrue(PhotoCache.evict(new ArrayList<PhotoCache.Photo>(), PhotoCache.TARGET, 100).isEmpty());
     }
 
-    @Test public void theOrderOfTheListDoesNotMatterOnlyTheAge() {
-        List<PhotoCache.Photo> all = photos(17, 100_000);
-        java.util.Collections.reverse(all);
-        List<String> gone = PhotoCache.evict(all, 15, PhotoCache.MAX_BYTES);
+    @Test public void theRingIsSmall() {
+        assertEquals(4, PhotoCache.TARGET);
+        assertEquals(6, PhotoCache.MAX_PHOTOS);
+        assertTrue(PhotoCache.MAX_BYTES <= 6L * 1024 * 1024);
+        assertTrue(PhotoCache.belowTarget(3));
+        assertFalse(PhotoCache.belowTarget(4));
+        assertTrue(PhotoCache.hasRoom(5));
+        assertFalse("never more than six", PhotoCache.hasRoom(6));
+    }
+
+    @Test public void thePhotoShownLongestAgoGoesWhenTheRingIsOverTarget() {
+        List<PhotoCache.Photo> all = new ArrayList<>(Arrays.asList(
+                shown(1, 1000, 9000), shown(2, 2000, 5000), shown(3, 3000, 7000), shown(4, 4000, 8000),
+                photo(5, 5000, 500_000)));   // the new photo, never shown
+        List<String> gone = PhotoCache.evict(all, PhotoCache.TARGET, PhotoCache.MAX_BYTES);
+        assertEquals(Arrays.asList(photo(2, 0, 0).name), gone);
+    }
+
+    @Test public void theNewPhotoAndTheOneOnScreenAreNeverDeleted() {
+        // 1 is on screen (shown last) and also the oldest; 5 is the newest and never shown
+        List<PhotoCache.Photo> all = new ArrayList<>(Arrays.asList(
+                shown(1, 1000, 9000), shown(2, 2000, 3000), shown(3, 3000, 4000), shown(4, 4000, 5000),
+                photo(5, 5000, 500_000)));
+        List<String> gone = PhotoCache.evict(all, PhotoCache.TARGET, PhotoCache.MAX_BYTES);
+        assertEquals(Arrays.asList(photo(2, 0, 0).name), gone);
+        assertFalse(gone.contains(photo(1, 0, 0).name));
+        assertFalse(gone.contains(photo(5, 0, 0).name));
+    }
+
+    @Test public void photosNeverShownGoAfterShownOnesOldestFirst() {
+        List<PhotoCache.Photo> all = photos(6, 100_000); // none shown: oldest added first, the newest stays
+        List<String> gone = PhotoCache.evict(all, PhotoCache.TARGET, PhotoCache.MAX_BYTES);
         assertEquals(Arrays.asList(photo(1, 0, 0).name, photo(2, 0, 0).name), gone);
     }
 
-    @Test public void theByteLimitAlsoEvictsOldestFirst() {
-        List<PhotoCache.Photo> all = photos(15, 1_500_000); // 22.5 MB
-        List<String> gone = PhotoCache.evict(all, 15, 14L * 1024 * 1024);
-        long left = 15L * 1_500_000;
-        for (int i = 0; i < gone.size(); i++) {
-            assertEquals(photo(i + 1, 0, 0).name, gone.get(i));
-            left -= 1_500_000;
-        }
-        assertTrue(left <= 14L * 1024 * 1024);
-        assertTrue(left + 1_500_000 > 14L * 1024 * 1024);
+    @Test public void theOrderOfTheListDoesNotMatter() {
+        List<PhotoCache.Photo> all = photos(5, 100_000);
+        java.util.Collections.reverse(all);
+        assertEquals(Arrays.asList(photo(1, 0, 0).name), PhotoCache.evict(all, PhotoCache.TARGET, PhotoCache.MAX_BYTES));
     }
 
-    @Test public void theNewestPhotoAlwaysStays() {
-        List<PhotoCache.Photo> all = Arrays.asList(photo(1, 1000, 20_000_000), photo(2, 2000, 20_000_000));
-        List<String> gone = PhotoCache.evict(all, 15, 1024);
+    @Test public void theByteLimitAlsoEvicts() {
+        List<PhotoCache.Photo> all = photos(4, 2_000_000); // 8 MB in four photos
+        List<String> gone = PhotoCache.evict(all, PhotoCache.TARGET, PhotoCache.MAX_BYTES);
         assertEquals(Arrays.asList(photo(1, 0, 0).name), gone);
     }
 
-    // ---- how many a refresh fetches
+    @Test public void twoPhotosAreNeverTrimmedAwayEvenOverTheByteLimit() {
+        List<PhotoCache.Photo> all = Arrays.asList(shown(1, 1000, 3000), photo(2, 2000, 20_000_000));
+        assertTrue(PhotoCache.evict(all, PhotoCache.TARGET, 1024).isEmpty());
+    }
 
-    @Test public void aRefreshFetchesFiveToRotateOrEnoughToFill() {
-        assertEquals(15, PhotoCache.wanted(0));
-        assertEquals(12, PhotoCache.wanted(3));
-        assertEquals(5, PhotoCache.wanted(10));
-        assertEquals(5, PhotoCache.wanted(15));
-        assertEquals(5, PhotoCache.wanted(40));
-        assertEquals(15, PhotoCache.wanted(-2));
+    @Test public void markShownSetsOnlyThatPhoto() {
+        List<PhotoCache.Photo> out = PhotoCache.markShown(photos(3, 1), photo(2, 0, 0).name, 777);
+        assertEquals(0, out.get(0).shownMs);
+        assertEquals(777, out.get(1).shownMs);
+        assertEquals(0, out.get(2).shownMs);
+        assertEquals(3, PhotoCache.markShown(photos(3, 1), "0000000000000000.jpg", 5).size());
     }
 
     // ---- the record
@@ -110,6 +131,8 @@ public class PhotoCacheTest {
         assertEquals("Ann — CC0", out.get(1).credit);
         assertEquals(1920, out.get(1).width);
         assertEquals(800_000, out.get(1).bytes);
+        PhotoCache.Photo s = PhotoCache.decode(PhotoCache.encode(Arrays.asList(shown(1, 1000, 4242)))).get(0);
+        assertEquals(4242, s.shownMs);
         String tampered = "[{\"n\":\"../etc/passwd\",\"w\":1,\"h\":1},{\"n\":\"0123456789abcdef.jpg\",\"w\":1920,\"h\":1080}]";
         List<PhotoCache.Photo> kept = PhotoCache.decode(tampered);
         assertEquals(1, kept.size());

@@ -74,6 +74,30 @@ final class ShelfFeed {
         }
     }
 
+    /** What the add-on said to an "advance". */
+    enum Advance { OK, UNAVAILABLE, LATER }
+
+    /**
+     * Tells the add-on the next picture is on screen ({@code shownName}: that photo's file name, or null for a
+     * wallpaper) and so asks for one new photo in the background. The add-on answers at once; the download happens
+     * there. UNAVAILABLE: no add-on, not allowed, an old version, or photos are off: stop asking until Home is shown
+     * again. Run off the main thread.
+     */
+    static Advance advance(ContentResolver resolver, String shownName) {
+        try {
+            android.os.Bundle extras = new android.os.Bundle();
+            if (shownName != null) extras.putString("shown", shownName);
+            android.os.Bundle answer = resolver.call(Uri.parse("content://" + TopShelfLogic.AUTHORITY), "photos_advance",
+                    null, extras);
+            if (answer == null) return Advance.UNAVAILABLE;
+            return answer.getBoolean("ok", true) ? Advance.OK : Advance.UNAVAILABLE;
+        } catch (SecurityException | IllegalArgumentException e) {
+            return Advance.UNAVAILABLE;
+        } catch (RuntimeException e) {
+            return Advance.LATER;
+        }
+    }
+
     private static String text(Cursor c, int column) {
         return column < 0 || c.isNull(column) ? null : c.getString(column);
     }

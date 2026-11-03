@@ -237,11 +237,17 @@ public class TopShelfLogicTest {
         assertFalse(TopShelfLogic.pool(walls, Arrays.asList(PHOTO)).contains(PIC));
     }
 
-    @Test public void photoListIsKeptTenMinutesAndDecodedAtScreenSizeAtMost() {
-        assertFalse(TopShelfLogic.photosStale(1_000, 0));
-        assertFalse(TopShelfLogic.photosStale(599_999, 0));
-        assertTrue(TopShelfLogic.photosStale(600_000, 0));
-        assertTrue(TopShelfLogic.photosStale(0, -TopShelfLogic.PHOTOS_CACHE_MS));
+    @Test public void photoListIsReadAtEachChangeAndAnEmptyOrShortListIsNeverHeldLong() {
+        assertFalse("just read", TopShelfLogic.photosStale(1_000, 0, 4));
+        assertTrue("a change of picture 5 s later reads again", TopShelfLogic.photosStale(5_000, 0, 4));
+        assertFalse("short list: not yet", TopShelfLogic.photosStale(19_999, 0, 1));
+        assertTrue("short list: look again after about 20 s", TopShelfLogic.photosStale(20_000, 0, 1));
+        assertTrue("empty list: after 20 s, not 10 minutes", TopShelfLogic.photosStale(20_000, 0, 0));
+        assertTrue("a clock that went back", TopShelfLogic.photosStale(0, 10, 4));
+        assertTrue(TopShelfLogic.photosShort(0));
+        assertTrue(TopShelfLogic.photosShort(1));
+        assertFalse(TopShelfLogic.photosShort(2));
+        assertEquals(20_000, TopShelfLogic.PHOTOS_RECHECK_MS);
         assertArrayEquals(new int[] {1920, 1080}, TopShelfLogic.photoTarget(3840, 2160));
         assertArrayEquals(new int[] {1280, 720}, TopShelfLogic.photoTarget(1280, 720));
         assertArrayEquals(new int[] {1920, 1080}, TopShelfLogic.photoTarget(0, 0));
@@ -269,8 +275,16 @@ public class TopShelfLogicTest {
         assertTrue(TopShelfLogic.nextPick(3, -1, random) >= 0);
     }
 
+    @Test public void photoNameIsTheFileNameOfAnOwnPhotoAddress() {
+        String base = "content://" + TopShelfLogic.AUTHORITY + "/photo/";
+        assertEquals("0123456789abcdef.jpg", TopShelfLogic.photoName(base + "0123456789abcdef.jpg"));
+        assertEquals(null, TopShelfLogic.photoName(base + "../x.jpg"));
+        assertEquals(null, TopShelfLogic.photoName(base + "ABCDEF.jpg"));
+        assertEquals(null, TopShelfLogic.photoName("/data/wall.jpg"));
+        assertEquals(null, TopShelfLogic.photoName(null));
+    }
+
     @Test public void wallpaperTimingsMatchTheBrief() {
-        assertTrue(TopShelfLogic.ROTATE_MS >= 11_000 && TopShelfLogic.ROTATE_MS <= 13_000);
         assertEquals(1.5f, TopShelfLogic.MAX_UPSCALE, 0f);
     }
 

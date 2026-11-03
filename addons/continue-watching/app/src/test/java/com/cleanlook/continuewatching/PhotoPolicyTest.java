@@ -13,41 +13,30 @@ public class PhotoPolicyTest {
     private static final long DAY = 24L * 60 * 60 * 1000;
     private static final long NOW = 100 * DAY;
 
-    @Test public void automaticRefreshNeedsAnUnmeteredConnectionAndThreeDays() {
-        // on, connected, unmetered, automatic, 4 days since the last good one, 2 days since the last try, 15 cached
-        assertTrue(PhotoPolicy.due(true, true, true, false, NOW, NOW - 4 * DAY, NOW - 2 * DAY, 15));
-        assertFalse("only two days", PhotoPolicy.due(true, true, true, false, NOW, NOW - 2 * DAY, NOW - 2 * DAY, 15));
-        assertFalse("metered", PhotoPolicy.due(true, true, false, false, NOW, NOW - 4 * DAY, NOW - 2 * DAY, 15));
-        assertFalse("offline", PhotoPolicy.due(true, false, false, false, NOW, NOW - 4 * DAY, NOW - 2 * DAY, 15));
-        assertFalse("switched off", PhotoPolicy.due(false, true, true, false, NOW, NOW - 4 * DAY, NOW - 2 * DAY, 15));
+    @Test public void aFetchNeedsTheSwitchAndAConnection() {
+        assertFalse(PhotoPolicy.mayFetch(false, true, true, true, 0));
+        assertFalse(PhotoPolicy.mayFetch(true, false, false, true, 0));
+        assertTrue(PhotoPolicy.mayFetch(true, true, true, false, 4));
     }
 
-    @Test public void aJobThatFiresAFewMinutesEarlyStillCounts() {
-        assertTrue(PhotoPolicy.due(true, true, true, false, NOW, NOW - 3 * DAY + 5 * 60_000, NOW - 3 * DAY, 15));
-        assertFalse(PhotoPolicy.due(true, true, true, false, NOW, NOW - 3 * DAY + 5 * 3_600_000L, NOW - 3 * DAY, 15));
+    @Test public void automaticFetchesWaitForAnUnmeteredLineUnlessThereIsNothingToShow() {
+        assertFalse("metered, ring has photos", PhotoPolicy.mayFetch(true, true, false, false, 4));
+        assertFalse("metered, two photos is enough", PhotoPolicy.mayFetch(true, true, false, false, PhotoCache.MIN_READY));
+        assertTrue("metered but nearly empty", PhotoPolicy.mayFetch(true, true, false, false, PhotoCache.MIN_READY - 1));
+        assertTrue("the owner asked", PhotoPolicy.mayFetch(true, true, false, true, 4));
     }
 
-    @Test public void aFreshInstallFillsAtOnceWithoutWaitingForTheSchedule() {
-        assertTrue(PhotoPolicy.due(true, true, true, false, NOW, 0, 0, 0));
-        assertTrue("a good refresh an hour ago but only 3 photos", PhotoPolicy.due(true, true, true, false, NOW, NOW - 3_600_000L * 2, 0, 3));
-        assertFalse("still needs the network", PhotoPolicy.due(true, false, false, false, NOW, 0, 0, 0));
-        assertFalse("six is enough to wait", PhotoPolicy.due(true, true, true, false, NOW, NOW - DAY, NOW - DAY, PhotoPolicy.FIRST_FILL));
+    @Test public void aFailureRestsAutomaticFetchesLongerEachTime() {
+        assertEquals(0, PhotoPolicy.failWaitMs(0, 5000));
+        assertEquals(PhotoPolicy.FAIL_WAIT_MS, PhotoPolicy.failWaitMs(1, 0));
+        assertEquals(2 * PhotoPolicy.FAIL_WAIT_MS, PhotoPolicy.failWaitMs(2, 0));
+        assertEquals(4 * PhotoPolicy.FAIL_WAIT_MS, PhotoPolicy.failWaitMs(3, 0));
+        assertEquals("the server's Retry-After counts", 60_000, PhotoPolicy.failWaitMs(1, 60_000));
+        assertEquals(PhotoPolicy.FAIL_WAIT_MAX_MS, PhotoPolicy.failWaitMs(50, 0));
     }
 
-    @Test public void aFailedTryWaitsAnHourBeforeTheNext() {
-        assertFalse(PhotoPolicy.due(true, true, true, false, NOW, 0, NOW - 10 * 60_000L, 0));
-        assertTrue(PhotoPolicy.due(true, true, true, false, NOW, 0, NOW - 61 * 60_000L, 0));
-    }
-
-    @Test public void aClockThatWentBackwardsCountsAsDue() {
-        assertTrue(PhotoPolicy.due(true, true, true, false, NOW, NOW + 10 * DAY, 0, 15));
-        assertTrue("and does not block on a try from the future", PhotoPolicy.due(true, true, true, false, NOW, 0, NOW + DAY, 0));
-    }
-
-    @Test public void refreshNowNeedsOnlyAConnectionAndTheSwitch() {
-        assertTrue(PhotoPolicy.due(true, true, false, true, NOW, NOW - 1000, NOW - 1000, 15));
-        assertFalse(PhotoPolicy.due(true, false, false, true, NOW, 0, 0, 0));
-        assertFalse(PhotoPolicy.due(false, true, true, true, NOW, 0, 0, 0));
+    @Test public void requestsAreSpacedAtLeastFiveSeconds() {
+        assertTrue(PhotoPolicy.SPACING_MS >= 5000);
     }
 
     // ---- categories
@@ -81,13 +70,22 @@ public class PhotoPolicyTest {
 
     // ---- the status line
 
-    @Test public void statusSaysWhatHappened() {
-        assertEquals("Refreshing…", PhotoPolicy.status(true, 12, NOW, NOW, ""));
-        assertEquals("No network", PhotoPolicy.status(false, 3, NOW, NOW, "No network"));
-        assertEquals("No photos yet", PhotoPolicy.status(false, 0, 0, NOW, ""));
-        assertEquals("1 photo, updated today", PhotoPolicy.status(false, 1, NOW - 1000, NOW, ""));
-        assertEquals("12 photos, updated yesterday", PhotoPolicy.status(false, 12, NOW - DAY, NOW, null));
-        assertEquals("15 photos, updated 3 days ago", PhotoPolicy.status(false, 15, NOW - 3 * DAY, NOW, ""));
-        assertEquals("5 photos", PhotoPolicy.status(false, 5, 0, NOW, ""));
+    @Test public void statusSaysFetchingForAtMostThirtySeconds() {
+        assertEquals("Fetching...", PhotoPolicy.status(true, 0, false, 4, ""));
+        assertEquals("Fetching...", PhotoPolicy.status(true, 29_999, false, 4, "No network"));
+        assertEquals("Ready: 4 photos", PhotoPolicy.status(true, 30_000, false, 4, ""));
+    }
+
+    @Test public void aFetchPastThirtySecondsSaysWhatItIsWaitingFor() {
+        assertEquals("Server busy, retrying", PhotoPolicy.status(true, 31_000, true, 4, ""));
+        assertEquals("Fetching...", PhotoPolicy.status(true, 5_000, true, 4, ""));
+    }
+
+    @Test public void statusEndsInReadyOrAPlainFailure() {
+        assertEquals("Off", PhotoPolicy.status(false, 1000, false, 4, "No network"));
+        assertEquals("No network", PhotoPolicy.status(true, -1, false, 3, "No network"));
+        assertEquals("No photos yet", PhotoPolicy.status(true, -1, false, 0, ""));
+        assertEquals("Ready: 1 photo", PhotoPolicy.status(true, -1, false, 1, null));
+        assertEquals("Ready: 4 photos", PhotoPolicy.status(true, -1, false, 4, ""));
     }
 }

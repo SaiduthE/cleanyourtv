@@ -7,15 +7,17 @@ import android.app.job.JobService;
 import android.content.ComponentName;
 import android.content.Context;
 
-/** The system's three-day, unmetered-network wake-up for the Top Shelf photos; {@link PhotoFeed} decides what is due. */
+/** The system's daily, unmetered-network wake-up: tops the Top Shelf photo ring up to its target, one photo at a time. */
 public final class PhotoJobService extends JobService {
     private static final int JOB_ID = 4201;
-    private static final long PERIOD_MS = PhotoPolicy.REFRESH_EVERY_MS;
+    private static final long PERIOD_MS = PhotoPolicy.JOB_EVERY_MS;
 
-    /** Schedules the periodic job once (it is kept while the app stays installed, until a reboot). */
+    /** Schedules the periodic job once (it is kept while the app stays installed). */
     static void schedule(Context c) {
         JobScheduler js = (JobScheduler) c.getSystemService(Context.JOB_SCHEDULER_SERVICE);
-        if (js == null || js.getPendingJob(JOB_ID) != null) return;
+        if (js == null) return;
+        JobInfo pending = js.getPendingJob(JOB_ID);
+        if (pending != null && pending.getIntervalMillis() == PERIOD_MS) return;   // an older build's three-day job is replaced
         js.schedule(new JobInfo.Builder(JOB_ID, new ComponentName(c, PhotoJobService.class))
                 .setRequiredNetworkType(JobInfo.NETWORK_TYPE_UNMETERED)
                 .setPeriodic(PERIOD_MS)
@@ -26,7 +28,7 @@ public final class PhotoJobService extends JobService {
         final Context app = getApplicationContext();
         new Thread(new Runnable() {
             @Override public void run() {
-                PhotoFeed.refresh(app, false);
+                PhotoFeed.job(app);
                 jobFinished(params, false);
             }
         }, "cw-photos-job").start();

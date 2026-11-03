@@ -20,11 +20,16 @@ final class PhotoCalls {
     static final String GET_SETTINGS = "photos_get_settings";
     static final String SET_ENABLED = "photos_set_enabled";
     static final String SET_CATEGORIES = "photos_set_categories";
+    /** "Fetch a new photo now": one new photo into the ring (the oldest shown goes), on any connection. */
     static final String REFRESH = "photos_refresh";
+    /** The launcher rotated to the next picture: one new photo in the background, and which one is on screen. */
+    static final String ADVANCE = "photos_advance";
     static final String STATUS = "photos_status";
 
     /** Request extra of {@link #SET_ENABLED}: boolean. */
     static final String EXTRA_ENABLED = "enabled";
+    /** Request extra of {@link #ADVANCE}: the file name of the photo now on screen (optional). */
+    static final String EXTRA_SHOWN = "shown";
     /** Request extra of {@link #SET_CATEGORIES}: String[] of the category keys that are on. */
     static final String EXTRA_ON = "categories_on";
 
@@ -56,14 +61,20 @@ final class PhotoCalls {
 
         int count();
 
-        long okMs();
-
+        /** The last fetch's plain note ("No network"); empty after one that worked. */
         String note();
 
-        boolean refreshing();
+        /** How long the fetch in flight has been going (ms); negative when none is. */
+        long flightMs();
 
-        /** Starts a manual refresh on a worker thread and returns at once. */
-        void startRefresh();
+        /** True while the server is making the fetch wait. */
+        boolean busy();
+
+        /**
+         * Starts one new photo on a worker thread and returns at once (at most one fetch is ever in flight).
+         * {@code shown} is the photo on screen, if known; {@code manual} is the owner's "fetch a new photo now".
+         */
+        void advance(String shown, boolean manual);
 
         long now();
     }
@@ -96,8 +107,14 @@ final class PhotoCalls {
             }
             case REFRESH:
                 if (!b.enabled()) return error(b, ERR_OFF);
-                if (!b.refreshing()) b.startRefresh();
+                b.advance(null, true);
                 return settings(b);
+            case ADVANCE: {
+                if (!b.enabled()) return error(b, ERR_OFF);
+                Object v = extras == null ? null : extras.get(EXTRA_SHOWN);
+                b.advance(v instanceof String ? (String) v : null, false);
+                return settings(b);
+            }
             default:
                 return null;
         }
@@ -136,9 +153,9 @@ final class PhotoCalls {
         out.put(R_LABELS, labels.toArray(new String[0]));
         out.put(R_ON, on.toArray(new String[0]));
         out.put(R_COUNT, b.count());
-        boolean refreshing = b.refreshing();
-        out.put(R_REFRESHING, refreshing);
-        out.put(R_STATUS, statusText(b.enabled(), refreshing, b.count(), b.okMs(), b.now(), b.note()));
+        long flight = b.flightMs();
+        out.put(R_REFRESHING, flight >= 0 && flight < PhotoPolicy.FETCHING_MAX_MS);
+        out.put(R_STATUS, PhotoPolicy.status(b.enabled(), flight, b.busy(), b.count(), b.note()));
         return out;
     }
 
@@ -147,11 +164,5 @@ final class PhotoCalls {
         out.put(R_OK, Boolean.FALSE);
         out.put(R_ERROR, code);
         return out;
-    }
-
-    /** "Off"; "Refreshing…"; the last try's note ("No network"); "No photos yet"; "12 photos, updated today". */
-    static String statusText(boolean enabled, boolean refreshing, int count, long okMs, long now, String note) {
-        if (!enabled) return "Off";
-        return PhotoPolicy.status(refreshing, count, okMs, now, note);
     }
 }

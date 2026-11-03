@@ -9,18 +9,20 @@ import java.net.SocketTimeoutException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
 import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
 /**
- * One photo refresh, without Android or the network: the HTTP layer ({@link Net}), the clock ({@link Env}) and the
- * file store ({@link Saver}) are handed in, so the JVM tests drive it with fakes. One bad picture or one failed request
- * never ends the run: it is skipped and the run goes on with the next. A busy server (429, 503) is waited out as long as
- * it asks ({@code Retry-After}) and tried again at most twice. Requests are spaced out, one after the other.
+ * Gets ONE new photo, without Android or the network: the HTTP layer ({@link Net}), the clock ({@link Env}) and the
+ * file store ({@link Saver}) are handed in, so the JVM tests drive it with fakes. It keeps what it learned between
+ * calls (the page ids of each category, and the checked candidates not tried yet), so most calls cost a single picture
+ * request. One bad picture is skipped and the next candidate tried; a busy server (429, 503) is waited out as long as
+ * it asks ({@code Retry-After}), retried at most twice, and then ends the call (the caller backs off). The call never
+ * runs past {@link #DEADLINE_MS}.
  */
 final class PhotoRun {
     /** The HTTP layer: the body of a GET, or an IOException ({@link Http.HttpException} for a non-2xx answer). */
@@ -29,10 +31,13 @@ final class PhotoRun {
     }
 
     interface Env {
-        /** Waits; false when the thread was interrupted (the run then stops). */
+        /** Waits; false when the thread was interrupted (the call then stops). */
         boolean sleep(long ms);
 
         long now();
+
+        /** The server is making the call wait (a 429 or 503): shown as "Server busy, retrying". */
+        void waiting(boolean busy);
     }
 
     interface Saver {
@@ -41,39 +46,45 @@ final class PhotoRun {
     }
 
     static final int BATCH = 20;
-    /** From one batch of one category at most this many are taken, so the photos come from several categories. */
-    static final int PER_ROUND = 3;
-    static final int MAX_CALLS = 30;
+    /** At most this many API calls (category lists and picture info) and picture downloads for one photo. */
+    static final int MAX_API_CALLS = 6;
+    static final int MAX_PICTURES = 4;
     static final int MAX_RETRIES = 2;
+    /** A pause between two requests of one call. */
     static final long PAUSE_MS = 400;
-    static final long RETRY_MIN_MS = 1000;
-    static final long RETRY_MAX_MS = 30_000;
+    /** Measured: after a 429 the same picture is served again about 4 s later (2 s is too soon), whatever Retry-After says. */
+    static final long RETRY_MIN_MS = 4000;
+    static final long RETRY_MAX_MS = 15_000;
     /** Without a Retry-After the wait is this, doubled for the second retry. */
-    static final long RETRY_DEFAULT_MS = 3000;
-    /** This many failed requests in a row (after their retries) end the run: the server or the line is not there. */
-    static final int MAX_STREAK = 4;
-    /** A refresh that is still going after this long stops with what it has. */
-    static final long DEADLINE_MS = 6L * 60 * 1000;
+    static final long RETRY_DEFAULT_MS = 4000;
+    /** A call that is still going after this long stops (no retry is started past it). */
+    static final long DEADLINE_MS = 60_000;
 
     enum Kind { OFFLINE, TIMEOUT, BUSY, REFUSED, OTHER, SKIP }
 
-    /** Why a request failed: the kind and, for an HTTP answer, its status code. */
+    /** Why a request failed: the kind, for an HTTP answer its status code and what the server asked us to wait. */
     static final class Failure {
         final Kind kind;
         final int code;
+        final long retryAfterMs;
 
         Failure(Kind kind, int code) {
+            this(kind, code, 0);
+        }
+
+        Failure(Kind kind, int code, long retryAfterMs) {
             this.kind = kind;
             this.code = code;
+            this.retryAfterMs = retryAfterMs;
         }
     }
 
     static final class Result {
+        /** 1 when a new photo was kept, else 0. */
         int added;
-        int want;
         /** The last failure that counts (no network, timeout, busy server, refusal, other); null when none. */
         Failure failure;
-        /** The last pictures that could not be had one by one (too big, 404); only said when nothing else is. */
+        /** The last picture that could not be had (too big, 404); only said when nothing else is. */
         Failure soft;
         int rejected;
         boolean stopped;
@@ -82,7 +93,8 @@ final class PhotoRun {
     static Failure classify(IOException e) {
         if (e instanceof Http.HttpException) {
             int code = ((Http.HttpException) e).code;
-            if (code == 429 || code >= 500) return new Failure(Kind.BUSY, code);
+            long ask = ((Http.HttpException) e).retryAfterMs;
+            if (code == 429 || code >= 500) return new Failure(Kind.BUSY, code, ask);
             return new Failure(Kind.REFUSED, code);
         }
         if (e instanceof Http.TooLarge) return new Failure(Kind.SKIP, 0);
@@ -98,19 +110,34 @@ final class PhotoRun {
                 || ((Http.HttpException) e).code == 503);
     }
 
-    /** How long to wait before retry number {@code attempt} (0 first): what the server asked, else 3 s then 6 s; 1 to 30 s. */
+    /** How long to wait before retry number {@code attempt} (0 first): what the server asked, else 4 s then 8 s; 4 to 15 s. */
     static long backoffMs(long retryAfterMs, int attempt) {
         long w = retryAfterMs > 0 ? retryAfterMs + 500 : RETRY_DEFAULT_MS << attempt;
         return Math.max(RETRY_MIN_MS, Math.min(RETRY_MAX_MS, w));
     }
 
-    // ---- the run
+    // ---- the state kept between calls
+
+    private static final class Pending {
+        final String category;
+        final PhotoFilter.Candidate cand;
+
+        Pending(String category, PhotoFilter.Candidate cand) {
+            this.category = category;
+            this.cand = cand;
+        }
+    }
 
     private final Net net;
     private final Env env;
     private final Saver saver;
-    private final Result result = new Result();
-    private int streak;
+    private final Map<String, List<Long>> pools = new HashMap<>();
+    private final List<Pending> queue = new ArrayList<>();
+
+    // per call
+    private Result result;
+    private long start;
+    private int apiCalls;
     private boolean requested;
 
     PhotoRun(Net net, Env env, Saver saver) {
@@ -119,65 +146,93 @@ final class PhotoRun {
         this.saver = saver;
     }
 
+    /** Fetches one new photo from {@code cats}, skipping the names in {@code have}. A network problem is in the result. */
+    synchronized Result fetchOne(PhotoPolicy.Category[] cats, Set<String> have, Random rnd) {
+        result = new Result();
+        start = env.now();
+        apiCalls = 0;
+        requested = false;
+        int pictures = 0;
+        try {
+            while (result.added == 0 && !result.stopped) {
+                if (env.now() - start > DEADLINE_MS) {
+                    result.stopped = true;
+                    break;
+                }
+                Pending p = take(cats, have);
+                if (p == null) {
+                    if (apiCalls >= MAX_API_CALLS || !refill(cats, rnd)) break;
+                    continue;
+                }
+                if (pictures++ >= MAX_PICTURES) break;
+                String name = PhotoCache.fileName(p.cand.title);
+                if (download(p.cand, name)) {
+                    have.add(name);
+                    result.added = 1;
+                } else if (result.failure != null && result.failure.kind == Kind.BUSY) {
+                    break; // the server is busy: stop here, the caller backs off instead of trying other pictures
+                }
+            }
+        } finally {
+            env.waiting(false);
+        }
+        return result;
+    }
+
+    /** The next candidate that is of an enabled category and not in the ring yet; the ones passed over are dropped. */
+    private Pending take(PhotoPolicy.Category[] cats, Set<String> have) {
+        for (Iterator<Pending> it = queue.iterator(); it.hasNext();) {
+            Pending p = it.next();
+            it.remove();
+            if (!enabled(cats, p.category) || have.contains(PhotoCache.fileName(p.cand.title))) continue;
+            return p;
+        }
+        return null;
+    }
+
+    private static boolean enabled(PhotoPolicy.Category[] cats, String key) {
+        for (PhotoPolicy.Category c : cats) if (c.key.equals(key)) return true;
+        return false;
+    }
+
     /**
-     * Fetches up to {@code want} new photos from {@code cats} (in this order), skipping the names in {@code have}.
-     * Never throws for a network problem: it is in {@link Result#failure}.
+     * Reads the next batch of one category (listing the category first if it was never listed) and queues the
+     * candidates that pass the filters. False when there is nothing left to try or the call failed for good.
      */
-    Result run(PhotoPolicy.Category[] cats, int want, Set<String> have, Random rnd) {
-        result.want = want;
+    private boolean refill(PhotoPolicy.Category[] cats, Random rnd) {
         List<PhotoPolicy.Category> order = new ArrayList<>();
         Collections.addAll(order, cats);
         Collections.shuffle(order, rnd);
-        long start = env.now();
-        Map<String, List<Long>> pools = new HashMap<>();
-        int calls = 0;
-        int empty = 0;
-        for (int round = 0; result.added < want && calls < MAX_CALLS && empty < order.size() && !result.stopped; round++) {
-            if (env.now() - start > DEADLINE_MS) {
-                result.stopped = true;
-                break;
-            }
-            PhotoPolicy.Category cat = order.get(round % order.size());
+        for (PhotoPolicy.Category cat : order) {
             List<Long> pool = pools.get(cat.key);
             if (pool == null) {
-                calls++;
                 pool = new ArrayList<>();
-                pools.put(cat.key, pool);
+                apiCalls++;
                 try {
                     pool.addAll(PhotoFilter.pageIds(text(fetch(PhotoFilter.listUrl(cat.commons), false))));
                     Collections.shuffle(pool, rnd);
                 } catch (IOException | JSONException e) {
                     apiFailed(e);
+                    return false;
                 }
+                pools.put(cat.key, pool);
             }
-            if (pool.isEmpty()) {
-                empty++;
-                continue;
-            }
-            empty = 0;
+            if (pool.isEmpty()) continue;
             List<Long> batch = new ArrayList<>(pool.subList(0, Math.min(BATCH, pool.size())));
             pool.subList(0, batch.size()).clear();
-            calls++;
-            List<PhotoFilter.Candidate> candidates;
+            apiCalls++;
             try {
-                candidates = PhotoFilter.candidates(text(fetch(PhotoFilter.infoUrl(batch), false)));
+                List<PhotoFilter.Candidate> found = PhotoFilter.candidates(text(fetch(PhotoFilter.infoUrl(batch), false)));
+                Collections.shuffle(found, rnd);
+                for (PhotoFilter.Candidate c : found) queue.add(new Pending(cat.key, c));
             } catch (IOException | JSONException e) {
                 apiFailed(e);
-                continue;
+                return false;
             }
-            int fromThisBatch = 0;
-            for (PhotoFilter.Candidate cand : candidates) {
-                if (result.added >= want || fromThisBatch >= PER_ROUND || result.stopped) break;
-                String name = PhotoCache.fileName(cand.title);
-                if (have.contains(name)) continue;
-                if (download(cand, name)) {
-                    have.add(name);
-                    fromThisBatch++;
-                    result.added++;
-                }
-            }
+            return true;
         }
-        return result;
+        pools.clear(); // every category is used up: the next call lists them again
+        return false;
     }
 
     private static String text(byte[] body) {
@@ -206,20 +261,20 @@ final class PhotoRun {
         }
     }
 
-    /** A failed API call: a refusal (a bad User-Agent, say) or no network would fail every call, so it ends the run. */
+    /** A failed API call: a refusal (a bad User-Agent, say) or no network would fail every call, so it ends the call. */
     private void apiFailed(Exception e) {
         Failure f = e instanceof IOException ? classify((IOException) e) : new Failure(Kind.OTHER, 0);
         failed(f, false);
-        if (f.kind == Kind.REFUSED) result.stopped = true;
+        result.stopped = true;
     }
 
     private void failed(Failure f, boolean image) {
         if (f.kind == Kind.SKIP || (image && f.kind == Kind.REFUSED)) {
-            result.soft = f; // this one picture is gone or too big: the next one is tried, nothing is counted against the run
+            result.soft = f; // this one picture is gone or too big: the next one is tried
             return;
         }
         result.failure = f;
-        if (f.kind == Kind.OFFLINE || ++streak >= MAX_STREAK) result.stopped = true;
+        if (f.kind == Kind.OFFLINE) result.stopped = true;
     }
 
     /** One GET with the pause before it and the waits and retries for a busy server. */
@@ -229,50 +284,43 @@ final class PhotoRun {
             throw new IOException("interrupted");
         }
         requested = true;
-        for (int attempt = 0; ; attempt++) {
-            try {
-                byte[] body = net.get(url, image);
-                streak = 0;
-                return body;
-            } catch (IOException e) {
-                if (!retryable(e) || attempt >= MAX_RETRIES) throw e;
-                long ask = ((Http.HttpException) e).retryAfterMs;
-                if (!env.sleep(backoffMs(ask, attempt))) {
-                    result.stopped = true;
-                    throw e;
+        try {
+            for (int attempt = 0; ; attempt++) {
+                try {
+                    return net.get(url, image);
+                } catch (IOException e) {
+                    if (!retryable(e) || attempt >= MAX_RETRIES) throw e;
+                    long wait = backoffMs(((Http.HttpException) e).retryAfterMs, attempt);
+                    if (env.now() + wait - start > DEADLINE_MS) throw e;
+                    env.waiting(true);
+                    if (!env.sleep(wait)) {
+                        result.stopped = true;
+                        throw e;
+                    }
                 }
             }
+        } finally {
+            env.waiting(false);
         }
     }
 
     // ---- the plain words
 
     /**
-     * The note for the status line: empty when the refresh got everything it wanted, otherwise what happened in plain
-     * words, such as "3 of 15 photos fetched: server busy, try again later" or "Wikimedia refused: HTTP 403".
+     * The note for the status line: empty when a photo was added, otherwise what happened in plain words, such as
+     * "Server busy, retrying" or "No network".
      */
     static String note(Result r) {
+        if (r.added > 0) return "";
         Failure f = r.failure != null ? r.failure : r.soft;
-        if (r.added > 0) {
-            if (f == null || r.added >= r.want) return "";
-            return r.added + " of " + r.want + " photos fetched: " + because(f, false);
-        }
-        if (f == null) return r.rejected > 0 ? "No new photos found, try again later" : "No new photos found";
-        return because(f, true);
-    }
-
-    private static String because(Failure f, boolean sentence) {
-        String s;
+        if (f == null) return r.rejected > 0 ? "No new photo found, try again" : "No new photo found";
         switch (f.kind) {
-            case OFFLINE: s = "no network"; break;
-            case TIMEOUT: s = "timed out, try again later"; break;
-            case BUSY: s = "server busy, try again later"; break;
-            case REFUSED: s = "Wikimedia refused: HTTP " + f.code; break;
-            case SKIP: s = "pictures too big, try again later"; break;
-            default: s = "could not reach Wikimedia, try again later"; break;
+            case OFFLINE: return "No network";
+            case TIMEOUT: return "Server slow, retrying";
+            case BUSY: return "Server busy, retrying";
+            case REFUSED: return f.code == 0 ? "Wikimedia refused the request" : "Wikimedia refused: HTTP " + f.code;
+            case SKIP: return "Picture too big, retrying";
+            default: return "Could not reach Wikimedia";
         }
-        if (f.kind == Kind.REFUSED && !sentence) s = "Wikimedia refused (HTTP " + f.code + ")";
-        if (f.kind == Kind.REFUSED && f.code == 0) s = "Wikimedia refused the request";
-        return sentence ? s.substring(0, 1).toUpperCase(Locale.ROOT) + s.substring(1) : s;
     }
 }

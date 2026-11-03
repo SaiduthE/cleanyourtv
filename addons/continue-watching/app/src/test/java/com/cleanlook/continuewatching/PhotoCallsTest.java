@@ -21,12 +21,14 @@ public class PhotoCallsTest {
     private static final class Fake implements PhotoCalls.Backend {
         boolean enabled = true;
         Set<String> off = new HashSet<>();
-        int count = 12;
-        long okMs = 1_000_000L;
-        long now = 1_000_000L + 1000;
+        int count = 4;
+        long now = 1_000_000L;
         String note = "";
-        boolean refreshing;
-        int refreshes;
+        long flightMs = -1;
+        boolean busy;
+        int advances;
+        int manualAdvances;
+        String lastShown;
         int enables;
 
         @Override public boolean enabled() { return enabled; }
@@ -34,10 +36,14 @@ public class PhotoCallsTest {
         @Override public Set<String> off() { return off; }
         @Override public void setOff(Set<String> o) { off = new HashSet<>(o); }
         @Override public int count() { return count; }
-        @Override public long okMs() { return okMs; }
         @Override public String note() { return note; }
-        @Override public boolean refreshing() { return refreshing; }
-        @Override public void startRefresh() { refreshes++; refreshing = true; }
+        @Override public long flightMs() { return flightMs; }
+        @Override public boolean busy() { return busy; }
+        @Override public void advance(String shown, boolean manual) {
+            if (manual) manualAdvances++; else advances++;
+            lastShown = shown;
+            if (flightMs < 0) flightMs = 0;
+        }
         @Override public long now() { return now; }
     }
 
@@ -55,7 +61,7 @@ public class PhotoCallsTest {
 
     @Test public void aCallerThatFailsTheShelfCheckGetsASecurityException() {
         for (String method : new String[] {PhotoCalls.GET_SETTINGS, PhotoCalls.SET_ENABLED, PhotoCalls.SET_CATEGORIES,
-                PhotoCalls.REFRESH, PhotoCalls.STATUS, "something_else", null}) {
+                PhotoCalls.REFRESH, PhotoCalls.ADVANCE, PhotoCalls.STATUS, "something_else", null}) {
             Fake f = new Fake();
             try {
                 PhotoCalls.dispatch(false, f, method, with(PhotoCalls.EXTRA_ENABLED, false));
@@ -64,7 +70,7 @@ public class PhotoCallsTest {
                 // the same refusal as query() and openFile()
             }
             assertTrue("nothing changed", f.enabled);
-            assertEquals(0, f.refreshes);
+            assertEquals(0, f.manualAdvances + f.advances);
         }
     }
 
@@ -93,8 +99,8 @@ public class PhotoCallsTest {
         assertEquals(PhotoPolicy.CATEGORIES.length, strings(r, PhotoCalls.R_LABELS).length);
         assertEquals(Arrays.asList("landscapes", "mountains", "coasts", "lakes", "forests", "sunsets"),
                 Arrays.asList(strings(r, PhotoCalls.R_ON)));
-        assertEquals(12, r.get(PhotoCalls.R_COUNT));
-        assertEquals("12 photos, updated today", r.get(PhotoCalls.R_STATUS));
+        assertEquals(4, r.get(PhotoCalls.R_COUNT));
+        assertEquals("Ready: 4 photos", r.get(PhotoCalls.R_STATUS));
     }
 
     @Test public void statusIsTheSameAnswer() {
@@ -165,16 +171,14 @@ public class PhotoCallsTest {
         assertNotNull(PhotoCalls.offFor(Arrays.asList("forests")));
     }
 
-    // ---- refresh
+    // ---- fetch a new photo now, and the launcher's advance
 
-    @Test public void refreshStartsOnceAndAnswersRefreshing() {
+    @Test public void refreshFetchesOneNewPhotoNowAndAnswersFetching() {
         Fake f = new Fake();
         Map<String, Object> r = PhotoCalls.dispatch(true, f, PhotoCalls.REFRESH, null);
-        assertEquals(1, f.refreshes);
+        assertEquals(1, f.manualAdvances);
         assertEquals(Boolean.TRUE, r.get(PhotoCalls.R_REFRESHING));
-        assertEquals("Refreshing…", r.get(PhotoCalls.R_STATUS));
-        PhotoCalls.dispatch(true, f, PhotoCalls.REFRESH, null);
-        assertEquals("one is already running", 1, f.refreshes);
+        assertEquals("Fetching...", r.get(PhotoCalls.R_STATUS));
     }
 
     @Test public void refreshWithPhotosOffIsRefused() {
@@ -182,24 +186,39 @@ public class PhotoCallsTest {
         f.enabled = false;
         Map<String, Object> r = PhotoCalls.dispatch(true, f, PhotoCalls.REFRESH, null);
         assertEquals(PhotoCalls.ERR_OFF, r.get(PhotoCalls.R_ERROR));
-        assertEquals(0, f.refreshes);
+        assertEquals(0, f.manualAdvances);
+        r = PhotoCalls.dispatch(true, f, PhotoCalls.ADVANCE, null);
+        assertEquals(PhotoCalls.ERR_OFF, r.get(PhotoCalls.R_ERROR));
+        assertEquals(0, f.advances);
     }
 
-    // ---- the status line
+    @Test public void advanceTellsWhichPhotoIsOnScreenAndAsksForOneNewPhoto() {
+        Fake f = new Fake();
+        PhotoCalls.dispatch(true, f, PhotoCalls.ADVANCE, with(PhotoCalls.EXTRA_SHOWN, "0123456789abcdef.jpg"));
+        assertEquals(1, f.advances);
+        assertEquals(0, f.manualAdvances);
+        assertEquals("0123456789abcdef.jpg", f.lastShown);
+        PhotoCalls.dispatch(true, f, PhotoCalls.ADVANCE, null);
+        assertEquals(2, f.advances);
+        assertNull(f.lastShown);
+        PhotoCalls.dispatch(true, f, PhotoCalls.ADVANCE, with(PhotoCalls.EXTRA_SHOWN, 42));
+        assertNull("not a string: ignored", f.lastShown);
+    }
 
-    @Test public void statusTextMapping() {
-        long day = 24L * 60 * 60 * 1000;
-        long now = 10 * day;
-        assertEquals("Off", PhotoCalls.statusText(false, false, 12, now, now, ""));
-        assertEquals("Off", PhotoCalls.statusText(false, true, 12, now, now, "Failed"));
-        assertEquals("Refreshing…", PhotoCalls.statusText(true, true, 12, now, now, "Failed"));
-        assertEquals("No network", PhotoCalls.statusText(true, false, 0, 0, now, "No network"));
-        assertEquals("Timed out", PhotoCalls.statusText(true, false, 3, now, now, "Timed out"));
-        assertEquals("No photos yet", PhotoCalls.statusText(true, false, 0, 0, now, ""));
-        assertEquals("1 photo", PhotoCalls.statusText(true, false, 1, 0, now, ""));
-        assertEquals("12 photos, updated today", PhotoCalls.statusText(true, false, 12, now - 1000, now, ""));
-        assertEquals("12 photos, updated yesterday", PhotoCalls.statusText(true, false, 12, now - day, now, ""));
-        assertEquals("12 photos, updated 3 days ago", PhotoCalls.statusText(true, false, 12, now - 3 * day, now, ""));
+    // ---- the status line as the answer carries it
+
+    @Test public void theRefreshingFlagFollowsTheThirtySecondRule() {
+        Fake f = new Fake();
+        f.flightMs = 29_000;
+        Map<String, Object> r = PhotoCalls.dispatch(true, f, PhotoCalls.STATUS, null);
+        assertEquals(Boolean.TRUE, r.get(PhotoCalls.R_REFRESHING));
+        assertEquals("Fetching...", r.get(PhotoCalls.R_STATUS));
+        f.flightMs = 31_000;
+        r = PhotoCalls.dispatch(true, f, PhotoCalls.STATUS, null);
+        assertEquals("a fetch still running after 30 s is no longer 'refreshing'", Boolean.FALSE, r.get(PhotoCalls.R_REFRESHING));
+        assertEquals("Ready: 4 photos", r.get(PhotoCalls.R_STATUS));
+        f.busy = true;
+        assertEquals("Server busy, retrying", PhotoCalls.dispatch(true, f, PhotoCalls.STATUS, null).get(PhotoCalls.R_STATUS));
     }
 
     @Test public void aFailureNoteShowsInTheAnswer() {
@@ -207,5 +226,7 @@ public class PhotoCallsTest {
         f.note = "No network";
         f.count = 0;
         assertEquals("No network", PhotoCalls.dispatch(true, f, PhotoCalls.STATUS, null).get(PhotoCalls.R_STATUS));
+        f.enabled = false;
+        assertEquals("Off", PhotoCalls.dispatch(true, f, PhotoCalls.STATUS, null).get(PhotoCalls.R_STATUS));
     }
 }

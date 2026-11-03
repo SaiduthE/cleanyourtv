@@ -69,21 +69,21 @@ public class PhotoSettingsTest {
     }
 
     @Test public void refreshRowShowsTheAddOnsStatusLine() {
-        assertEquals("12 photos, updated today",
-                ready(true, ALL, 12, false, "12 photos, updated today").refreshValue());
+        assertEquals("Ready: 4 photos",
+                ready(true, ALL, 12, false, "Ready: 4 photos").refreshValue());
         assertEquals("No network", ready(true, ALL, 0, false, "No network").refreshValue());
         assertEquals("Timed out", ready(true, ALL, 3, false, "Timed out").refreshValue());
     }
 
-    @Test public void refreshRowSaysRefreshingWhileItRuns() {
-        assertEquals("Refreshing…", ready(true, ALL, 12, true, "12 photos, updated today").refreshValue());
-        assertEquals("Refreshing…", ready(true, ALL, 12, false, "x").withRefreshing().refreshValue());
+    @Test public void refreshRowSaysFetchingWhileItRuns() {
+        assertEquals("Fetching...", ready(true, ALL, 12, true, "Ready: 4 photos").refreshValue());
+        assertEquals("Fetching...", ready(true, ALL, 12, false, "x").withRefreshing().refreshValue());
     }
 
     @Test public void refreshRowWithoutAStatusCountsThePhotos() {
         assertEquals("No photos yet", ready(true, ALL, 0, false, "").refreshValue());
-        assertEquals("1 photo", ready(true, ALL, 1, false, "").refreshValue());
-        assertEquals("4 photos", ready(true, ALL, 4, false, "").refreshValue());
+        assertEquals("Ready: 1 photo", ready(true, ALL, 1, false, "").refreshValue());
+        assertEquals("Ready: 4 photos", ready(true, ALL, 4, false, "").refreshValue());
     }
 
     @Test public void refreshRowIsOffWithPhotosOff() {
@@ -109,13 +109,13 @@ public class PhotoSettingsTest {
     // ---- shown at once while the add-on is asked
 
     @Test public void optimisticChangesKeepTheRest() {
-        PhotoSettings s = ready(true, ALL, 12, false, "12 photos, updated today");
+        PhotoSettings s = ready(true, ALL, 12, false, "Ready: 4 photos");
         PhotoSettings off = s.withEnabled(false);
         assertFalse(off.enabled);
         assertEquals(12, off.count);
         PhotoSettings fewer = s.withOn(set("lakes"));
         assertEquals(set("lakes"), fewer.on);
         assertTrue(fewer.enabled);
-        assertEquals("12 photos, updated today", fewer.refreshValue());
+        assertEquals("Ready: 4 photos", fewer.refreshValue());
     }
 }

@@ -11,6 +11,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
@@ -140,15 +141,31 @@ final class Store {
     /** Switches are applied here, so a toggle shows at once: Watch Next rows per app, channel rows per channel. */
     static List<Item> visible(Context c, State s, Set<String> disabled) {
         Prefs p = App.prefs(c);
-        return visible(s, disabled, p.channelsForcedOn(), p.channelsForcedOff());
+        p.migrateAdded(s);
+        return visible(s, disabled, p.channelsForcedOn(), p.channelsForcedOff(), p.addedSources());
     }
 
     static List<Item> visible(State s, Set<String> disabled, Set<String> channelsOn, Set<String> channelsOff) {
+        return visible(s, disabled, channelsOn, channelsOff, null);
+    }
+
+    /**
+     * Only sources the owner added show ({@code added} null: no such limit). A source's own switch hides all of it:
+     * an app's Watch Next rows and channels, or the Jellyfin titles.
+     */
+    static List<Item> visible(State s, Set<String> disabled, Set<String> channelsOn, Set<String> channelsOff,
+            Collection<String> added) {
         List<Item> out = new ArrayList<>();
-        for (Item it : s.wn) if (!disabled.contains(it.pkg)) out.add(it);
-        out.addAll(ChannelFilter.visible(s.ch, channelsOn, channelsOff, new ArrayList<>(out)));
-        out.addAll(s.jf);
+        for (Item it : s.wn) if (shows(it.pkg, disabled, added)) out.add(it);
+        List<Item> chItems = new ArrayList<>();
+        for (Item it : s.ch) if (shows(it.pkg, disabled, added)) chItems.add(it);
+        out.addAll(ChannelFilter.visible(chItems, channelsOn, channelsOff, new ArrayList<>(out)));
+        if (shows(AddedSources.JELLYFIN, disabled, added)) out.addAll(s.jf);
         return out;
+    }
+
+    private static boolean shows(String key, Set<String> disabled, Collection<String> added) {
+        return !disabled.contains(key) && (added == null || added.contains(key));
     }
 
     static Item find(List<Item> items, String id) {

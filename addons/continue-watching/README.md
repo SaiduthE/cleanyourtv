@@ -6,22 +6,34 @@ show's own picture, a resume bar and the episode ("S2 · E4 · 23 min left"). OK
 [Clean Your TV](../../README.md) launcher it also declares a [module card](../../docs/modules.md) and serves a
 **Top Shelf feed** (below) so the launcher can show the same titles with real artwork.
 
-- **Sources are managed on the TV**, with the remote only. **Sources** (top right of the page) lists:
-  - **Watch Next apps**: every app with a TV launcher icon, with how many rows it publishes and an On/Off switch.
-    An app that publishes nothing this app can read says **No rows found**; OK on it scans again and says so
-    plainly. The app switch covers its Watch Next rows only; **channels** (below) have their own.
+- **Sources are managed on the TV**, with the remote only, and show **only what you added**. **Sources** (top
+  right of the page) is a grid of tiles, one per source, each with the app's icon (its banner when that is large
+  enough; never enlarged past 1.5 times), its name and a status dot: **N rows** (green), **No rows found**, an
+  error (red: "Sign in again", "Not reachable", "Needs access") or **Off**. The last tile is **+ Add source**;
+  with nothing added it is the only tile, under a one-line hint. Header buttons: **Allow Watch Next access** (until
+  granted), **Rescan apps**, and the **Top Shelf feed** switch (off: the launcher gets nothing and the cached
+  pictures are deleted).
+  - **Add source** opens a picker: a **Jellyfin server** tile (the form for the address, the user and a password
+    or an API key; **Test** signs in without saving, **Save** keeps it), then the installed apps that publish
+    Watch Next rows or preview channels, the ones with the most rows first. Apps already added are dimmed and
+    marked **Added**. **Show all apps**, the last tile, lists the other apps with a TV launcher icon, read only
+    when you ask: an app added from there (Netflix, say) simply reports **No rows found** if it publishes
+    nothing this app can read. Choosing an app adds it, with its Watch Next rows on and its channels as below, and
+    returns to the grid with focus on the new tile.
+  - **OK on a tile** opens a small popup on it (flips above or to the left near a screen edge; Back closes it and
+    returns to the tile): the source's **On/Off** (hides all of it), its **channels** with row count and
+    On/Off (scrolls inside the popup past five), for Jellyfin **Resume**, **Next up**, **Test** and **Edit
+    sign-in**, and **Remove source**, which asks once on the same row ("Remove it? Remove / Keep").
   - **Channels** (Plex, Netflix, ...): many apps publish their "Continue watching" row as a *preview channel*, not
-    as Watch Next rows, and the stock Android TV home shows those. Under each such app, every channel is listed
-    with its name, its row count ("12 rows", "3 of 5 rows can be shown" when some have no title or link, or "empty
-    right now") and its own On/Off switch (OK toggles). Channels named like *Continue watching*, *Resume*, *Watch
-    Next*, *Up next*, *Keep watching* or *Recently watched* (and a few translations) are **on** by default;
-    every other channel (Recommended, Trending, ...) is **off** until you switch it on. The choice is saved per
-    app and channel name.
-  - **Servers**: **Add Jellyfin server** opens a form for the address, the user and a password or an API key.
-    **Test** signs in without saving and says what it found ("Connected to Home as sai. 3 titles in progress."
-    or why not); **Save** keeps it. Once added: Edit, Resume and Next up switches, **Test Jellyfin**, and Remove
-    (press OK twice).
-  - **Launcher**: switch the Top Shelf feed off, and the launcher gets nothing and the cached pictures are deleted.
+    as Watch Next rows, and the stock Android TV home shows those. Each channel is listed in the popup with its
+    row count ("12 rows", "3 of 5" when some have no title or link, or "empty"). Channels named like *Continue
+    watching*, *Resume*, *Watch Next*, *Up next*, *Keep watching* or *Recently watched* (and a few translations)
+    are **on** by default; every other channel (Recommended, Trending, ...) is **off** until you switch it on.
+  - **Upgrading**: the first start after the update adds, by itself, every source that was showing: Jellyfin if
+    it is set up, each app that published rows and was not switched off, each app with a channel that was on. The
+    list is saved in the preferences in the order added (Jellyfin's sign-in stays in the encrypted store).
+  - Scrolling is one 150-200 ms decelerating glide that centres the focused row; the platform's own jump is off,
+    so the highlight and the scroll move together.
 - **First run.** When Watch Next access is granted, a probe reads every app's rows once and remembers which
   packages publish any (counts only, in `adb logcat -s CWProbe`: no titles, no addresses). Some apps publish
   nothing readable to a sideloaded app (see [`docs/watch-next.md`](../../docs/watch-next.md)); Sources shows
@@ -33,7 +45,7 @@ show's own picture, a resume bar and the episode ("S2 · E4 · 23 min left"). OK
 
 | Permission | Why |
 |---|---|
-| `READ_TV_LISTINGS` | Reads the Watch Next rows of other apps. Ask for it from **Sources > Watch Next access**, or grant it: `adb shell pm grant com.cleanlook.continuewatching android.permission.READ_TV_LISTINGS`. |
+| `READ_TV_LISTINGS` | Reads the Watch Next rows of other apps. Ask for it from **Sources > Allow Watch Next access**, or grant it: `adb shell pm grant com.cleanlook.continuewatching android.permission.READ_TV_LISTINGS`. |
 | `INTERNET` | Your Jellyfin server, and the pictures: the server's own, and the picture addresses other apps put in their Watch Next rows (those are plain image downloads from the app's own servers, sent with no account, cookie or identifier). |
 
 Also: `usesCleartextTraffic`, because a Jellyfin server on the home network is normally `http://`; a `<queries>`
@@ -110,6 +122,6 @@ JDK 17 and Android SDK platform 34, as for the launcher. In this folder:
 ./gradlew assembleRelease                     # signed with the debug key, like the launcher
 ```
 
-The unit tests are plain JVM tests of the Watch Next filter, the Jellyfin parser, the merge, the shelf rows, the
+The unit tests are plain JVM tests of the added-sources model (migration, order, picker, status, popup placement), the Watch Next filter, the Jellyfin parser, the merge, the shelf rows, the
 caller check and the intent policy. The only third-party code is test-only (JUnit, and `org.json` because the
 stubs in `android.jar` throw on the JVM).

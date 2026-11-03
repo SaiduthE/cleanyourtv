@@ -2,6 +2,7 @@ package com.cleanlook.continuewatching;
 
 import android.app.Application;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.drawable.Drawable;
@@ -15,6 +16,8 @@ public final class App extends Application {
         super.onCreate();
         prefs = new Prefs(this);
         images = new ImageLoader(this);
+        // Before anything else can save a probe or a choice: an install from before "Add source" keeps what it showed.
+        if (!prefs.addedMigrated()) prefs.migrateAdded(Store.read(this));
         refreshImageAuth(this);
     }
 
@@ -55,6 +58,18 @@ public final class App extends Application {
     static Drawable icon(Context c, String pkg) {
         try {
             return c.getPackageManager().getApplicationIcon(pkg);
+        } catch (PackageManager.NameNotFoundException | RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** The app's TV banner (launcher activity's, else the app's), or null. */
+    static Drawable banner(Context c, String pkg) {
+        try {
+            PackageManager pm = c.getPackageManager();
+            Intent launcher = new Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LEANBACK_LAUNCHER).setPackage(pkg);
+            Drawable d = pm.getActivityBanner(launcher);
+            return d != null ? d : pm.getApplicationBanner(pkg);
         } catch (PackageManager.NameNotFoundException | RuntimeException e) {
             return null;
         }

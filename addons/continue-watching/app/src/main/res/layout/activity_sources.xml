@@ -1,47 +1,88 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Sources: where Continue watching comes from, managed with the remote. A status line at the foot says what a test found. -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- Sources: a grid of the sources the owner added. The popup of a source is added to the root at run time, on top. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/bg"
-    android:orientation="vertical"
-    android:paddingStart="96dp"
-    android:paddingTop="32dp"
-    android:paddingEnd="96dp">
+    android:background="@color/bg">
 
-    <TextView
+    <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:fontFamily="sans-serif-light"
-        android:text="@string/sources"
-        android:textColor="@color/text"
-        android:textSize="30sp" />
-
-    <ScrollView
-        android:id="@+id/scroll"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_marginTop="12dp"
-        android:layout_weight="1"
-        android:clipToPadding="false"
-        android:paddingBottom="12dp"
-        android:scrollbars="none">
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="60dp"
+        android:paddingTop="26dp"
+        android:paddingEnd="60dp">
 
         <LinearLayout
-            android:id="@+id/list"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical" />
-    </ScrollView>
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="6dp">
 
-    <TextView
-        android:id="@+id/status"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:minHeight="52dp"
-        android:gravity="center_vertical"
-        android:paddingTop="6dp"
-        android:paddingBottom="10dp"
-        android:textColor="@color/text_dim"
-        android:textSize="15sp" />
-</LinearLayout>
+            <TextView
+                android:id="@+id/title"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:fontFamily="sans-serif-light"
+                android:text="@string/sources"
+                android:textColor="@color/text"
+                android:textSize="28sp" />
+
+            <TextView
+                android:id="@+id/allow"
+                style="@style/Pill"
+                android:layout_marginStart="8dp"
+                android:minHeight="36dp"
+                android:text="@string/allow_access"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/rescan"
+                style="@style/Pill"
+                android:layout_marginStart="8dp"
+                android:minHeight="36dp"
+                android:text="@string/rescan"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/shelf"
+                style="@style/Pill"
+                android:layout_marginStart="8dp"
+                android:minHeight="36dp"
+                android:textSize="13sp" />
+        </LinearLayout>
+
+        <com.cleanlook.continuewatching.SmoothScrollView
+            android:id="@+id/scroll"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="10dp"
+            android:layout_weight="1"
+            android:clipToPadding="false"
+            android:paddingTop="2dp"
+            android:paddingBottom="8dp"
+            android:scrollbars="none">
+
+            <LinearLayout
+                android:id="@+id/grid"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+        </com.cleanlook.continuewatching.SmoothScrollView>
+
+        <TextView
+            android:id="@+id/status"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:minHeight="44dp"
+            android:paddingStart="6dp"
+            android:paddingBottom="6dp"
+            android:singleLine="true"
+            android:textColor="@color/text_dim"
+            android:textSize="14sp" />
+    </LinearLayout>
+</FrameLayout>

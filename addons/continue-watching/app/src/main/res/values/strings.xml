@@ -6,7 +6,7 @@
     <string name="sources">Sources</string>
     <string name="refreshing">Refreshing…</string>
     <string name="up_next">Up next</string>
-    <string name="empty">Nothing to continue yet.\nOpen Sources to switch on Watch Next apps or add a Jellyfin server.</string>
+    <string name="empty">Nothing to continue yet.\nOpen Sources to add an app or a Jellyfin server.</string>
     <string name="status_denied">Watch Next access is off, so no app can be read. Open Sources.</string>
     <string name="status_updated">updated %1$s</string>
     <string name="status_updated_empty">Nothing in progress · updated %1$s</string>
@@ -15,9 +15,11 @@
         <item quantity="other">%d titles</item>
     </plurals>
 
-    <string name="section_watch_next">Watch Next apps</string>
-    <string name="section_servers">Servers</string>
-    <string name="section_launcher">Launcher</string>
+    <string name="add_source">Add source</string>
+    <string name="add_title">Add a source</string>
+    <string name="allow_access">Allow Watch Next access</string>
+    <string name="rescan">Rescan apps</string>
+    <string name="show_all_apps">Show all apps</string>
 
     <string name="jellyfin_server">Jellyfin server</string>
     <string name="hint_address">Server address, e.g. 192.168.1.20:8096</string>

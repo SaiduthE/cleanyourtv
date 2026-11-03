@@ -190,8 +190,9 @@ public class ChannelFilterTest {
         List<Item> all = Store.visible(s, new HashSet<String>(), null, null);
         assertEquals(2, all.size());
         List<Item> noWn = Store.visible(s, new HashSet<>(Collections.singleton("a")), null, null);
-        assertEquals("app switch hides Watch Next rows only", 1, noWn.size());
-        assertEquals("Ch", noWn.get(0).title);
+        assertEquals("a source's own switch hides all of it", 0, noWn.size());
+        Set<String> cOff = new HashSet<>(Collections.singleton(ChannelFilter.key("a", "Continue")));
+        assertEquals("a channel switch hides that channel only", 1, Store.visible(s, new HashSet<String>(), null, cOff).size());
         Set<String> off = new HashSet<>(Collections.singleton(ChannelFilter.key("a", "Continue")));
         assertEquals(1, Store.visible(s, new HashSet<String>(), null, off).size());
         assertNull(Store.find(Store.visible(s, new HashSet<String>(), null, off), "ch:ChContinue"));

@@ -3,7 +3,9 @@ package com.cleanlook.continuewatching;
 import android.content.Context;
 import android.content.SharedPreferences;
 
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -39,12 +41,14 @@ final class Prefs {
         sp.edit().putString("jf_url", url).putString("jf_name", serverName).putString("jf_user", userId)
                 .putString("jf_user_name", userName).putString("jf_token", blob)
                 .putString("jf_status", JF_OK).apply();
+        addSource(AddedSources.JELLYFIN);
         return true;
     }
 
     void clearJellyfin() {
         sp.edit().remove("jf_url").remove("jf_name").remove("jf_user").remove("jf_user_name").remove("jf_token")
                 .putString("jf_status", JF_NONE).apply();
+        removeSource(AddedSources.JELLYFIN);
     }
 
     String jellyfinStatus() { return sp.getString("jf_status", JF_NONE); }
@@ -92,6 +96,47 @@ final class Prefs {
         off.remove(k);
         (enabled ? on : off).add(k);
         sp.edit().putStringSet("chan_on", on).putStringSet("chan_off", off).apply();
+    }
+
+    // ---- the sources the owner added: keys in the order they were added (an app's package, or AddedSources.JELLYFIN)
+    List<String> addedSources() { return AddedSources.parse(sp.getString("added_sources", "")); }
+
+    boolean isAdded(String key) { return addedSources().contains(key); }
+
+    /** Adds a source with its defaults: switched on, its channels as their names say. */
+    void addSource(String key) {
+        List<String> now = addedSources();
+        if (now.contains(key)) return;
+        SharedPreferences.Editor e = sp.edit().putString("added_sources", AddedSources.join(AddedSources.with(now, key)));
+        if (!AddedSources.JELLYFIN.equals(key)) {
+            Set<String> dis = disabledPackages();
+            dis.remove(key);
+            e.putStringSet("disabled_pkgs", dis);
+            e.putStringSet("chan_on", AddedSources.withoutPackage(channelsForcedOn(), key));
+            e.putStringSet("chan_off", AddedSources.withoutPackage(channelsForcedOff(), key));
+        }
+        e.apply();
+    }
+
+    void removeSource(String key) {
+        sp.edit().putString("added_sources", AddedSources.join(AddedSources.without(addedSources(), key))).apply();
+    }
+
+    boolean addedMigrated() { return sp.getBoolean("added_migrated", false); }
+
+    /**
+     * Once, for installs from before the added list: whatever was shown stays added. Does nothing for a new install
+     * (nothing was shown), and never runs twice.
+     */
+    void migrateAdded(Store.State s) {
+        if (addedMigrated()) return;
+        List<String> pkgs = new ArrayList<>();
+        for (Item it : s.wn) pkgs.add(it.pkg);
+        List<String> keys = AddedSources.migrate(jellyfinConfigured(), Probe.decode(probeJson()), pkgs, s.chans,
+                disabledPackages(), channelsForcedOn(), channelsForcedOff(), "");
+        List<String> all = addedSources();
+        for (String k : keys) all = AddedSources.with(all, k);
+        sp.edit().putString("added_sources", AddedSources.join(all)).putBoolean("added_migrated", true).apply();
     }
 
     // ---- shelf provider for the launcher

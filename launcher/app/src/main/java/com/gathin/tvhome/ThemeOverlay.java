@@ -29,7 +29,7 @@ final class ThemeOverlay {
                 int n = 0, r;
                 while (n < buf.length && (r = in.read(buf, n, buf.length - n)) > 0) n += r;
                 String text = new String(buf, 0, n, StandardCharsets.UTF_8);
-                if (text.startsWith("﻿")) text = text.substring(1);
+                if (text.startsWith("\uFEFF")) text = text.substring(1);
                 return new JSONObject(text);
             }
         } catch (Exception e) {

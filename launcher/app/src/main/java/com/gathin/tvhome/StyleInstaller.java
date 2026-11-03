@@ -307,7 +307,7 @@ final class StyleInstaller {
     }
 
     static String stripBom(String text) {
-        return text.startsWith("﻿") ? text.substring(1) : text;
+        return text.startsWith("\uFEFF") ? text.substring(1) : text;
     }
 
     private static void writeText(File file, String text) throws IOException {

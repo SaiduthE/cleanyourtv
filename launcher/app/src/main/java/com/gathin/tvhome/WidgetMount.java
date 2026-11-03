@@ -53,14 +53,16 @@ final class WidgetMount {
      * Whether Home's header can host the slot with these layout choices (what {@link #create} decides on Home itself,
      * known without Home: the Widgets manager inside Launcher settings asks before it draws its picture of the header).
      */
-    static boolean slotAvailable(WidgetSlot slot, boolean rtlMenuBar, boolean dateBelowClock, boolean topMenu) {
+    static boolean slotAvailable(WidgetSlot slot, boolean rtlMenuBar, boolean topMenu) {
         if (rtlMenuBar) return false;
-        return slot == WidgetSlot.CLOCK_SIDE ? !dateBelowClock : !topMenu;
+        // With the date under the time the clock row ends with the time and its chips follow it, so Beside the clock
+        // is there whichever way the date is laid out.
+        return slot == WidgetSlot.CLOCK_SIDE || !topMenu;
     }
 
     /**
-     * The mount for a slot, or null when the layout cannot host it: the mirrored Hebrew header, the date moved
-     * below the clock in a way the row cannot follow, or the one-gear top menu for the top bar slots. The clock
+     * The mount for a slot, or null when the layout cannot host it: the mirrored Hebrew header, a header the row
+     * cannot be found in, or the one-gear top menu for the top bar slots. The clock
      * row's second slot shares the first one's row, so it is given that mount ({@code clockSideMount}).
      */
     static WidgetMount create(Activity activity, WidgetSlot slot, boolean topMenu, WidgetMount clockSideMount) {
@@ -223,6 +225,8 @@ final class WidgetMount {
     private static final class ClockRow {
         /** The gap between one chip and the next. */
         private static final int GAP_DP = 8;
+        /** The gap between the time and the first chip when the date is under the time (the chip pads 8 dp more). */
+        private static final int FIRST_GAP_BELOW_DP = 16;
 
         final LinearLayout row;
         final View dateColumn;
@@ -247,6 +251,12 @@ final class WidgetMount {
             return Math.round(v * density);
         }
 
+        /** The gap before the mount's chip: the first one follows the time (see {@link ClockRowLayout#firstChipMargin}). */
+        private int marginDp(boolean first, WidgetMount m) {
+            int own = ClockRowLayout.firstChipMargin(!dateBelow, m.ownMarginDp, FIRST_GAP_BELOW_DP);
+            return ClockRowLayout.marginBefore(first, own, GAP_DP);
+        }
+
         /** Adds the view after the views of the slots before this one, then settles gaps and heights. */
         void attach(WidgetMount mount, View view, LinearLayout.LayoutParams lp) {
             int[] counts = new int[mounts.length];
@@ -265,7 +275,7 @@ final class WidgetMount {
             for (WidgetMount m : mounts) if (m != null && m.viewCount() > 0) height = Math.max(height, m.heightDp);
             for (WidgetMount m : mounts) {
                 if (m == null || m.viewCount() == 0) continue;
-                int margin = ClockRowLayout.marginBefore(first, m.ownMarginDp, GAP_DP);
+                int margin = marginDp(first, m);
                 first = false;
                 for (View v : new View[] {m.content, m.placeholder}) {
                     if (v == null || !(v.getLayoutParams() instanceof LinearLayout.LayoutParams)) continue;
@@ -314,6 +324,38 @@ final class WidgetMount {
         }
 
         /**
+         * Puts every chip right after the clock block, from the sizes the views measured to: the block's right edge
+         * (the last view that is not a widget, margin included), then each chip's margin and width in turn. A chip
+         * the row laid out anywhere else is moved to that place, so it can never float away from the time.
+         */
+        private void align() {
+            int start = 0;
+            java.util.List<View> chips = new java.util.ArrayList<>();
+            for (int i = 0; i < row.getChildCount(); i++) {
+                View child = row.getChildAt(i);
+                if (child.getVisibility() == View.GONE) continue;
+                if (isWidgetView(child)) {
+                    chips.add(child);
+                } else if (chips.isEmpty()) {
+                    start = child.getRight() + ((ViewGroup.MarginLayoutParams) child.getLayoutParams()).rightMargin;
+                }
+            }
+            int[] margins = new int[chips.size()];
+            int[] widths = new int[chips.size()];
+            for (int i = 0; i < margins.length; i++) {
+                margins[i] = ((ViewGroup.MarginLayoutParams) chips.get(i).getLayoutParams()).leftMargin;
+                widths[i] = chips.get(i).getWidth();
+            }
+            int[] lefts = ClockRowLayout.chipLefts(start, margins, widths);
+            for (int i = 0; i < lefts.length; i++) {
+                View chip = chips.get(i);
+                if (chip.getWidth() == 0) continue;
+                float shift = ClockRowLayout.shift(lefts[i], chip.getLeft());
+                if (chip.getTranslationX() != shift) chip.setTranslationX(shift);
+            }
+        }
+
+        /**
          * Hides a later chip that does not fit beside the earlier ones, from the sizes the views measure to: the
          * row's width, what the clock block (everything up to the divider) takes, and each chip's natural width.
          * Settled in one pass, so hiding a chip does not change what the next pass sees.
@@ -321,6 +363,7 @@ final class WidgetMount {
         private void fit() {
             int available = row.getWidth();
             if (available <= 0) return;
+            align();
             for (WidgetMount m : mounts) if (m != null && m.previewing) return;   // the picker shows every slot
             int divider = row.indexOfChild(this.divider);
             int used = 0;
@@ -339,7 +382,7 @@ final class WidgetMount {
                 WidgetMount m = mounts[i];
                 if (m == null || m.content == null || !m.contentShown || m.content.getParent() != row) continue;
                 wanted[i] = true;
-                margins[i] = dp(ClockRowLayout.marginBefore(first, m.ownMarginDp, GAP_DP));
+                margins[i] = dp(marginDp(first, m));
                 first = false;
                 m.content.measure(View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
                         View.MeasureSpec.makeMeasureSpec(Math.max(0, m.content.getLayoutParams().height),

@@ -50,7 +50,7 @@ final class WidgetsFlow implements WidgetOverlays.Host {
 
     /** Whether Home's header can host the slot with the owner's layout choices (see WidgetMount.create). */
     boolean slotAvailable(WidgetSlot slot) {
-        return WidgetMount.slotAvailable(slot, rtlHeader, config.dateBelowClock, config.topMenu);
+        return WidgetMount.slotAvailable(slot, rtlHeader, config.topMenu);
     }
 
     WidgetPlacements.Result place(WidgetDef def, WidgetSlot slot) {

@@ -126,6 +126,41 @@ public class ClockRowLayoutTest {
         assertEquals(8, ClockRowLayout.marginBefore(false, 8, 8));
     }
 
+    @Test public void withTheDateUnderTheTimeTheFirstChipFollowsTheTimeAtAPlainGap() {
+        // Beside the date the weather chip keeps its tuck under the divider; below the time there is none to tuck under.
+        assertEquals(-10, ClockRowLayout.firstChipMargin(true, -10, 16));
+        assertEquals(16, ClockRowLayout.firstChipMargin(false, -10, 16));
+        assertEquals(16, ClockRowLayout.firstChipMargin(false, 8, 16));
+    }
+
+    // ---- where the chips stand -----------------------------------------------------------------------------------
+
+    @Test public void chipsStandRightAfterTheTimeInSlotOrder() {
+        // Time and PM end at 380; the weather chip is 16 after it and 300 wide, Brightness 8 after that.
+        int[] lefts = ClockRowLayout.chipLefts(380, new int[] {16, 8}, new int[] {300, 90});
+        assertArrayEquals(new int[] {396, 704}, lefts);
+    }
+
+    @Test public void aChipLaidOutFarFromTheTimeIsShiftedBackToIt() {
+        int[] lefts = ClockRowLayout.chipLefts(380, new int[] {16}, new int[] {300});
+        assertEquals(396 - 1050, ClockRowLayout.shift(lefts[0], 1050));
+        assertEquals(0, ClockRowLayout.shift(lefts[0], 396));
+    }
+
+    @Test public void noChipsHaveNoPlaces() {
+        assertEquals(0, ClockRowLayout.chipLefts(380, new int[0], new int[0]).length);
+    }
+
+    @Test public void theChipsStillEndBeforeTheTopButtonsWhenTheyFit() {
+        int start = 380, available = 1200;
+        int[] margins = {16, 8};
+        int[] widths = {300, 90};
+        boolean[] fits = ClockRowLayout.fit(available, start, widths, margins, new boolean[] {true, true});
+        int[] lefts = ClockRowLayout.chipLefts(start, margins, widths);
+        assertArrayEquals(new boolean[] {true, true}, fits);
+        assertTrue(lefts[1] + widths[1] <= available);
+    }
+
     // ---- fitting -------------------------------------------------------------------------------------------------
 
     @Test public void bothChipsShowWhenTheRowHasRoom() {

@@ -6,9 +6,13 @@ import android.content.Intent;
 import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.LinearGradient;
+import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.LayerDrawable;
+import android.graphics.drawable.ShapeDrawable;
+import android.graphics.drawable.shapes.RectShape;
 import android.graphics.drawable.StateListDrawable;
 import android.os.Handler;
 import android.os.Looper;
@@ -32,8 +36,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * The Layered Top Shelf above the dock. At rest a crisp rotating wallpaper ({@link ShelfWallpaper}) shows under a light
- * veil. When focus rests on a dock app for {@link TopShelfLogic#DWELL_MS} the shelf shows what that app has in
+ * The Layered Top Shelf above the dock. At rest a crisp rotating picture ({@link ShelfWallpaper}: the add-on's photos, else the launcher's
+ * wallpapers; never show artwork) shows under a light veil, with the photo's credit small at the bottom right. When focus rests on a dock app for {@link TopShelfLogic#DWELL_MS} the shelf shows what that app has in
  * Continue watching (the show's own backdrop, where you are, a Resume button and up to two up-next items); an app with
  * nothing to resume gets its name in large type, and its icon when that can be drawn without enlarging it more than
  * {@link TopShelfLogic#MAX_UPSCALE} times, over the wallpaper. Only a genuine landscape picture
@@ -77,6 +81,13 @@ final class TopShelf {
     private final ShelfWallpaper wall;
     /** The light veil over the wallpaper at rest, and the black stage a real backdrop is shown on. */
     private final View light, stage;
+    /** The left text shade at rest (lighter than behind a shelf's own type); gone while shelf content is up. */
+    private final View restScrim;
+    /** The photo's author and licence: tiny and faint at the bottom right, only while a photo shows on the idle shelf. */
+    private final TextView credit;
+    private String photoCredit = "";
+    /** The dock's top edge last seen, so the credit sits just above the dock. */
+    private int lastDockTop;
     private final FrameLayout content;
     private final ImageView art;
     private final View scrim;
@@ -95,6 +106,7 @@ final class TopShelf {
     private final List<FrameLayout> thumbs = new ArrayList<>();
     private final List<ImageView> thumbImages = new ArrayList<>();
     private final List<TextView> thumbLabels = new ArrayList<>();
+    private final List<View> thumbShades = new ArrayList<>();
 
     private Bitmap artBitmap, cardBitmap;
     private final Bitmap[] thumbBitmaps = new Bitmap[TopShelfLogic.MAX_UP_NEXT];
@@ -125,10 +137,28 @@ final class TopShelf {
         this.density = context.getResources().getDisplayMetrics().density;
         this.accent = accent;
 
-        wall = new ShelfWallpaper(context, container, wallpapers, animations, reducedMotion);
+        wall = new ShelfWallpaper(context, container, wallpapers, animations, reducedMotion, this::onCredit);
         light = new View(context);
         light.setBackground(lightVeil());
         container.addView(light, new FrameLayout.LayoutParams(-1, -1));
+        restScrim = new View(context);
+        restScrim.setBackground(sideScrim(0.55f));
+        restScrim.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        container.addView(restScrim, new FrameLayout.LayoutParams(-1, -1));
+        credit = new TextView(context);
+        credit.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
+        credit.setTextColor(0x66FFFFFF);
+        credit.setTypeface(UiFont.get(context, R.string.font_regular));
+        credit.setSingleLine(true);
+        credit.setEllipsize(TextUtils.TruncateAt.END);
+        credit.setIncludeFontPadding(false);
+        credit.setShadowLayer(dp(3), 0, dp(1), 0x99000000);
+        credit.setMaxWidth(dp(520));
+        credit.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        credit.setVisibility(View.GONE);
+        FrameLayout.LayoutParams creditLp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
+        creditLp.setMarginEnd(dp(TopShelfLogic.SAFE_MARGIN_DP));
+        container.addView(credit, creditLp);
         stage = new View(context);
         stage.setBackgroundColor(Color.BLACK);
         stage.setAlpha(0f);
@@ -145,7 +175,10 @@ final class TopShelf {
         topScrim.setBackground(topVeil());
         topScrim.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         container.addView(topScrim, new FrameLayout.LayoutParams(-1, dp(190)));
-        container.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> sizeTopScrim());
+        container.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            sizeTopScrim();
+            placeCredit();
+        });
 
         art = new ImageView(context);
         art.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -244,6 +277,7 @@ final class TopShelf {
             row.addView(thumb, margins(0, i == 0 ? 0 : TopShelfLogic.UP_NEXT_GAP_DP, 0, 0,
                     TopShelfLogic.UP_NEXT_W_DP, TopShelfLogic.UP_NEXT_W_DP * 9 / 16));            thumbs.add(thumb);
             thumbImages.add(image);
+            thumbShades.add(shade);
             thumbLabels.add(label);
         }
         upNext.addView(row);
@@ -266,6 +300,10 @@ final class TopShelf {
         wantLabel = label;
         wantArt = artwork;
         wantDockTop = dockTop;
+        if (dockTop > 0 && dockTop != lastDockTop) {
+            lastDockTop = dockTop;
+            placeCredit();
+        }
         if (pkg.equals(wantPkg)) return;   // already shown, waiting for its dwell, or resolved to the wallpaper
         wantPkg = pkg;
         generation++;
@@ -432,6 +470,7 @@ final class TopShelf {
         }
         shownPkg = wantPkg;
         shown = what;
+        updateCredit();
         int artHeight = Math.max(1, wantDockTop);
         FrameLayout.LayoutParams artLp = (FrameLayout.LayoutParams) art.getLayoutParams();
         FrameLayout.LayoutParams scrimLp = (FrameLayout.LayoutParams) scrim.getLayoutParams();
@@ -509,8 +548,11 @@ final class TopShelf {
         if (canvasPx <= 0) canvasPx = context.getResources().getDisplayMetrics().widthPixels;
         int canvasDp = Math.round(canvasPx / density);
         float roomDp = (wantDockTop - dp(GAP_DP) - host.headerBottom()) / density - 24;
+        // An up-next item without a thumbnail is a compact text-only card, not a tall empty rectangle.
+        boolean[] hasPic = new boolean[TopShelfLogic.MAX_UP_NEXT];
+        for (int i = 0; i < hasPic.length; i++) hasPic[i] = small != null && small[i] != null;
         TopShelfLogic.UpNextPlan plan = TopShelfLogic.upNextPlan(canvasDp, Math.round(cardW / density) + (cardW > 0 ? 28 : 0),
-                Math.round(roomDp), shelf.upNext.size());
+                Math.round(roomDp), shelf.upNext.size(), hasPic);
         title.setMaxWidth(dp(plan.titleMaxW));
         // The column is exactly one card wide: a wrap_content column was only as wide as its "Up next" caption, so the
         // wider cards overflowed it and ran off the right edge.
@@ -526,8 +568,16 @@ final class TopShelf {
             if (!on) continue;
             ViewGroup.LayoutParams tlp = thumbs.get(i).getLayoutParams();
             tlp.width = dp(plan.cardW);
-            tlp.height = dp(plan.cardH);
+            tlp.height = dp(plan.heights[i]);
             thumbs.get(i).setLayoutParams(tlp);
+            thumbShades.get(i).setVisibility(hasPic[i] ? View.VISIBLE : View.GONE);
+            FrameLayout.LayoutParams llp = (FrameLayout.LayoutParams) thumbLabels.get(i).getLayoutParams();
+            int labelGravity = hasPic[i] ? Gravity.BOTTOM : Gravity.CENTER_VERTICAL;
+            if (llp.gravity != labelGravity) {
+                llp.gravity = labelGravity;
+                thumbLabels.get(i).setLayoutParams(llp);
+            }
+            thumbLabels.get(i).setPadding(dp(10), 0, dp(10), hasPic[i] ? dp(7) : 0);
             TopShelfLogic.Entry e = shelf.upNext.get(i);
             thumbLabels.get(i).setText(e.subtitle.isEmpty() ? e.title : e.subtitle + "\n" + e.title);
             thumbs.get(i).setOnClickListener(v -> launch(e));
@@ -560,6 +610,28 @@ final class TopShelf {
         return size[0];
     }
 
+    /** The wallpaper layer says which credit goes with the picture on screen. */
+    private void onCredit(String text) {
+        photoCredit = text == null ? "" : text;
+        updateCredit();
+    }
+
+    /** Shown only while a photo is up and nothing but the idle shelf is: not over a show, not under an app's name. */
+    private void updateCredit() {
+        boolean on = !photoCredit.isEmpty() && shown == TopShelfLogic.Content.REST && !closed;
+        if (on) credit.setText(photoCredit);
+        credit.setVisibility(on ? View.VISIBLE : View.GONE);
+    }
+
+    private void placeCredit() {
+        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) credit.getLayoutParams();
+        int bottom = lastDockTop > 0 ? container.getHeight() - lastDockTop + dp(8) : dp(12);
+        if (lp.bottomMargin != bottom && container.getHeight() > 0) {
+            lp.bottomMargin = bottom;
+            credit.setLayoutParams(lp);
+        }
+    }
+
     /** The top scrim covers the clock row and a little below it. */
     private void sizeTopScrim() {
         int h = host.headerBottom() + dp(40);
@@ -582,6 +654,8 @@ final class TopShelf {
         content.animate().cancel();
         content.setVisibility(View.VISIBLE);
         wall.setRotating(!onStage);
+        restScrim.animate().cancel();
+        restScrim.animate().alpha(0f).setDuration(ms).start();
         float stageAlpha = onStage ? 1f : 0f;
         if (ms == 0) {
             stage.setAlpha(stageAlpha);
@@ -600,11 +674,15 @@ final class TopShelf {
         if (shown == TopShelfLogic.Content.REST && content.getVisibility() != View.VISIBLE) return;
         shown = TopShelfLogic.Content.REST;
         shownPkg = null;
+        placeCredit();
+        updateCredit();
         host.setTitleHidden(false);
         int ms = fade ? SettingsModel.duration(animations, reducedMotion, 320) : 0;
         stage.animate().cancel();
         content.animate().cancel();
         wall.setRotating(true);
+        restScrim.animate().cancel();
+        restScrim.animate().alpha(1f).setDuration(ms).start();
         if (ms == 0) {
             stage.setAlpha(0f);
             clearContent();
@@ -677,20 +755,35 @@ final class TopShelf {
 
     /** Behind a real backdrop: the strong shading the picture was always given. */
     private Drawable scrimOnBackdrop() {
-        GradientDrawable side = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[] {0xEB000000, 0x99000000, 0x00000000});
         GradientDrawable vertical = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[] {0x99000000, 0x26000000, 0x26000000, 0xFF000000});
-        return new LayerDrawable(new Drawable[] {side, vertical});
+        return new LayerDrawable(new Drawable[] {sideScrim(1f), vertical});
     }
 
     /** Behind type on the wallpaper: a soft shade from the left and the bottom, so the picture stays bright. */
     private Drawable scrimOnWallpaper() {
-        GradientDrawable side = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[] {0x8C000000, 0x40000000, 0x00000000});
         GradientDrawable vertical = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
                 new int[] {0x00000000, 0x00000000, 0x4D000000});
-        return new LayerDrawable(new Drawable[] {side, vertical});
+        return new LayerDrawable(new Drawable[] {sideScrim(1f), vertical});
+    }
+
+    /**
+     * The text scrim: a horizontal gradient from {@link TopShelfLogic#SCRIM_ALPHA} dark at the left edge, fading to
+     * transparent by 60% of the width, so the right of the picture stays as it is. strength scales the darkness.
+     */
+    private static Drawable sideScrim(float strength) {
+        ShapeDrawable d = new ShapeDrawable(new RectShape());
+        d.setShaderFactory(new ShapeDrawable.ShaderFactory() {
+            @Override public Shader resize(int width, int height) {
+                int[] colors = new int[TopShelfLogic.SCRIM_ALPHA.length];
+                for (int i = 0; i < colors.length; i++) {
+                    colors[i] = Math.round(255 * TopShelfLogic.SCRIM_ALPHA[i] * strength) << 24;
+                }
+                return new LinearGradient(0, 0, Math.max(1, width), 0, colors, TopShelfLogic.SCRIM_POS,
+                        Shader.TileMode.CLAMP);
+            }
+        });
+        return d;
     }
 
     private TextView text(int sp, int font, int color) {

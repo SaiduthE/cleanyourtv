@@ -56,6 +56,24 @@ final class ShelfFeed {
         }
     }
 
+    /** The add-on's /photos rows (photo_uri, width, height, credit); empty when the add-on is missing or has none. */
+    static List<TopShelfLogic.Photo> photos(ContentResolver resolver) {
+        try (Cursor c = resolver.query(Uri.parse(TopShelfLogic.PHOTOS_URI), null, null, null, null)) {
+            if (c == null) return Collections.emptyList();
+            int uri = c.getColumnIndex("photo_uri"), w = c.getColumnIndex("width"), h = c.getColumnIndex("height"),
+                    credit = c.getColumnIndex("credit");
+            if (uri < 0) return Collections.emptyList();
+            List<TopShelfLogic.Photo> rows = new ArrayList<>();
+            while (c.moveToNext() && rows.size() < TopShelfLogic.POOL_MAX * 2) {
+                rows.add(new TopShelfLogic.Photo(text(c, uri), w < 0 || c.isNull(w) ? 0 : c.getInt(w),
+                        h < 0 || c.isNull(h) ? 0 : c.getInt(h), text(c, credit)));
+            }
+            return rows;
+        } catch (RuntimeException e) {
+            return Collections.emptyList();
+        }
+    }
+
     private static String text(Cursor c, int column) {
         return column < 0 || c.isNull(column) ? null : c.getString(column);
     }

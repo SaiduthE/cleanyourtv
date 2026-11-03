@@ -26,9 +26,10 @@ import java.util.concurrent.Executors;
 
 /**
  * The Top Shelf's wallpaper: one picture at a time, crossfading to the next every {@link TopShelfLogic#ROTATE_MS}.
- * The pool is the launcher's wallpapers plus the backdrops of the Continue watching feed (all apps) when the add-on
- * is there. Pictures are decoded off the main thread, no larger than 960x540 (cover), and at most two bitmaps are
- * held: the one on screen and the one fading in. Nothing runs while it is stopped (Home hidden) or told not to
+ * The pool is the add-on's photos when it has any (listed off the main thread, the list kept 10 minutes), else the
+ * launcher's wallpapers; the artwork of shows is never in it. Wallpapers are decoded no larger than 960x540 (cover),
+ * photos no larger than the screen (1920x1080 at most), off the main thread, and at most two bitmaps are held: the
+ * one on screen and the one fading in. The credit of the photo on screen is passed to the shelf. Nothing runs while it is stopped (Home hidden) or told not to
  * rotate (a real backdrop covers it), and the bitmaps are let go on stop.
  */
 final class ShelfWallpaper {
@@ -45,8 +46,12 @@ final class ShelfWallpaper {
     private final Set<String> bad = new HashSet<>();
 
     private Bitmap backBitmap, frontBitmap;
-    private List<String> feed = Collections.emptyList();
-    private long feedAt = -TopShelfLogic.CACHE_MS;
+    /** Photo address to its credit line; replaced as a whole by the worker, read on the main thread. */
+    private volatile java.util.Map<String, String> credits = Collections.emptyMap();
+    private List<String> photoUris = Collections.emptyList();
+    private long photosAt = -TopShelfLogic.PHOTOS_CACHE_MS;
+    private final int screenW, screenH;
+    private final Listener listener;
     private String shownKey;
     private boolean running, rotating = true, loading, closed;
     /** Bumped on every stop, so a decode that finishes after it drops its picture. */
@@ -54,9 +59,18 @@ final class ShelfWallpaper {
 
     private final Runnable tick = this::next;
 
+    /** Told on the main thread which credit line goes with the picture now showing ("" for none). */
+    interface Listener {
+        void onCredit(String credit);
+    }
+
     /** Adds the two picture views at the bottom of {@code container}. {@code wallpapers} may be empty. */
     ShelfWallpaper(Context context, FrameLayout container, List<File> wallpapers, boolean animations,
-                   boolean reducedMotion) {
+                   boolean reducedMotion, Listener listener) {
+        this.listener = listener;
+        android.util.DisplayMetrics dm = context.getResources().getDisplayMetrics();
+        this.screenW = dm.widthPixels;
+        this.screenH = dm.heightPixels;
         this.resolver = context.getContentResolver();
         this.animations = animations;
         this.reducedMotion = reducedMotion;
@@ -98,6 +112,7 @@ final class ShelfWallpaper {
         retire(backBitmap);
         frontBitmap = backBitmap = null;
         shownKey = null;
+        if (listener != null) listener.onCredit("");
     }
 
     /** False while a real backdrop covers the wallpaper: the timer rests; true picks it up again. */
@@ -139,14 +154,22 @@ final class ShelfWallpaper {
         });
     }
 
-    /** The wallpapers and the feed's backdrops, minus any that would not decode. The feed is read at most a minute apart. */
+    /** The photos, else the wallpapers, minus any that would not decode. The photo list is read at most every 10 minutes. */
     private List<String> readPool() {
         long now = SystemClock.uptimeMillis();
-        if (now - feedAt >= TopShelfLogic.CACHE_MS) {
-            feed = TopShelfLogic.backdrops(ShelfFeed.query(resolver, null, TopShelfLogic.POOL_FEED_ROWS));
-            feedAt = now;
+        if (TopShelfLogic.photosStale(now, photosAt)) {
+            List<TopShelfLogic.Photo> rows = TopShelfLogic.photos(ShelfFeed.photos(resolver));
+            java.util.Map<String, String> map = new java.util.HashMap<>();
+            List<String> uris = new ArrayList<>();
+            for (TopShelfLogic.Photo p : rows) {
+                uris.add(p.uri);
+                map.put(p.uri, p.credit);
+            }
+            photoUris = uris;
+            credits = map;
+            photosAt = now;
         }
-        List<String> pool = TopShelfLogic.pool(files, feed);
+        List<String> pool = TopShelfLogic.pool(files, photoUris);
         pool.removeAll(bad);
         return pool;
     }
@@ -163,6 +186,10 @@ final class ShelfWallpaper {
         }
         crossfade(bitmap);
         shownKey = key;
+        if (listener != null) {
+            String credit = key == null ? null : credits.get(key);
+            listener.onCredit(credit == null ? "" : credit);
+        }
         // Without animations (a slow TV) the first picture stays; otherwise the next one is due in ROTATE_MS.
         if (animations && poolSize > 1 && rotating) handler.postDelayed(tick, TopShelfLogic.ROTATE_MS);
     }
@@ -216,17 +243,23 @@ final class ShelfWallpaper {
 
     // ---- decoding ---------------------------------------------------------------------------------------------------
 
-    /** A file or a feed picture, no larger than 960x540 to cover; null if it is unreadable or a feed picture is not landscape (aspect 1.5, 640 px wide). */
+    /**
+     * A wallpaper file (no larger than 960x540 to cover) or a photo (no larger than the screen, 1920x1080 at most);
+     * null if it is unreadable or a photo is not landscape (aspect 1.5, 640 px wide).
+     */
     private Bitmap decode(String key) {
-        boolean feedPicture = TopShelfLogic.ownUri(key);
-        return feedPicture ? decode(() -> resolver.openInputStream(Uri.parse(key)), null) : decode(null, new File(key));
+        if (TopShelfLogic.isPhotoUri(key)) {
+            int[] target = TopShelfLogic.photoTarget(screenW, screenH);
+            return decode(() -> resolver.openInputStream(Uri.parse(key)), null, target[0], target[1]);
+        }
+        return decode(null, new File(key), W, H);
     }
 
     private interface Opener {
         InputStream open() throws IOException;
     }
 
-    private static Bitmap decode(Opener opener, File file) {
+    private static Bitmap decode(Opener opener, File file, int targetW, int targetH) {
         try {
             BitmapFactory.Options bounds = new BitmapFactory.Options();
             bounds.inJustDecodeBounds = true;
@@ -240,13 +273,13 @@ final class ShelfWallpaper {
             }
             int w = bounds.outWidth, h = bounds.outHeight;
             if (w <= 0 || h <= 0) return null;
-            // A feed picture is a wallpaper only when it is a genuine landscape picture: never a poster or a cover.
+            // A photo is a wallpaper only when it is a genuine landscape picture.
             if (opener != null && !TopShelfLogic.isBackdrop(w, h)) return null;
-            int sample = WallpaperSize.sampleSize(w, h, W, H);
+            int sample = WallpaperSize.sampleSize(w, h, targetW, targetH);
             if (!WallpaperSize.accepted(w / sample, h / sample)) return null;
             BitmapFactory.Options options = new BitmapFactory.Options();
             options.inSampleSize = sample;
-            int[] scale = WallpaperSize.coverScale(w / sample, h / sample, W, H);
+            int[] scale = WallpaperSize.coverScale(w / sample, h / sample, targetW, targetH);
             if (scale != null) {
                 options.inScaled = true;
                 options.inDensity = scale[0];

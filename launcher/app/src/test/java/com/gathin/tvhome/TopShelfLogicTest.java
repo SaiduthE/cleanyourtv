@@ -1,5 +1,6 @@
 package com.gathin.tvhome;
 
+import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNotNull;
@@ -186,7 +187,6 @@ public class TopShelfLogicTest {
         assertEquals(Collections.singletonList(next), shelf.upNext);
         assertEquals(Content.RESUME, TopShelfLogic.select(Mode.LAYERED, true, true, true, true));
         assertNull("a poster is never offered as a backdrop", plex.backdropUri());
-        assertTrue(TopShelfLogic.backdrops(Collections.singletonList(plex)).isEmpty());
     }
 
     @Test public void anIconIsShownOnlyUnderOneAndAHalfTimesUpscaling() {
@@ -202,19 +202,49 @@ public class TopShelfLogicTest {
         assertFalse(TopShelfLogic.iconCrisp(320, 180, 100));
     }
 
-    @Test public void feedBackdropsAreOwnAndDistinct() {
-        Entry a = row("resume", "A", "", 1, "p");
-        Entry b = new Entry("resume", "B", "", 0, "p", null, "content://evil/x", null);
-        Entry c = new Entry("next", "C", "", 0, "q", null, null, PIC);   // a poster is not a backdrop
-        assertEquals(Collections.singletonList(PIC),
-                TopShelfLogic.backdrops(Arrays.asList(a, b, c, row("next", "D", "", 0, "q"))));
-        assertTrue(TopShelfLogic.backdrops(null).isEmpty());
+    private static final String PHOTO = "content://" + TopShelfLogic.AUTHORITY + "/photo/a.jpg";
+    private static final String PHOTO2 = "content://" + TopShelfLogic.AUTHORITY + "/photo/b.jpg";
+
+    @Test public void photosAreOwnLandscapeAndDistinct() {
+        TopShelfLogic.Photo ok = new TopShelfLogic.Photo(PHOTO, 3840, 2160, " Jane Doe, CC0 ");
+        TopShelfLogic.Photo dup = new TopShelfLogic.Photo(PHOTO, 3840, 2160, "again");
+        TopShelfLogic.Photo portrait = new TopShelfLogic.Photo(PHOTO2, 1080, 1920, "x");
+        TopShelfLogic.Photo foreign = new TopShelfLogic.Photo("content://evil/photo/x.jpg", 3840, 2160, "x");
+        TopShelfLogic.Photo showArt = new TopShelfLogic.Photo(PIC, 3840, 2160, "x");   // an /items picture is not a photo
+        TopShelfLogic.Photo unsized = new TopShelfLogic.Photo(PHOTO2, 0, 0, null);
+        java.util.List<TopShelfLogic.Photo> rows = TopShelfLogic.photos(
+                Arrays.asList(ok, dup, portrait, foreign, showArt, null, unsized));
+        assertEquals(2, rows.size());
+        assertSame(ok, rows.get(0));
+        assertEquals("Jane Doe, CC0", rows.get(0).credit);
+        assertSame(unsized, rows.get(1));
+        assertEquals("", unsized.credit);
+        assertTrue(TopShelfLogic.photos(null).isEmpty());
+        assertTrue(TopShelfLogic.isPhotoUri(PHOTO));
+        assertFalse(TopShelfLogic.isPhotoUri(PIC));
+        assertFalse(TopShelfLogic.isPhotoUri(null));
     }
 
-    @Test public void poolJoinsWallpapersAndBackdropsOnce() {
-        assertEquals(Arrays.asList("/w/a.jpg", "/w/b.jpg", PIC),
-                TopShelfLogic.pool(Arrays.asList("/w/a.jpg", "/w/b.jpg", "/w/a.jpg"), Arrays.asList(PIC, "/w/b.jpg")));
+    @Test public void poolIsPhotosFirstThenWallpapersAndNeverShowArtwork() {
+        java.util.List<String> walls = Arrays.asList("/w/a.jpg", "/w/b.jpg", "/w/a.jpg");
+        // Photos win outright; the launcher wallpapers are the fallback only.
+        assertEquals(Arrays.asList(PHOTO, PHOTO2), TopShelfLogic.pool(walls, Arrays.asList(PHOTO, PHOTO2, PHOTO)));
+        assertEquals(Arrays.asList("/w/a.jpg", "/w/b.jpg"), TopShelfLogic.pool(walls, Collections.<String>emptyList()));
+        assertEquals(Arrays.asList("/w/a.jpg", "/w/b.jpg"), TopShelfLogic.pool(walls, null));
+        assertEquals(Arrays.asList(PHOTO), TopShelfLogic.pool(null, Arrays.asList(null, PHOTO)));
         assertTrue(TopShelfLogic.pool(null, null).isEmpty());
+        // There is no way to put a Continue watching picture in: the pool takes only these two lists.
+        assertFalse(TopShelfLogic.pool(walls, Arrays.asList(PHOTO)).contains(PIC));
+    }
+
+    @Test public void photoListIsKeptTenMinutesAndDecodedAtScreenSizeAtMost() {
+        assertFalse(TopShelfLogic.photosStale(1_000, 0));
+        assertFalse(TopShelfLogic.photosStale(599_999, 0));
+        assertTrue(TopShelfLogic.photosStale(600_000, 0));
+        assertTrue(TopShelfLogic.photosStale(0, -TopShelfLogic.PHOTOS_CACHE_MS));
+        assertArrayEquals(new int[] {1920, 1080}, TopShelfLogic.photoTarget(3840, 2160));
+        assertArrayEquals(new int[] {1280, 720}, TopShelfLogic.photoTarget(1280, 720));
+        assertArrayEquals(new int[] {1920, 1080}, TopShelfLogic.photoTarget(0, 0));
     }
 
     @Test public void poolIsCapped() {
@@ -240,7 +270,7 @@ public class TopShelfLogicTest {
     }
 
     @Test public void wallpaperTimingsMatchTheBrief() {
-        assertTrue(TopShelfLogic.ROTATE_MS >= 10_000 && TopShelfLogic.ROTATE_MS <= 12_000);
+        assertTrue(TopShelfLogic.ROTATE_MS >= 11_000 && TopShelfLogic.ROTATE_MS <= 13_000);
         assertEquals(1.5f, TopShelfLogic.MAX_UPSCALE, 0f);
     }
 
@@ -297,5 +327,33 @@ public class TopShelfLogicTest {
         assertTrue(p.titleMaxW < TopShelfLogic.TITLE_MAX_W_DP);
         int left = 960 - TopShelfLogic.SAFE_MARGIN_DP - 248 - p.cardW;
         assertTrue(left >= TopShelfLogic.SAFE_MARGIN_DP + p.titleMaxW + TopShelfLogic.BLOCK_GAP_DP);
+    }
+
+    @Test public void textScrimIs75PercentAtTheLeftAndGoneBy60PercentOfTheWidth() {
+        assertEquals(TopShelfLogic.SCRIM_POS.length, TopShelfLogic.SCRIM_ALPHA.length);
+        assertEquals(0f, TopShelfLogic.SCRIM_POS[0], 0f);
+        assertEquals(0.75f, TopShelfLogic.SCRIM_ALPHA[0], 0f);
+        int last = TopShelfLogic.SCRIM_POS.length - 1;
+        assertEquals(0.6f, TopShelfLogic.SCRIM_POS[last], 0f);
+        assertEquals(0f, TopShelfLogic.SCRIM_ALPHA[last], 0f);
+        for (int i = 1; i <= last; i++) {
+            assertTrue(TopShelfLogic.SCRIM_POS[i] > TopShelfLogic.SCRIM_POS[i - 1]);
+            assertTrue(TopShelfLogic.SCRIM_ALPHA[i] < TopShelfLogic.SCRIM_ALPHA[i - 1]);
+        }
+    }
+
+    @Test public void anUpNextCardWithoutAThumbnailIsACompactTextCard() {
+        TopShelfLogic.UpNextPlan p = TopShelfLogic.upNextPlan(960, 0, 300, 2, new boolean[] {false, false});
+        assertEquals(2, p.count);
+        assertEquals(TopShelfLogic.UP_NEXT_TEXT_H_DP, p.heights[0]);
+        assertEquals(TopShelfLogic.UP_NEXT_TEXT_H_DP, p.heights[1]);
+        TopShelfLogic.UpNextPlan mix = TopShelfLogic.upNextPlan(960, 0, 300, 2, new boolean[] {true, false});
+        assertEquals(123, mix.heights[0]);
+        assertEquals(TopShelfLogic.UP_NEXT_TEXT_H_DP, mix.heights[1]);
+        // Text cards are short enough that two fit where two thumbnails would not.
+        assertEquals(1, TopShelfLogic.upNextPlan(960, 0, 255, 2).count);
+        assertEquals(2, TopShelfLogic.upNextPlan(960, 0, 255, 2, new boolean[] {false, false}).count);
+        // Without the array every card has a picture, as before.
+        assertEquals(123, TopShelfLogic.upNextPlan(960, 0, 300, 2).heights[0]);
     }
 }

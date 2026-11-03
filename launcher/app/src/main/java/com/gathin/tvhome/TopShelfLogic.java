@@ -52,6 +52,14 @@ final class TopShelfLogic {
     /** Up-next cards: a fixed width (16:9), the gap between stacked cards, and the "Up next" caption above them. */
     static final int UP_NEXT_W_DP = 220, UP_NEXT_MIN_W_DP = 150, UP_NEXT_GAP_DP = 12, UP_NEXT_CAPTION_DP = 24;
     static final int UP_NEXT_MIN_H_DP = 56;
+    /** An up-next card with no thumbnail is a compact text-only card this tall, not an empty 16:9 rectangle. */
+    static final int UP_NEXT_TEXT_H_DP = 60;
+    /**
+     * The left text scrim as fractions of the picture's width: 75% dark at the left edge, fading to nothing by 60%.
+     * Alphas are 0..1 at the matching positions.
+     */
+    static final float[] SCRIM_POS = {0f, 0.3f, 0.6f};
+    static final float[] SCRIM_ALPHA = {0.75f, 0.38f, 0f};
     /** The title is at most this wide; the up-next column keeps {@link #BLOCK_GAP_DP} clear of it. */
     static final int TITLE_MAX_W_DP = 460, BLOCK_GAP_DP = 24;
     /** The room the resume block needs between the header and the dock. */
@@ -65,15 +73,18 @@ final class TopShelfLogic {
     /** No icon or banner is ever drawn larger than this many times its own size. */
     static final float MAX_UPSCALE = 1.5f;
     /** The wallpaper layer changes picture this often, crossfading over {@link #FADE_MS}. */
-    static final long ROTATE_MS = 11_000;
+    static final long ROTATE_MS = 12_000;
     static final int FADE_MS = 1600;
     /** The most pictures the wallpaper pool will hold. */
     static final int POOL_MAX = 40;
-    /** The feed rows read for the wallpaper pool (the app shelves read only 3). */
-    static final int POOL_FEED_ROWS = 12;
+    /** The photo list is read again at most this often; photos are decoded no larger than this. */
+    static final long PHOTOS_CACHE_MS = 600_000;
+    static final int PHOTO_W = 1920, PHOTO_H = 1080;
 
     static final String AUTHORITY = "com.cleanlook.continuewatching.shelf";
     static final String ITEMS_URI = "content://" + AUTHORITY + "/items";
+    static final String PHOTOS_URI = "content://" + AUTHORITY + "/photos";
+    private static final String PHOTO_URI_PREFIX = "content://" + AUTHORITY + "/photo/";
 
     private TopShelfLogic() { }
 
@@ -203,26 +214,67 @@ final class TopShelfLogic {
         return targetPx <= Math.min(intrinsicW, intrinsicH) * MAX_UPSCALE;
     }
 
-    /** The Continue watching rows' own backdrop addresses, each once, in order: pictures for the wallpaper pool. */
-    static List<String> backdrops(List<Entry> rows) {
-        List<String> out = new ArrayList<>();
+    /** One row of the add-on's /photos feed: a landscape photo and the author/licence line to show with it. */
+    static final class Photo {
+        final String uri, credit;
+        final int width, height;
+
+        Photo(String uri, int width, int height, String credit) {
+            this.uri = uri;
+            this.width = width;
+            this.height = height;
+            this.credit = credit == null ? "" : credit.trim();
+        }
+    }
+
+    /** Only the add-on's own cached photos are opened: content://AUTHORITY/photo/<name>. */
+    static boolean isPhotoUri(String uri) {
+        return ownUri(uri) && uri.toLowerCase(Locale.ROOT).startsWith(PHOTO_URI_PREFIX);
+    }
+
+    /**
+     * The photo rows that may be shown, each address once, in order: an own photo address, and landscape when the
+     * row says how big it is (a missing size is checked again when the picture is decoded).
+     */
+    static List<Photo> photos(List<Photo> rows) {
+        List<Photo> out = new ArrayList<>();
         if (rows == null) return out;
-        for (Entry e : rows) {
-            if (e != null && ownUri(e.backdrop) && !out.contains(e.backdrop)) out.add(e.backdrop);
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (Photo p : rows) {
+            if (p == null || !isPhotoUri(p.uri) || seen.contains(p.uri)) continue;
+            if (p.width > 0 && p.height > 0 && !isBackdrop(p.width, p.height)) continue;
+            seen.add(p.uri);
+            out.add(p);
+            if (out.size() >= POOL_MAX) break;
         }
         return out;
     }
 
-    /** The wallpaper pool: the launcher's wallpaper paths, then the feed's backdrops, without repeats, at most POOL_MAX. */
-    static List<String> pool(List<String> wallpapers, List<String> backdrops) {
+    /**
+     * The picture pool behind the shelf: the photos first; when there are none (the add-on is missing or has no
+     * photos yet) the launcher/theme wallpapers. Show artwork from the feed is never in it. No repeats, at most POOL_MAX.
+     */
+    static List<String> pool(List<String> wallpapers, List<String> photoUris) {
         List<String> out = new ArrayList<>();
-        for (List<String> source : java.util.Arrays.asList(wallpapers, backdrops)) {
-            if (source == null) continue;
-            for (String key : source) {
-                if (key != null && !out.contains(key) && out.size() < POOL_MAX) out.add(key);
-            }
+        boolean hasPhotos = false;
+        if (photoUris != null) for (String key : photoUris) if (key != null) hasPhotos = true;
+        List<String> source = hasPhotos ? photoUris : wallpapers;
+        if (source == null) return out;
+        for (String key : source) {
+            if (key != null && !out.contains(key) && out.size() < POOL_MAX) out.add(key);
         }
         return out;
+    }
+
+    /** The photo's decode size: the screen's own, never more than 1920x1080. */
+    static int[] photoTarget(int screenW, int screenH) {
+        if (screenW <= 0 || screenH <= 0) return new int[] {PHOTO_W, PHOTO_H};
+        return new int[] {Math.min(PHOTO_W, screenW), Math.min(PHOTO_H, screenH)};
+    }
+
+    /** Whether the photo list read at {@code at} must be read again at {@code now}. */
+    static boolean photosStale(long now, long at) {
+        return now - at >= PHOTOS_CACHE_MS;
     }
 
     /** The next picture to show: any but the current one (when there is a choice); -1 for an empty pool. */
@@ -236,6 +288,8 @@ final class TopShelfLogic {
     /** Where the up-next column goes, in dp: how many cards, how big, and how wide the title may be. */
     static final class UpNextPlan {
         final int count, cardW, cardH, titleMaxW;
+        /** Each card's own height: a card with a thumbnail is 16:9, one without is a compact text card. */
+        final int[] heights = new int[MAX_UP_NEXT];
         /** The column's fixed width (the card width), its distance from the screen's right edge, and its left/right edges. */
         final int columnW, marginEnd, left, right;
 
@@ -258,6 +312,11 @@ final class TopShelfLogic {
      * cards narrow to at most {@link #UP_NEXT_MIN_W_DP} and the title's maximum width gives way, so nothing overlaps.
      */
     static UpNextPlan upNextPlan(int canvasWDp, int rightReserveDp, int roomHDp, int count) {
+        return upNextPlan(canvasWDp, rightReserveDp, roomHDp, count, null);
+    }
+
+    /** As above; hasPic[i] false makes card i a compact text-only card ({@link #UP_NEXT_TEXT_H_DP}); null means all have one. */
+    static UpNextPlan upNextPlan(int canvasWDp, int rightReserveDp, int roomHDp, int count, boolean[] hasPic) {
         int rightEdge = canvasWDp - SAFE_MARGIN_DP - Math.max(0, rightReserveDp);
         int blockRight = SAFE_MARGIN_DP + TITLE_MAX_W_DP;
         int availW = rightEdge - blockRight - BLOCK_GAP_DP;
@@ -266,13 +325,23 @@ final class TopShelfLogic {
         if (count <= 0) return new UpNextPlan(canvasWDp, rightReserveDp, 0, w, w * 9 / 16, titleMax);
         int h = w * 9 / 16;
         int avail = roomHDp - UP_NEXT_CAPTION_DP;
-        int fit = (avail + UP_NEXT_GAP_DP) / (h + UP_NEXT_GAP_DP);
-        int n = Math.min(count, Math.min(MAX_UP_NEXT, fit));
+        int[] hs = new int[MAX_UP_NEXT];
+        int n = 0, used = 0;
+        for (int i = 0; i < Math.min(count, MAX_UP_NEXT); i++) {
+            int hi = hasPic == null || (i < hasPic.length && hasPic[i]) ? h : Math.min(h, UP_NEXT_TEXT_H_DP);
+            int need = used + (i > 0 ? UP_NEXT_GAP_DP : 0) + hi;
+            if (need > avail) break;
+            used = need;
+            hs[n++] = hi;
+        }
         if (n < 1) {
             n = 1;
-            h = Math.max(UP_NEXT_MIN_H_DP, Math.min(h, avail));
+            boolean pic = hasPic == null || (hasPic.length > 0 && hasPic[0]);
+            hs[0] = Math.max(UP_NEXT_MIN_H_DP, Math.min(pic ? h : Math.min(h, UP_NEXT_TEXT_H_DP), avail));
         }
-        return new UpNextPlan(canvasWDp, rightReserveDp, n, w, h, titleMax);
+        UpNextPlan plan = new UpNextPlan(canvasWDp, rightReserveDp, n, w, hs[0], titleMax);
+        System.arraycopy(hs, 0, plan.heights, 0, hs.length);
+        return plan;
     }
 
     static boolean roomForResume(float availableDp) {

@@ -160,7 +160,16 @@ public class ShelfRowsTest {
         trailer.season = 0;
         trailer.episode = 1;
         in.add(trailer);
+        // A trailer with no episode name gets no episode label at all.
+        String bare = ShelfRows.build(in, null, 1, IMAGES, LABELS, LINKS).get(0).subtitle;
+        assertTrue(bare, !bare.contains("Special") && !bare.startsWith("S0"));
+        trailer.episodeTitle = "Behind the Scenes";
         assertEquals("Special", ShelfRows.build(in, null, 1, IMAGES, LABELS, LINKS).get(0).subtitle);
+        trailer.episodeTitle = "";
+        Item real = item("wn:3", "com.plexapp.android", "The Carol Burnett Show", Item.RESUME, 5000, 0.1f);
+        real.season = 1;
+        real.episode = 14;
+        assertEquals("S1 · E14", real.subtitle());
 
         Item film = item("wn:2", "com.plexapp.android", "A Film", Item.RESUME, 5000, 0.1f);
         film.season = -1;

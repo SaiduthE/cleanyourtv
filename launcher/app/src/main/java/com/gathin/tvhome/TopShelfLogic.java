@@ -236,12 +236,18 @@ final class TopShelfLogic {
     /** Where the up-next column goes, in dp: how many cards, how big, and how wide the title may be. */
     static final class UpNextPlan {
         final int count, cardW, cardH, titleMaxW;
+        /** The column's fixed width (the card width), its distance from the screen's right edge, and its left/right edges. */
+        final int columnW, marginEnd, left, right;
 
-        UpNextPlan(int count, int cardW, int cardH, int titleMaxW) {
+        UpNextPlan(int canvasWDp, int rightReserveDp, int count, int cardW, int cardH, int titleMaxW) {
             this.count = count;
             this.cardW = cardW;
             this.cardH = cardH;
             this.titleMaxW = titleMaxW;
+            this.columnW = cardW;
+            this.marginEnd = SAFE_MARGIN_DP + Math.max(0, rightReserveDp);
+            this.right = canvasWDp - marginEnd;
+            this.left = right - columnW;
         }
     }
 
@@ -257,7 +263,7 @@ final class TopShelfLogic {
         int availW = rightEdge - blockRight - BLOCK_GAP_DP;
         int w = Math.max(UP_NEXT_MIN_W_DP, Math.min(UP_NEXT_W_DP, availW));
         int titleMax = Math.max(0, Math.min(TITLE_MAX_W_DP, rightEdge - w - BLOCK_GAP_DP - SAFE_MARGIN_DP));
-        if (count <= 0) return new UpNextPlan(0, w, w * 9 / 16, titleMax);
+        if (count <= 0) return new UpNextPlan(canvasWDp, rightReserveDp, 0, w, w * 9 / 16, titleMax);
         int h = w * 9 / 16;
         int avail = roomHDp - UP_NEXT_CAPTION_DP;
         int fit = (avail + UP_NEXT_GAP_DP) / (h + UP_NEXT_GAP_DP);
@@ -266,7 +272,7 @@ final class TopShelfLogic {
             n = 1;
             h = Math.max(UP_NEXT_MIN_H_DP, Math.min(h, avail));
         }
-        return new UpNextPlan(n, w, h, titleMax);
+        return new UpNextPlan(canvasWDp, rightReserveDp, n, w, h, titleMax);
     }
 
     static boolean roomForResume(float availableDp) {

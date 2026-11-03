@@ -54,12 +54,20 @@ final class Item {
 
     /** "S2 · E4", "Special", the episode's name, the year, or the length; empty when none is known. */
     String subtitle() {
-        String e = Text.episodeLabel(season, episode);
+        // Season 0 is a special only with a real episode name; a trailer or extra with none gets no episode label.
+        boolean bareSpecial = season == 0 && !realEpisodeTitle();
+        String e = bareSpecial ? null : Text.episodeLabel(season, episode);
         if (e != null) return e;
         if (!episodeTitle.isEmpty()) return episodeTitle;
         if (year > 0) return String.valueOf(year);
         if (durationMs > 0) return Text.duration(durationMs);
         return "";
+    }
+
+    /** An episode name that says something: at least three characters and not just the show's own title. */
+    private boolean realEpisodeTitle() {
+        String t = episodeTitle == null ? "" : episodeTitle.trim();
+        return t.length() >= 3 && !t.equalsIgnoreCase(title == null ? "" : title.trim());
     }
 
     long remainingMs() {

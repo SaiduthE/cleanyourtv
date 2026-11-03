@@ -242,13 +242,12 @@ final class TopShelf {
             thumb.setForeground(stateBackground(0, 0, 0, dp(8), 0xFFFFFFFF));
             focusable(thumb, 1.08f);
             row.addView(thumb, margins(0, i == 0 ? 0 : TopShelfLogic.UP_NEXT_GAP_DP, 0, 0,
-                    TopShelfLogic.UP_NEXT_W_DP, TopShelfLogic.UP_NEXT_W_DP * 9 / 16));
-            thumbs.add(thumb);
+                    TopShelfLogic.UP_NEXT_W_DP, TopShelfLogic.UP_NEXT_W_DP * 9 / 16));            thumbs.add(thumb);
             thumbImages.add(image);
             thumbLabels.add(label);
         }
         upNext.addView(row);
-        FrameLayout.LayoutParams upLp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
+        FrameLayout.LayoutParams upLp = new FrameLayout.LayoutParams(dp(TopShelfLogic.UP_NEXT_W_DP), -2, Gravity.BOTTOM | Gravity.END);
         upLp.setMarginEnd(dp(TopShelfLogic.SAFE_MARGIN_DP));
         content.addView(upNext, upLp);
         block.setVisibility(View.GONE);
@@ -504,15 +503,21 @@ final class TopShelf {
         int cardW = placeCard(backdrop == null ? cardPic : null);
         if (backdrop != null) recycle(cardPic);
         FrameLayout.LayoutParams upLp = (FrameLayout.LayoutParams) upNext.getLayoutParams();
-        int upEnd = dp(TopShelfLogic.SAFE_MARGIN_DP) + (cardW > 0 ? cardW + dp(28) : 0);
-        int canvasDp = Math.round(container.getWidth() / density);
-        if (canvasDp <= 0) canvasDp = 960;
+        // The canvas is the screen's own measured width, never an assumed one.
+        int canvasPx = container.getWidth();
+        if (canvasPx <= 0 && container.getRootView() != null) canvasPx = container.getRootView().getWidth();
+        if (canvasPx <= 0) canvasPx = context.getResources().getDisplayMetrics().widthPixels;
+        int canvasDp = Math.round(canvasPx / density);
         float roomDp = (wantDockTop - dp(GAP_DP) - host.headerBottom()) / density - 24;
         TopShelfLogic.UpNextPlan plan = TopShelfLogic.upNextPlan(canvasDp, Math.round(cardW / density) + (cardW > 0 ? 28 : 0),
                 Math.round(roomDp), shelf.upNext.size());
         title.setMaxWidth(dp(plan.titleMaxW));
-        if (upLp.getMarginEnd() != upEnd) {
+        // The column is exactly one card wide: a wrap_content column was only as wide as its "Up next" caption, so the
+        // wider cards overflowed it and ran off the right edge.
+        int upEnd = dp(plan.marginEnd), upW = dp(plan.columnW);
+        if (upLp.getMarginEnd() != upEnd || upLp.width != upW) {
             upLp.setMarginEnd(upEnd);
+            upLp.width = upW;
             upNext.setLayoutParams(upLp);
         }
         for (int i = 0; i < thumbs.size(); i++) {

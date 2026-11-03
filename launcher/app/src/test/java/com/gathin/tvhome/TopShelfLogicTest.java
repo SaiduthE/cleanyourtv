@@ -260,6 +260,26 @@ public class TopShelfLogicTest {
         assertEquals(2, TopShelfLogic.upNextPlan(960, 0, 600, 5).count);
     }
 
+    @Test public void upNextColumnIsAFixedWidthMeasuredFromTheRightEdge() {
+        // The column is exactly one card wide and ends at the right safe margin, equal to the left one.
+        TopShelfLogic.UpNextPlan p = TopShelfLogic.upNextPlan(960, 0, 300, 2);
+        assertEquals(p.cardW, p.columnW);
+        assertEquals(TopShelfLogic.SAFE_MARGIN_DP, p.marginEnd);
+        assertEquals(960 - 58, p.right);
+        assertEquals(960 - 58 - 220, p.left);
+        // Any canvas width: nothing past the right margin, and the column keeps its width.
+        for (int w : new int[] {800, 960, 1280, 1920}) {
+            TopShelfLogic.UpNextPlan q = TopShelfLogic.upNextPlan(w, 0, 300, 2);
+            assertTrue(q.right <= w - TopShelfLogic.SAFE_MARGIN_DP);
+            assertEquals(q.columnW, q.right - q.left);
+            assertTrue(q.left >= 0);
+        }
+        // A poster card beside it moves the column left by its width and gap, never right.
+        TopShelfLogic.UpNextPlan beside = TopShelfLogic.upNextPlan(960, 248, 300, 2);
+        assertEquals(58 + 248, beside.marginEnd);
+        assertEquals(960 - 58 - 248, beside.right);
+    }
+
     @Test public void upNextFitsTheHeightItIsGiven() {
         // 255 dp: the caption (24) leaves 231, enough for one card (123) but not two (258).
         assertEquals(1, TopShelfLogic.upNextPlan(960, 0, 255, 2).count);

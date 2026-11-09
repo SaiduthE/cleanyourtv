@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The "+ Add source" tile: a dashed outline at rest. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_focused="true">
+        <shape android:shape="rectangle">
+            <solid android:color="@color/surface_high" />
+            <stroke android:width="3dp" android:color="@color/focus" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="#00000000" />
+            <stroke
+                android:width="2dp"
+                android:color="@color/text_faint"
+                android:dashGap="5dp"
+                android:dashWidth="7dp" />
+            <corners android:radius="14dp" />
+        </shape>
+    </item>
+</selector>

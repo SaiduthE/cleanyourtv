@@ -246,4 +246,39 @@ public class DimmingTest {
         assertEquals(Dimming.Night.OFF, Dimming.nightAfterToggle(false, Dimming.Night.OFF));
         assertEquals(Dimming.Night.OFF, Dimming.nightAfterToggle(false, Dimming.Night.ON));
     }
+
+    @Test
+    public void quickStepFromOffStartsAtFullAndSwitchesOn() {
+        Dimming.Settings s = new Dimming.Settings();
+        assertFalse(Dimming.quickStep(s, false, 1, 0));
+        assertFalse(s.on);
+        assertEquals(100, Dimming.levelInUse(s, false));
+        assertTrue(Dimming.quickStep(s, false, -1, 0));
+        assertTrue(s.on);
+        assertEquals(95, s.brightness);
+        assertEquals(100, s.nightBrightness);
+    }
+
+    @Test
+    public void quickStepUsesTheNightLevelAtNightAndAFixedSize() {
+        Dimming.Settings s = on();
+        s.brightness = 70;
+        s.nightBrightness = 40;
+        Dimming.quickStep(s, true, -1, 10);
+        assertEquals(30, s.nightBrightness);
+        assertEquals(70, s.brightness);
+        assertEquals(30, Dimming.levelInUse(s, true));
+        assertEquals(70, Dimming.levelInUse(s, false));
+        assertEquals(1, Dimming.stepBy(5, -1, 10));
+        assertEquals(100, Dimming.stepBy(95, 1, 10));
+    }
+
+    @Test
+    public void onlyTheLauncherSameKeyAndTheAppItselfMayUseTheQuickProvider() {
+        assertTrue(QuickAccess.allowed(true, false, null));
+        assertTrue(QuickAccess.allowed(false, true, "x.y"));
+        assertTrue(QuickAccess.allowed(false, false, QuickAccess.LAUNCHER_PACKAGE));
+        assertFalse(QuickAccess.allowed(false, false, "evil.app"));
+        assertFalse(QuickAccess.allowed(false, false, null));
+    }
 }

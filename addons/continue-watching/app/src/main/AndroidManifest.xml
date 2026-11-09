@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <!-- Only the Jellyfin server the owner types in, the pictures that server and the Watch Next rows point to, and
+         commons.wikimedia.org / upload.wikimedia.org (https) for the Top Shelf photos. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Top Shelf photos: whether there is a connection, and whether it is metered. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Reads the Watch Next rows other apps publish (docs/watch-next.md). Granted from Sources, or by adb. -->
+    <uses-permission android:name="android.permission.READ_TV_LISTINGS" />
+
+    <!-- Android 11 hides other apps unless they are named: the ones with a TV launcher icon, and the Jellyfin client. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+        </intent>
+        <package android:name="org.jellyfin.androidtv" />
+    </queries>
+
+    <application
+        android:name=".App"
+        android:allowBackup="false"
+        android:banner="@drawable/banner"
+        android:icon="@drawable/icon"
+        android:label="@string/app_name"
+        android:supportsRtl="false"
+        android:theme="@style/Theme.CW"
+        android:usesCleartextTraffic="true">
+
+        <activity
+            android:name=".HubActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:screenOrientation="landscape">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+            <!-- The launcher's Top Shelf card: starts a title, or just opens the page. -->
+            <intent-filter>
+                <action android:name="com.cleanlook.continuewatching.action.RESUME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <!-- Clean Your TV module card (docs/specs/card.md). -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="com.gathin.tvhome.category.DOCK_CARD" />
+            </intent-filter>
+            <meta-data android:name="com.gathin.tvhome.card" android:resource="@xml/module_card" />
+        </activity>
+
+        <activity
+            android:name=".SourcesActivity"
+            android:exported="false"
+            android:screenOrientation="landscape" />
+
+        <activity
+            android:name=".JellyfinActivity"
+            android:exported="false"
+            android:screenOrientation="landscape"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- Every three days on an unmetered network: new Top Shelf photos from Wikimedia Commons. -->
+        <service
+            android:name=".PhotoJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+
+        <!-- The Top Shelf feed. Exported, but ShelfProvider answers only this app, the launcher and same-key apps. -->
+        <provider
+            android:name=".ShelfProvider"
+            android:authorities="com.cleanlook.continuewatching.shelf"
+            android:exported="true" />
+    </application>
+</manifest>

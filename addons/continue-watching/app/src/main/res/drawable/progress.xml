@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The thin resume bar at the foot of a card; the fill is tinted with the accent in code. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape android:shape="rectangle"><solid android:color="#40FFFFFF" /></shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <clip>
+            <shape android:shape="rectangle"><solid android:color="@color/accent" /></shape>
+        </clip>
+    </item>
+</layer-list>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The TV banner: a card with a play mark and a half-full resume bar. Drawn for this add-on. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp" android:height="180dp"
+    android:viewportWidth="320" android:viewportHeight="180">
+    <path android:fillColor="#FF0A0C10" android:pathData="M0,0h320v180h-320z" />
+    <path android:fillColor="#FF1E2430" android:pathData="M60,34h200a10,10 0,0 1,10 10v92a10,10 0,0 1,-10 10h-200a10,10 0,0 1,-10 -10v-92a10,10 0,0 1,10 -10z" />
+    <path android:fillColor="#FF7AB8FF" android:pathData="M146,62l40,24l-40,24z" />
+    <path android:fillColor="#40FFFFFF" android:pathData="M50,142h220v4h-220z" />
+    <path android:fillColor="#FF7AB8FF" android:pathData="M50,142h118v4h-118z" />
+</vector>

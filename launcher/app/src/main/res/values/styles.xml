@@ -6,6 +6,15 @@
         <item name="android:windowAnimationStyle">@null</item>
     </style>
 
+    <!-- Launcher settings and Remote buttons: a card on the right over a dimmed Home, not a full screen. The window
+         itself is sized and dimmed in SettingsPanel. -->
+    <style name="Theme.TvHome.Panel" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorBackgroundCacheHint">@null</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+
     <!-- Frosted pill, tvOS style. -->
     <style name="TopButtonBase">
         <item name="android:layout_width">wrap_content</item>
@@ -33,24 +42,5 @@
         <item name="android:paddingStart">10dp</item>
         <item name="android:paddingEnd">10dp</item>
         <item name="android:drawablePadding">0dp</item>
-    </style>
-
-    <style name="SettingsRow">
-        <item name="android:layout_width">match_parent</item>
-        <item name="android:layout_height">52dp</item>
-        <item name="android:gravity">center_vertical</item>
-        <item name="android:paddingStart">18dp</item>
-        <item name="android:paddingEnd">18dp</item>
-        <item name="android:background">@drawable/settings_choice_bg</item>
-        <item name="android:textColor">#FFFFFFFF</item>
-        <item name="android:textSize">18sp</item>
-        <item name="android:focusable">true</item>
-        <item name="android:clickable">true</item>
-    </style>
-    <style name="SettingsColumnChoice" parent="SettingsRow">
-        <item name="android:layout_width">0dp</item>
-        <item name="android:layout_weight">1</item>
-        <item name="android:layout_marginEnd">10dp</item>
-        <item name="android:gravity">center</item>
     </style>
 </resources>

@@ -28,6 +28,13 @@ public class InputKeyService extends AccessibilityService {
     /** app_keys "front:" entries, chosen the way HomeKeyService chooses them (RemoteKeys.tap). */
     private Map<Integer, String> frontAppKeys = Collections.emptyMap();
     private Map<Integer, String> frontAppScancodes = Collections.emptyMap();
+    private Map<Integer, String> doubleAppKeys = Collections.emptyMap();
+    private Map<Integer, String> doubleAppScancodes = Collections.emptyMap();
+    /** app_keys from config.xml / the theme, kept so an on-TV change (KeyMap) can be laid over them again. */
+    private java.util.List<String> configAppKeys = Collections.emptyList();
+    /** Reloads the button maps when Launcher settings > Remote buttons changes one. */
+    private final android.content.SharedPreferences.OnSharedPreferenceChangeListener mapListener =
+            (prefs, key) -> loadMaps();
     /** restore_key_services was on when the config was read: this helper is noted for ServiceRepair. */
     private boolean repairRecord;
     /** consume_volume_keys: Volume Up/Down go to VolumeKeys instead of on to the firmware. */
@@ -48,18 +55,28 @@ public class InputKeyService extends AccessibilityService {
         if (repairRecord) ServiceRepair.connected(this, getClass());
         inputKeycodes = config.inputKeycodes;
         consumeVolumeKeys = config.consumeVolumeKeys;
-        appKeys = RemoteKeys.parseAppKeys(config.appKeys);
-        appScancodes = RemoteKeys.parseAppScancodes(config.appKeys);
+        configAppKeys = config.appKeys;
+        loadMaps();
+        KeyMap.listen(this, mapListener);
         RemoteKeys.applyKeyFilter(this, config.keyFilter);
-        holdAppKeys = RemoteKeys.parseHoldAppKeys(config.appKeys);
-        holdAppScancodes = RemoteKeys.parseHoldAppScancodes(config.appKeys);
-        frontAppKeys = RemoteKeys.parseFrontAppKeys(config.appKeys);
-        frontAppScancodes = RemoteKeys.parseFrontAppScancodes(config.appKeys);
         // gamepad_passthrough, off by default. Only with key_filter on: off, the service never filters keys.
         if (config.gamepadPassthrough && config.keyFilter && gamepads == null) {
             gamepads = new GamepadPassthrough(this);
             gamepads.start();
         }
+    }
+
+    /** The button maps: app_keys from config.xml / the theme with the mappings made on the TV laid over them. */
+    private void loadMaps() {
+        java.util.List<String> entries = KeyMap.merged(this, configAppKeys);
+        appKeys = RemoteKeys.parseAppKeys(entries);
+        appScancodes = RemoteKeys.parseAppScancodes(entries);
+        holdAppKeys = RemoteKeys.parseHoldAppKeys(entries);
+        holdAppScancodes = RemoteKeys.parseHoldAppScancodes(entries);
+        frontAppKeys = RemoteKeys.parseFrontAppKeys(entries);
+        frontAppScancodes = RemoteKeys.parseFrontAppScancodes(entries);
+        doubleAppKeys = RemoteKeys.parseDoubleAppKeys(entries);
+        doubleAppScancodes = RemoteKeys.parseDoubleAppScancodes(entries);
     }
 
     private boolean isInputKey(int keyCode) {
@@ -70,14 +87,21 @@ public class InputKeyService extends AccessibilityService {
 
     @Override
     protected boolean onKeyEvent(KeyEvent event) {
+        // Launcher settings > Remote buttons is waiting for a button: swallow it and report it. The keys that move
+        // focus and go back stay with the page, so it can always be left.
+        java.util.function.Consumer<KeyEvent> capture = RemoteKeys.capture;
+        if (capture != null && !KeyMap.isProtected(event.getKeyCode())) {
+            if (event.getAction() == KeyEvent.ACTION_DOWN && event.getRepeatCount() == 0) capture.accept(event);
+            return true;
+        }
         if (consumeVolumeKeys && VolumeKeys.handle(this, event)) return true;
         // A scancode entry is more specific than any keycode, so it goes first.
         if (RemoteKeys.handle(this, event, RemoteKeys.tap(appScancodes.get(event.getScanCode()),
                 frontAppScancodes.get(event.getScanCode())),
-                holdAppScancodes.get(event.getScanCode()))) return true;
+                holdAppScancodes.get(event.getScanCode()), doubleAppScancodes.get(event.getScanCode()))) return true;
         if (RemoteKeys.handle(this, event, RemoteKeys.tap(appKeys.get(event.getKeyCode()),
                 frontAppKeys.get(event.getKeyCode())),
-                holdAppKeys.get(event.getKeyCode()))) return true;
+                holdAppKeys.get(event.getKeyCode()), doubleAppKeys.get(event.getKeyCode()))) return true;
         if (!isInputKey(event.getKeyCode())) return false;
         if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
             try {
@@ -91,6 +115,7 @@ public class InputKeyService extends AccessibilityService {
     /** Unbound by Android: the user turned the helper off, so Home doesn't put it back (ServiceRepair). */
     @Override
     public boolean onUnbind(Intent intent) {
+        KeyMap.unlisten(this, mapListener);
         RemoteKeys.release(this);
         if (repairRecord) ServiceRepair.disconnected(this, getClass());
         return super.onUnbind(intent);
@@ -99,6 +124,7 @@ public class InputKeyService extends AccessibilityService {
     @Override
     public void onDestroy() {
         if (running == this) running = null;
+        KeyMap.unlisten(this, mapListener);
         RemoteKeys.release(this);
         if (gamepads != null) gamepads.stop();
         if (consumeVolumeKeys) VolumeKeys.stop();

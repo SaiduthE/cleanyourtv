@@ -48,7 +48,6 @@
     <string name="open_on_start_label">Öppna vid start</string>
     <string name="open_on_start_state">Öppna vid start: %1$s</string>
     <string name="advanced_effects_warning">Lägger till lyfta appbrickor, ikonzoom och mjuka färgövergångar. Kan öka minnesanvändningen; skillnaden beror på din TV.</string>
-    <string name="follow_theme">Följ temat (återställ val på TV:n)</string>
     <string name="follow_theme_hint">Använder det aktuella temats eller de inbyggda inställningarna för layout och rörelse. Att skicka eller återställa ett tema rensar också valen du gjort på TV:n.</string>
     <string name="tv_settings">TV:ns systeminställningar</string>
     <string name="quick_picture">Bild</string>

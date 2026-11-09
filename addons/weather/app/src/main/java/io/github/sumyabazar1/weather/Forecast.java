@@ -58,6 +58,8 @@ final class Forecast {
         /** The WMO code, rain turned into snow where the air is cold enough for it (see {@link #snowIfCold}). */
         final int code;
         final boolean day;
+        /** Today's high and low (the first day of the daily read), or null when that read had no values for it. */
+        final Day today;
         /** The next days, tomorrow first. */
         final List<Day> days;
         /** US AQI, or -1 when the air quality read failed. */
@@ -65,11 +67,13 @@ final class Forecast {
         final int humidity;
         final int windKmh;
 
-        Report(double tempC, double feelsC, int code, boolean day, List<Day> days, int aqi, int humidity, int windKmh) {
+        Report(double tempC, double feelsC, int code, boolean day, Day today, List<Day> days, int aqi, int humidity,
+               int windKmh) {
             this.tempC = tempC;
             this.feelsC = feelsC;
             this.code = code;
             this.day = day;
+            this.today = today;
             this.days = days;
             this.aqi = aqi;
             this.humidity = humidity;
@@ -77,18 +81,23 @@ final class Forecast {
         }
     }
 
-    /** One forecast day: its date, the WMO code and the high and low in degrees Celsius as read. */
+    /**
+     * One forecast day: its date, the WMO code and the high and low in degrees Celsius as read, and the chance of
+     * precipitation in % (-1 when the model gave none).
+     */
     static final class Day {
         final LocalDate date;
         final int code;
         final double maxC;
         final double minC;
+        final int precipPct;
 
-        Day(LocalDate date, int code, double maxC, double minC) {
+        Day(LocalDate date, int code, double maxC, double minC, int precipPct) {
             this.date = date;
             this.code = code;
             this.maxC = maxC;
             this.minC = minC;
+            this.precipPct = precipPct;
         }
     }
 
@@ -124,15 +133,16 @@ final class Forecast {
         // and Google, had snow falling.
         JSONObject reply = get("https://api.open-meteo.com/v1/forecast?" + where + "&models=icon_seamless"
                 + "&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,is_day,wind_speed_10m"
-                + "&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days="
+                + "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days="
                 + (forecastDays(days) + 1));
         JSONObject current = reply.getJSONObject("current");
         double temp = current.getDouble("temperature_2m");
         double humidity = current.getDouble("relative_humidity_2m");
         int code = snowIfCold(current.getInt("weather_code"), temp, humidity);
+        JSONObject daily = reply.getJSONObject("daily");
         return new Report(temp, current.getDouble("apparent_temperature"),
                 code, current.getInt("is_day") == 1,
-                days(reply.getJSONObject("daily")), aqiOrUnknown(where),
+                day(daily, 0), days(daily), aqiOrUnknown(where),
                 (int) Math.round(humidity), (int) Math.round(current.optDouble("wind_speed_10m", 0)));
     }
 
@@ -158,20 +168,30 @@ final class Forecast {
                 + 0.00391838 * Math.pow(rh, 1.5) * Math.atan(0.023101 * rh) - 4.686035;
     }
 
-    /** Tomorrow and the days after it; today (index 0) is the current reading. */
-    private static List<Day> days(JSONObject daily) throws JSONException {
+    /** One day of the daily read, or null when it came back without values (the last day can). */
+    private static Day day(JSONObject daily, int i) throws JSONException {
         JSONArray dates = daily.getJSONArray("time");
         JSONArray codes = daily.getJSONArray("weather_code");
         JSONArray max = daily.getJSONArray("temperature_2m_max");
         JSONArray min = daily.getJSONArray("temperature_2m_min");
+        if (i >= dates.length() || codes.isNull(i) || max.isNull(i) || min.isNull(i)) return null;
+        JSONArray precip = daily.optJSONArray("precipitation_probability_max");
+        int pct = precip == null || i >= precip.length() || precip.isNull(i) ? -1 : precip.getInt(i);
+        // A day whose high stays near freezing gets the same rain-to-snow correction, with the high and
+        // saturated air, which is the warm end of the day's precipitation.
+        return new Day(LocalDate.parse(dates.getString(i)), snowIfCold(codes.getInt(i), max.getDouble(i), 100),
+                max.getDouble(i), min.getDouble(i), pct);
+    }
+
+    /** Tomorrow and the days after it; today (index 0) is the current reading. */
+    private static List<Day> days(JSONObject daily) throws JSONException {
+        int count = daily.getJSONArray("time").length();
         List<Day> out = new ArrayList<>();
-        for (int i = 1; i < dates.length(); i++) {
+        for (int i = 1; i < count; i++) {
             // With forecast_days 7 the last day can come back without values: stop there instead of failing the page.
-            if (codes.isNull(i) || max.isNull(i) || min.isNull(i)) break;
-            // A day whose high stays near freezing gets the same rain-to-snow correction, with the high and
-            // saturated air, which is the warm end of the day's precipitation.
-            out.add(new Day(LocalDate.parse(dates.getString(i)), snowIfCold(codes.getInt(i), max.getDouble(i), 100),
-                    max.getDouble(i), min.getDouble(i)));
+            Day d = day(daily, i);
+            if (d == null) break;
+            out.add(d);
         }
         return out;
     }

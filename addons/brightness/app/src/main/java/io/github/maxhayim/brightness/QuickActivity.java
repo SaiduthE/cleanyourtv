@@ -118,16 +118,7 @@ public class QuickActivity extends Activity {
 
     private void step(int direction) {
         closeLater();
-        if (!s.on) {
-            // Off reads as 100 %: brighter is nothing to do, and the first dimming step starts both values there,
-            // so the picture does not jump to an old stored value when night mode ends.
-            if (direction > 0) return;
-            s.brightness = Dimming.MAX_BRIGHTNESS;
-            s.nightBrightness = Dimming.MAX_BRIGHTNESS;
-            s.on = true;
-        }
-        if (nightNow()) s.nightBrightness = Dimming.stepBrightness(s.nightBrightness, direction);
-        else s.brightness = Dimming.stepBrightness(s.brightness, direction);
+        if (!Dimming.quickStep(s, nightNow(), direction, 0)) return;
         Prefs.save(this, s);
         DimService.start(this);
         show();
@@ -135,7 +126,7 @@ public class QuickActivity extends Activity {
 
     private void show() {
         boolean night = nightNow();
-        int value = !s.on ? Dimming.MAX_BRIGHTNESS : night ? s.nightBrightness : s.brightness;
+        int value = Dimming.levelInUse(s, night);
         label.setText(getString(night ? R.string.quick_night_brightness : R.string.quick_brightness, value));
         bar.setProgress(value);
     }

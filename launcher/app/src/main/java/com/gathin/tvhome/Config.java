@@ -44,6 +44,14 @@ final class Config {
     static final String WALLPAPER_CHOICE_KEY = "wallpaper_choice";
     static final String DOCK_OPACITY_KEY = "dock_opacity";
     static final String CLOCK_FORMAT_KEY = "clock_format";
+    /** The Top Shelf row of Launcher settings: "layered" (the default) or "off". Not a theme setting, so a theme never resets it. */
+    static final String TOP_SHELF_KEY = "top_shelf";
+    /** Top Shelf > App artwork: the focused app's own artwork behind its Resume text (default true), else photos/wallpapers. Not a theme setting. */
+    static final String TOP_SHELF_ARTWORK_KEY = "top_shelf_artwork";
+    /** Top Shelf > Photo credit: the small credit line on the idle shelf (default true). Not a theme setting. */
+    static final String TOP_SHELF_CREDIT_KEY = "top_shelf_credit";
+    /** Top Shelf > Change every: how long each idle-shelf picture stays, in ms (see SettingsModel.SHELF_INTERVALS_MS; default 15 s). Not a theme setting. */
+    static final String TOP_SHELF_INTERVAL_KEY = "top_shelf_interval_ms";
     /**
      * Counts the changes made in Launcher settings. Home remembers the count it was built with and rebuilds on
      * resume when it differs, however the settings were left (see MainActivity#onResume).
@@ -209,7 +217,7 @@ final class Config {
     final List<File> wallpapers;
     final int wallpaperRotationMinutes;
     final int wallpaperDim;
-    /** The dock band's opacity in percent (config.json dock_opacity, 30-100): below 100 the wallpaper shows through. */
+    /** The dock band's opacity in percent (config.json dock_opacity, 0-100): below 100 the wallpaper shows through. */
     final int dockOpacity;
     /**
      * Playback order for a wallpaper collection: {@code sequential} or {@code shuffle}. Missing or
@@ -684,7 +692,7 @@ final class Config {
         if (!wallpaperEnabled) wallpaper = null;
         int rotationMinutes = json == null ? 0 : integer(json, "wallpaper_rotation_minutes", 0, 0, 1440);
         int wallpaperDim = json == null ? 0 : integer(json, "wallpaper_dim", 0, 0, 90);
-        int dockOpacity = json == null ? 100 : integer(json, "dock_opacity", 100, 30, 100);
+        int dockOpacity = json == null ? 100 : integer(json, "dock_opacity", 100, DockOpacity.MIN, DockOpacity.MAX);
         dockOpacity = chosenDockOpacity(choices.getInt(DOCK_OPACITY_KEY, -1), dockOpacity);
         clockFormat = choices.getString(CLOCK_FORMAT_KEY, clockFormat);
         String wallpaperOrder = json == null ? WallpaperRotation.ORDER_SHUFFLE
@@ -782,7 +790,8 @@ final class Config {
 
     /** The dock band opacity chosen in Launcher settings, or the theme's when none (or an out-of-range one) is saved. */
     static int chosenDockOpacity(int chosen, int theme) {
-        return chosen >= 30 && chosen <= 100 ? chosen : theme;
+        int percent = DockOpacity.fromSaved(chosen);
+        return percent == DockOpacity.NONE ? theme : percent;
     }
 
     private static String fileStamp(File file) {

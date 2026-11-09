@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launcher settings panel (LauncherSettingsActivity): groups, rows, popups and hold-OK help. -->
+    <string name="ls_group_home_layout" translatable="false">Home layout</string>
+    <string name="ls_group_look" translatable="false">Look</string>
+    <string name="ls_group_buttons" translatable="false">Buttons &amp; remote</string>
+    <string name="ls_group_system" translatable="false">System</string>
+
+    <string name="ls_footer_hint" translatable="false">Hold OK on a row to see what it does</string>
+    <string name="ls_style_label" translatable="false">Style</string>
+    <string name="ls_styles_header" translatable="false">Styles of Clean Look</string>
+    <string name="ls_style_custom" translatable="false">Custom</string>
+    <string name="ls_style_builtin" translatable="false">Built-in look</string>
+    <string name="ls_style_builtin_caption" translatable="false">No style, the launcher\'s own look</string>
+    <string name="ls_style_cinematic_caption" translatable="false">Artwork shelf, glass dock</string>
+    <string name="ls_style_glass_caption" translatable="false">Navy light, colour glow</string>
+    <string name="ls_style_aurora_caption" translatable="false">Teal and violet sky</string>
+    <string name="ls_style_minimal_caption" translatable="false">Flat graphite, no band</string>
+    <string name="ls_style_six_columns_caption" translatable="false">Black, smaller tiles</string>
+    <string name="ls_style_confirm_body" translatable="false">Home restarts to apply it. Your dock apps, columns, remote buttons, VPN button and weather settings are kept.</string>
+    <string name="ls_apply" translatable="false">Apply</string>
+
+    <string name="ls_animations_label" translatable="false">Animations</string>
+    <string name="ls_clock_label" translatable="false">Clock</string>
+    <string name="ls_top_bar_buttons" translatable="false">Top bar buttons</string>
+    <string name="ls_tbb_icons" translatable="false">Icons</string>
+    <string name="ls_tbb_text" translatable="false">Text</string>
+    <string name="ls_tbb_both" translatable="false">Icons + text</string>
+    <string name="ls_tbb_mixed" translatable="false">Mixed</string>
+    <string name="ls_tbb_per_button" translatable="false">Per button</string>
+    <string name="ls_help_top_bar_buttons" translatable="false">Show Settings, Inputs, Discover and VPN as icons, text or both. Per button picks each one.</string>
+    <string name="ls_reorder" translatable="false">Reorder apps</string>
+    <string name="ls_reset_theme" translatable="false">Reset Theme</string>
+    <string name="ls_reset" translatable="false">Reset</string>
+    <string name="ls_reset_none" translatable="false">Nothing to reset</string>
+    <string name="ls_reset_one" translatable="false">1 change</string>
+    <string name="ls_reset_many" translatable="false">%1$d changes</string>
+    <string name="ls_reset_confirm_title" translatable="false">Reset Theme?</string>
+    <string name="ls_reset_confirm_body" translatable="false">Clears every choice made on this page and goes back to the theme\'s own settings.</string>
+    <string name="ls_remote_none" translatable="false">None set</string>
+    <string name="ls_remote_count" translatable="false">%1$d set</string>
+    <string name="ls_advanced_confirm_title" translatable="false">Turn on Advanced effects?</string>
+    <string name="ls_keep_off" translatable="false">Keep off</string>
+
+    <!-- Hold-OK tips: one or two short lines each, shown in a tip card under the row. -->
+    <string name="ls_help_columns" translatable="false">How many app tiles fit across. Fewer means bigger tiles.</string>
+    <string name="ls_help_rows_below" translatable="false">How many rows of apps stay visible under the dock.</string>
+    <string name="ls_help_dock_opacity" translatable="false">How much the dock band hides the wallpaper. Lower shows more picture; 0% leaves the app tiles on their own.</string>
+    <string name="ls_slider_hint" translatable="false">Left / Right to adjust, OK to set, Back to cancel</string>
+    <string name="ls_help_open_on_start" translatable="false">An app that opens instead of Home when the TV starts. Back returns here.</string>
+    <string name="ls_help_style" translatable="false">The look of Clean Look: wallpaper, dock, columns and colours.</string>
+    <string name="ls_help_wallpaper" translatable="false">Pick one picture to keep, or let the theme change it.</string>
+    <string name="ls_help_clock" translatable="false">System follows the TV\'s own 12 or 24 hour setting.</string>
+    <string name="ls_help_animations" translatable="false">Off makes every move instant, for slow TVs.</string>
+    <string name="ls_help_advanced" translatable="false">Lifted tile, icon zoom and smooth colours. May use more memory.</string>
+    <string name="ls_help_advanced_off" translatable="false">Turn Animations on first. Advanced effects need them.</string>
+    <string name="ls_help_remote_buttons" translatable="false">Map a remote button to an app or action: press, hold or double press.</string>
+    <string name="ls_help_reorder" translatable="false">Pick up an app and move it. OK or Back puts it down.</string>
+    <string name="ls_help_edit_dock" translatable="false">Choose which apps sit in the dock band.</string>
+    <string name="ls_help_default_home" translatable="false">Switch between Clean Look and the TV\'s original Home.</string>
+    <string name="ls_help_tv_settings" translatable="false">Opens the TV\'s own settings.</string>
+    <string name="ls_help_reset" translatable="false">Clears your choices here and goes back to the theme\'s own settings.</string>
+    <string name="ls_help_reset_none" translatable="false">Nothing was changed here, so the theme\'s own settings are in use.</string>
+</resources>

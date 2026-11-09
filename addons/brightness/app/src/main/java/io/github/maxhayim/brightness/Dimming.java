@@ -230,6 +230,38 @@ final class Dimming {
         return clamp(next < FINE_BELOW ? next : snap(next, BRIGHTNESS_STEP), 0, 100);
     }
 
+    /**
+     * The level the quick bar and the launcher's Brightness widget show: 100 while dimming is off, else the
+     * night or the day brightness, whichever is in use now.
+     */
+    static int levelInUse(Settings s, boolean night) {
+        return !s.on ? MAX_BRIGHTNESS : night ? s.nightBrightness : s.brightness;
+    }
+
+    /**
+     * One quick step of the level in use (QuickActivity, QuickProvider). size 0 is the slider's own step (5 %, then
+     * 1 % below 10 %); otherwise that many percent per press. Off reads as 100 %: brighter is nothing to do, and the
+     * first dimming step starts both values there and switches dimming on, so the picture does not jump to an old
+     * stored value when night mode ends. Returns false when nothing changed.
+     */
+    static boolean quickStep(Settings s, boolean night, int direction, int size) {
+        if (!s.on) {
+            if (direction > 0) return false;
+            s.brightness = MAX_BRIGHTNESS;
+            s.nightBrightness = MAX_BRIGHTNESS;
+            s.on = true;
+        }
+        if (night) s.nightBrightness = stepBy(s.nightBrightness, direction, size);
+        else s.brightness = stepBy(s.brightness, direction, size);
+        return true;
+    }
+
+    /** stepBrightness for size 0, else a fixed number of percent, kept in range and on the slider's grid. */
+    static int stepBy(int v, int direction, int size) {
+        if (size <= 0) return stepBrightness(v, direction);
+        return clampBrightness(v + (direction < 0 ? -size : size));
+    }
+
     static int clampBrightness(int v) {
         return clamp(v < FINE_BELOW ? v : snap(v, BRIGHTNESS_STEP), MIN_BRIGHTNESS, MAX_BRIGHTNESS);
     }

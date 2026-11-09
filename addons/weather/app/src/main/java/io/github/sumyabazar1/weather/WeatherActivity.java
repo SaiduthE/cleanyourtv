@@ -28,11 +28,17 @@ import java.util.concurrent.Executors;
 
 /**
  * The weather for one place, full screen: now, the air quality and the next days (options.xml). It reads Open-Meteo only
- * while it is on screen (every {@link Forecast#REFRESH_MS}, or {@link Forecast#RETRY_MS} after a failure) and
- * does nothing in the background. The place is chosen once with a search and kept in the app's preferences.
+ * while it is on screen (every {@link Forecast#REFRESH_MS}, or {@link Forecast#RETRY_MS} after a failure). The only
+ * background reading is {@link Refresher}'s job for the launcher's widget, which runs only after the launcher has
+ * queried {@link WeatherProvider} and stops 24 hours after its last query. The place is chosen once with a search and
+ * kept in the app's preferences.
  */
 public final class WeatherActivity extends Activity {
     private static final String PREFS = "place";
+    /** The fixed action the launcher starts (with setPackage) to open the settings. */
+    static final String ACTION_SETTINGS = "io.github.sumyabazar1.weather.action.SETTINGS";
+    /** Started for the settings only: no page read, and the activity closes with the settings. */
+    private boolean launchedForSettings;
 
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private final Handler main = new Handler(Looper.getMainLooper());
@@ -70,9 +76,15 @@ public final class WeatherActivity extends Activity {
         changeCity.setOnClickListener(v -> pickCity());
         findViewById(R.id.weatherSettings).setOnClickListener(v -> settings());
         changeCity.requestFocus();
+        Refresher.ensurePeriodic(this);
+        // The launcher's widget opens straight to the settings, and Back returns to the launcher. With no city yet it
+        // asks for one first, then shows the settings; Back from that question returns to the launcher too.
+        launchedForSettings = ACTION_SETTINGS.equals(getIntent().getAction());
         if (!place.contains("name")) {
             message.setText(R.string.pick_first);
             pickCity();
+        } else if (launchedForSettings) {
+            settings();
         }
     }
 
@@ -80,7 +92,7 @@ public final class WeatherActivity extends Activity {
     protected void onResume() {
         super.onResume();
         resumed = true;
-        if (place.contains("name")) refresh();
+        if (place.contains("name") && !launchedForSettings) refresh();
     }
 
     @Override
@@ -218,6 +230,10 @@ public final class WeatherActivity extends Activity {
                         dayCount(forecastDays)),
                 optionRow(R.string.setting_humidity, showHumidity),
                 optionRow(R.string.setting_wind, showWind),
+                optionRow(R.string.setting_show_place, WidgetSettings.showPlace(this)),
+                optionRow(R.string.setting_animated, WidgetSettings.animated(this)),
+                getString(R.string.setting_value, getString(R.string.setting_refresh),
+                        getString(R.string.refresh_minutes, WidgetSettings.refreshMinutes(this))),
                 getString(R.string.setting_reset)
         };
     }
@@ -246,6 +262,10 @@ public final class WeatherActivity extends Activity {
             if (lastReport != null) show(lastReport); // Display choices do not make another network request.
         };
         dialog.setOnDismissListener(d -> {
+            if (launchedForSettings) {
+                finish();
+                return;
+            }
             if (forecastDays != initialDays) refresh(); // One fetch after all choices, including Back.
         });
         dialog.show();
@@ -257,6 +277,7 @@ public final class WeatherActivity extends Activity {
                                 fahrenheit ? 1 : 0, (picker, which) -> {
                                     options.edit().putBoolean("fahrenheit", which == 1).apply();
                                     changed.run();
+                                    Refresher.onChoicesChanged(this, true);
                                     picker.dismiss();
                                 })
                         .setNegativeButton(android.R.string.cancel, null).show();
@@ -275,8 +296,18 @@ public final class WeatherActivity extends Activity {
                 if (position == 1) options.edit().putBoolean("show_both_units", !bothUnits).apply();
                 if (position == 3) options.edit().putBoolean("show_humidity", !showHumidity).apply();
                 if (position == 4) options.edit().putBoolean("show_wind", !showWind).apply();
-                if (position == 5) options.edit().clear().apply(); // Never clears the chosen city.
+                if (position == 5) options.edit().putBoolean(WidgetSettings.KEY_SHOW_PLACE,
+                        !WidgetSettings.showPlace(this)).apply();
+                if (position == 6) options.edit().putBoolean(WidgetSettings.KEY_ANIMATED,
+                        !WidgetSettings.animated(this)).apply();
+                if (position == 7) options.edit().putInt(WidgetSettings.KEY_REFRESH_MINUTES,
+                        RefreshPolicy.nextMinutes(WidgetSettings.refreshMinutes(this))).apply();
+                boolean wasFahrenheit = fahrenheit;
+                if (position == 8) options.edit().clear().apply(); // Never clears the chosen city.
                 changed.run();
+                // Readers of the provider hear about every change; the interval is rescheduled; a reset that
+                // flips the units reads again like a units change does.
+                Refresher.onChoicesChanged(this, position == 8 && wasFahrenheit != fahrenheit);
             }
         });
         dialog.getListView().requestFocus();
@@ -300,6 +331,7 @@ public final class WeatherActivity extends Activity {
                 .setTitle(R.string.pick_title)
                 .setView(box)
                 .setPositiveButton(R.string.pick_search, (d, w) -> search(name.getText().toString()))
+                .setOnCancelListener(d -> leaveIfNoCity())
                 .create();
         name.setOnEditorActionListener((v, action, event) -> {
             if (action != EditorInfo.IME_ACTION_SEARCH) return false;
@@ -309,6 +341,11 @@ public final class WeatherActivity extends Activity {
         });
         dialog.show();
         name.requestFocus();
+    }
+
+    /** Opened from the launcher for the settings and the owner backed out of choosing a city: back to the launcher. */
+    private void leaveIfNoCity() {
+        if (launchedForSettings && !place.contains("name")) finish();
     }
 
     private void search(String typed) {
@@ -348,6 +385,7 @@ public final class WeatherActivity extends Activity {
         }
         new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
                 .setTitle(R.string.pick_title)
+                .setOnCancelListener(d -> leaveIfNoCity())
                 .setItems(rows, (d, which) -> {
                     Forecast.Place p = places.get(which);
                     place.edit()
@@ -355,6 +393,11 @@ public final class WeatherActivity extends Activity {
                             .putLong("lat", Double.doubleToRawLongBits(p.latitude))
                             .putLong("lon", Double.doubleToRawLongBits(p.longitude))
                             .apply();
+                    Refresher.onChoicesChanged(this, true);
+                    if (launchedForSettings) {
+                        settings();
+                        return;
+                    }
                     lastReport = null;
                     shown = false;
                     content.setVisibility(View.INVISIBLE);

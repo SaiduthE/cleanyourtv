@@ -29,6 +29,10 @@ public class GlassView extends View {
     /** glass_style rim or halo: no sheen and no fill, only the crisp rim (and, for halo, a lighter outer glow). */
     private boolean flat;
     private boolean halo;
+    /** A carried tile in reorder mode: the rim is the accent itself, and thicker, instead of glass. */
+    private boolean carrying;
+    private int plainRim = 0xCCFFFFFF;
+    private float baseRimDp = 1.5f;
 
     public GlassView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -49,15 +53,27 @@ public class GlassView extends View {
         if (argb == 0) {
             glowRgb = 0xFFFFFF;
             glowAlpha = 0x30;
-            rim.setColor(0xCCFFFFFF);
+            plainRim = 0xCCFFFFFF;
         } else {
             glowRgb = argb & 0xFFFFFF;
             glowAlpha = 0x70;
             // The rim is the accent lifted towards white, so the edge still reads as glass, not paint.
             int r = (((glowRgb >> 16) & 0xFF) + 255 * 2) / 3, g = (((glowRgb >> 8) & 0xFF) + 255 * 2) / 3,
                     b = ((glowRgb & 0xFF) + 255 * 2) / 3;
-            rim.setColor(0xE6000000 | (r << 16) | (g << 8) | b);
+            plainRim = 0xE6000000 | (r << 16) | (g << 8) | b;
         }
+        applyRim();
+    }
+
+    /** Reorder mode: the tile under the glass is picked up, so the rim shows the accent in full and thicker. */
+    void setCarrying(boolean on) {
+        carrying = on;
+        applyRim();
+    }
+
+    private void applyRim() {
+        rim.setColor(carrying && glowRgb != 0xFFFFFF ? 0xFF000000 | glowRgb : plainRim);
+        rim.setStrokeWidth((carrying ? 3f : baseRimDp) * density);
         invalidate();
     }
 
@@ -65,8 +81,8 @@ public class GlassView extends View {
     void setStyle(String style) {
         flat = Config.GLASS_RIM.equals(style) || Config.GLASS_HALO.equals(style);
         halo = Config.GLASS_HALO.equals(style);
-        rim.setStrokeWidth((flat ? 2f : 1.5f) * density);
-        invalidate();
+        baseRimDp = flat ? 2f : 1.5f;
+        applyRim();
     }
 
     void setRadius(float px) {

@@ -55,6 +55,10 @@
             <action android:name="android.intent.action.MAIN" />
             <category android:name="com.gathin.tvhome.category.DOCK_CARD" />
         </intent>
+        <!-- The Top Shelf feed of the Continue watching add-on (TopShelf): without this Android 11 hides its provider. -->
+        <provider android:authorities="com.cleanlook.continuewatching.shelf" />
+        <!-- The Discover pill opens that add-on's hub (DiscoverPill); hidden while the package is absent. -->
+        <package android:name="com.cleanlook.continuewatching" />
         <!-- stock_home_redirect: HomeKeyService looks up the stock launcher's HOME activity. -->
         <intent>
             <action android:name="android.intent.action.MAIN" />
@@ -68,6 +72,15 @@
         <!-- Coocaa OS sources for the Inputs menu (coocaa_sources); see CoocaaSources. -->
         <provider android:authorities="com.skyworth.tv.provider" />
         <provider android:authorities="com.skyworth.tv.sdk.provider" />
+        <!-- Weather add-on (WeatherSource): its read-only widget provider, its package, and the action that opens its settings. -->
+        <provider android:authorities="io.github.sumyabazar1.weather.widget" />
+        <package android:name="io.github.sumyabazar1.weather" />
+        <intent>
+            <action android:name="io.github.sumyabazar1.weather.action.SETTINGS" />
+        </intent>
+        <!-- Brightness add-on (BrightnessSource): its quick provider and its package, for the Brightness widget. -->
+        <provider android:authorities="io.github.maxhayim.brightness.quick" />
+        <package android:name="io.github.maxhayim.brightness" />
     </queries>
 
     <application
@@ -109,6 +122,25 @@
         <activity
             android:name=".LauncherSettingsActivity"
             android:exported="false"
+            android:theme="@style/Theme.TvHome.Panel"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape" />
+        <activity
+            android:name=".TopBarButtonsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.TvHome.Panel"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape" />
+        <activity
+            android:name=".ThemesActivity"
+            android:exported="false"
+            android:theme="@style/Theme.TvHome.Panel"
+            android:excludeFromRecents="true"
+            android:screenOrientation="landscape" />
+        <activity
+            android:name=".RemoteKeysActivity"
+            android:exported="false"
+            android:theme="@style/Theme.TvHome.Panel"
             android:excludeFromRecents="true"
             android:screenOrientation="landscape" />
         <!-- The system input switcher (com.android.tv.action.VIEW_INPUTS), which is what the remote's Input

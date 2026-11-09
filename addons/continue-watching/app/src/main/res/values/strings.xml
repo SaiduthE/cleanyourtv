@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Continue watching</string>
+    <string name="app_title">Continue watching</string>
+    <string name="refresh">Refresh</string>
+    <string name="sources">Sources</string>
+    <string name="refreshing">Refreshing…</string>
+    <string name="up_next">Up next</string>
+    <string name="empty_title">Nothing to resume yet</string>
+    <string name="empty_hint">Add a source to see what to resume. Sources is at the top right.</string>
+    <string name="status_denied">Watch Next access is off, so no app can be read. Open Sources.</string>
+    <string name="status_updated">updated %1$s</string>
+    <string name="status_updated_empty">Nothing in progress · updated %1$s</string>
+    <plurals name="titles">
+        <item quantity="one">%d title</item>
+        <item quantity="other">%d titles</item>
+    </plurals>
+
+    <string name="add_source">Add source</string>
+    <string name="add_title">Add a source</string>
+    <string name="allow_access">Allow Watch Next access</string>
+    <string name="rescan">Rescan apps</string>
+    <string name="show_all_apps">Show all apps</string>
+
+    <string name="jellyfin_server">Jellyfin server</string>
+    <string name="hint_address">Server address, e.g. 192.168.1.20:8096</string>
+    <string name="hint_user">User name</string>
+    <string name="hint_user_api">User name (whose list to show)</string>
+    <string name="hint_password">Password</string>
+    <string name="hint_api_key">API key</string>
+    <string name="mode_password">Sign in with: password</string>
+    <string name="mode_api_key">Sign in with: API key</string>
+    <string name="test">Test</string>
+    <string name="save">Save</string>
+    <string name="working">Working…</string>
+    <string name="keystore_refused">This TV\'s secure storage refused the sign-in. Nothing was saved.</string>
+</resources>

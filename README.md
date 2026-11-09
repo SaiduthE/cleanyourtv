@@ -1,3 +1,25 @@
+<h2 align="center">Shield fork: remote buttons, widgets, Top Shelf and Discover</h2>
+
+<p align="center">
+  <img src="docs/shield-home.jpg" width="720" alt="Home on an NVIDIA SHIELD: clock with a brightness button and weather chip, top-bar buttons for Inputs, VPN, Discover and Settings, and a dock of apps">
+</p>
+
+<p align="center">
+  A fork of <a href="https://github.com/Gathin23/cleanyourtv">Clean Your TV</a> by Gathin23, kept up to date with
+  upstream and tuned on an NVIDIA SHIELD TV Pro (2019), Android TV 11. Unofficial; not affiliated with NVIDIA.
+</p>
+
+- **Launcher menu**: a grouped settings side panel with a popup picker per row, hold OK on a row for its tip, and style presets that change colours, wallpaper, dock and columns together.
+- **Widget positions**: pick a widget (weather, brightness), then one of four places on Home for it; widgets swap places instead of overlapping.
+- **Discover**: a top-bar button that opens everything you are partway through, grouped by app, from the optional Continue watching add-on.
+- **Remote buttons**: map any button to an app or action as press, hold or double press, set on the TV.
+- **Top Shelf**: the focused app's own "continue watching" artwork above the dock.
+
+**[Read FORK.md](FORK.md)** for every feature, the permissions and network hosts, and what it was tested on.
+Build it from source as in the guide below; the launcher itself has no `INTERNET` permission.
+
+---
+
 <p align="center">
   <a href="https://cleanyour.tv"><img src="https://raw.githubusercontent.com/Gathin23/cleanyourtv/main/docs/banner.png" alt="CleanYourTV. Your TV, minus the ads. Strip the bloatware from any Android TV or Google TV over Wi-Fi and replace the ad-filled home screen with a clean launcher that looks like an Apple TV. No root, no cable, nothing uninstalled, and a one-line restore." width="800"></a>
 </p>

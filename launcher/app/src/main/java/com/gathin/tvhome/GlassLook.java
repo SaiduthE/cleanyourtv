@@ -78,6 +78,19 @@ final class GlassLook {
     }
 
     /**
+     * Frosted glass with a coloured outline on top (the VPN pill's state colour, the reorder cue's accent): the glass is
+     * the shared library's (frost, refraction, grain, specular), the outline a plain stroke drawn over it, since the
+     * glass_edge rim is white and would hide the colour. A layer drawable, so the glass still finds its view.
+     */
+    static Drawable outlined(GlassSurface.Spec glass, float radiusPx, int strokePx, int strokeColor) {
+        android.graphics.drawable.GradientDrawable outline = new android.graphics.drawable.GradientDrawable();
+        outline.setColor(0);
+        outline.setCornerRadius(radiusPx);
+        outline.setStroke(strokePx, strokeColor);
+        return new android.graphics.drawable.LayerDrawable(new Drawable[] {new GlassDrawable(glass, null), outline});
+    }
+
+    /**
      * Swaps the stock glass backgrounds under {@code root} for glass drawables that carry the look. A view is
      * recognised by the resource its background was made from (the same cached constant state), so a view with
      * another background is left alone. Call it after inflating a layout that has glass in it.

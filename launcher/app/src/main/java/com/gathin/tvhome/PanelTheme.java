@@ -108,8 +108,9 @@ final class PanelTheme {
     /** The settings card on the right edge: inset from the top, right and bottom, rounded, with a hairline edge. */
     Drawable panelBackground() {
         int inset = px(PANEL_INSET_DP);
-        return new InsetDrawable(shape(panelFill, px(PANEL_RADIUS_DP), px(PANEL_STROKE_DP), PANEL_STROKE),
-                0, inset, inset, inset);
+        // Frosted glass like the other panels (frost, refraction, edge light, grain), inset from the window's edges.
+        return new InsetDrawable(new GlassDrawable(new GlassSurface.Spec(panelFill, panelFill, PANEL_STROKE,
+                px(PANEL_STROKE_DP), px(PANEL_RADIUS_DP)), null), 0, inset, inset, inset);
     }
 
     /** A menu or dialog card: the panel colour a little lighter, same corners and edge, no inset. */

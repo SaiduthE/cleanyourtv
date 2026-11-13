@@ -268,7 +268,9 @@ final class TopShelf {
         row.setClipChildren(false);
         for (int i = 0; i < TopShelfLogic.MAX_UP_NEXT; i++) {
             FrameLayout thumb = new FrameLayout(context);
-            thumb.setBackground(round(NO_PIC, 0, 0, dp(8)));
+            // Frosted dark glass: a card with no picture (text only, or still loading) is glass over the frosted artwork, not a
+            // solid plate; a picture covers it.
+            thumb.setBackground(new GlassDrawable(new GlassSurface.Spec(NO_PIC, 0xFF14161B, 0x29FFFFFF, dp(1), dp(8)), null));
             thumb.setClipToOutline(true);
             ImageView image = new ImageView(context);
             image.setScaleType(ImageView.ScaleType.CENTER_CROP);

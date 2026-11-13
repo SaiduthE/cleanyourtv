@@ -62,12 +62,10 @@ final class VpnBadge extends ReplacementSpan {
         GradientDrawable focused = pillShape(up, density);
         focused.setStroke(Math.round(3 * density), 0xFFFFFFFF);
         bg.addState(new int[]{android.R.attr.state_focused}, focused);
-        // Dark glass, so the state colour reads over a bright wallpaper as well as a dark one.
-        GradientDrawable rest = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0xA6000000, 0x8C000000});
-        rest.setCornerRadius(21 * density);
-        rest.setStroke(Math.round(2 * density), up ? GREEN : RED);
-        bg.addState(new int[0], rest);
+        // Dark frosted glass (the shared library: frost, refraction, grain), so the state colour reads over a bright wallpaper
+        // as well as a dark one; the state colour is the outline on top of it.
+        bg.addState(new int[0], GlassLook.outlined(new GlassSurface.Spec(0xA6000000, 0x8C000000, 0, 0f, 21 * density),
+                21 * density, Math.round(2 * density), up ? GREEN : RED));
         return bg;
     }
 

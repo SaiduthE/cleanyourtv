@@ -87,11 +87,10 @@ final class ReorderIndicator {
         carried = null;
         active = true;
         int accent = PanelTheme.get(host).accent;
-        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[] {0xF52A2A2E, 0xF5161618});
-        bg.setCornerRadius(host.getResources().getDisplayMetrics().density * 17);
-        bg.setStroke(Math.round(host.getResources().getDisplayMetrics().density * 1.5f), accent);
-        pill.setBackground(bg);
+        float density = host.getResources().getDisplayMetrics().density;
+        // Frosted dark glass with the accent as its outline, like the VPN pill.
+        pill.setBackground(GlassLook.outlined(new GlassSurface.Spec(0xF52A2A2E, 0xF5161618, 0, 0f, density * 17),
+                density * 17, Math.round(density * 1.5f), accent));
         GradientDrawable dotShape = new GradientDrawable();
         dotShape.setShape(GradientDrawable.OVAL);
         dotShape.setColor(accent);

@@ -52,8 +52,7 @@ The launcher's own page has these rows, top to bottom:
 
 - **Reorder apps**, only with `launcher_settings_button`, the same as the menu's.
 - **Apps per row** 4, 5, 6 or 7; **Rows below dock** 0 to 3, how many rows of tiles stay visible under the
-  dock band; **Dock band opacity** 100%, 70%, 50% or 30%. The last two only do anything while the dock is
-  its own row (`dock_row`, on by default).
+  dock band, only while the dock is its own row (`dock_row`, on by default).
 - **Clock**: **System** follows the TV's 12- or 24-hour setting; **12-hour** or **24-hour** sets the launcher's
   clocks (Home and the clock screensaver) to that, whatever the TV uses (`clock_format` in a theme).
 - **Wallpaper**: one picture from the theme's collection (or its `wallpaper.jpg`), **None**, or **Theme
@@ -63,7 +62,8 @@ The launcher's own page has these rows, top to bottom:
   transitions; they may use more memory) once animations are on.
 - **Glass** (a sub-header under Look): **Opacity**, **Frost** (0 to 100%), **Tint** (0 to 100%, a black layer over the
   frost), **Edge light** (on or off), **Refraction** (on or off) and **Grain** (0 to 30%): how solid the dock band, pills,
-  cards and menus are; how much of a frosted copy of the wallpaper shows behind them; how dark it is; a lit rim; a bent
+  cards and menus are (Opacity sets every glass surface, the dock band included; a band at 0% is gone, the rest never goes
+  under 20%); how much of a frosted copy of the picture on screen shows behind them; how dark it is; a lit rim; a bent
   edge; and fine film grain that keeps gradients from banding (`dock_opacity`, `glass_frost`, `glass_tint`, `glass_edge`,
   `glass_refraction` and `grain` in a theme). Panels and popups that float over Home always draw their frost fully opaque.
 - **Open on start**, only with `open_on_start_choice`: Off, or an app that opens instead of Home the first

@@ -1,4 +1,4 @@
-# Shield fork: remote buttons, styles, widgets and a Top Shelf
+# Shield fork: glass, remote buttons, styles, widgets and a Top Shelf
 
 A fork of the [Clean Your TV](README.md) launcher, tuned on an NVIDIA SHIELD TV Pro (2019) at 4K,
 Android TV 11. It is a heavy restyle and larger than upstream's APK size gate, so it lives here and
@@ -20,6 +20,22 @@ main README.
   each supplied by an add-on in `addons/`. The launcher asks neither for a permission.
 - **Top bar**: a red/green icon-only VPN button, a Discover pill that opens the Continue watching
   hub, and an icon, text or both style for the top-bar buttons.
+- **Glass everywhere**: the dock band, top-bar pills, widget chips, Up next cards, menus and panels are frosted
+  glass made from the picture actually on screen (the wallpaper, the Top Shelf photo or a show's artwork), with
+  a slight lens and a bent rim, an edge light, a dark tint and fine film grain. It is baked once per picture, not
+  a live blur, so it costs nothing per frame. One shared library (`Grain`, `Frost`, `GlassSurface`,
+  `GlassDrawable`, `GlassLook`) draws all of it, the clock screensaver's glow included.
+- **Rounded icons**: Material Symbols Rounded for every launcher icon, from one `Icons` class. Wi-Fi bars follow
+  the signal and the Brightness sun fills with the level. The animated weather art stays as it was.
+- **Readable text over any picture**: soft shadows on the clock, date, greeting, weather and Top Shelf text, and
+  shades behind them that get stronger over bright pictures.
+- **A soft fade** at the top and bottom of the app grid as it scrolls, in every theme.
+- **Horizon**, a theme and a Style: a big frosted-glass clock set into five landscape scenes, the scenery
+  overlapping the bottom of the digits, with the date and weather above it. The scene follows the time of day
+  (dawn, day, golden hour, night) and the weather (fog, rain, snow or overcast by day). The Top Shelf is text
+  only over it, and Brightness sits next to the network pill. The scenes come from
+  [couch-tv](https://github.com/Seagey/couch-tv) (MIT). `tools/make-scene.py` turns any photo into another
+  Horizon scene, offline ([tools/make-scene.md](tools/make-scene.md)). No AI runs anywhere.
 
 ## The launcher menu
 
@@ -28,15 +44,17 @@ holding OK on a row shows a one-line tip for what it does. Rows are in five grou
 
 | Group | Rows |
 |---|---|
-| **Home layout** | Columns (4 to 7), rows of apps under the dock (0 to 3), dock opacity (a slider), Open on start |
-| **Look** | Style, Wallpaper, Clock (system, 12 or 24 hour), **Widgets**, Animations, Advanced effects |
+| **Home layout** | Columns (4 to 7), rows of apps under the dock (0 to 3), Open on start |
+| **Look** | Style, Wallpaper, Clock (system, 12 or 24 hour), **Widgets**, Icons (rounded or classic), Animations, Advanced effects, then a **Glass** sub-group: Opacity, Frost, Tint, Edge light, Refraction, Grain |
 | **Top Shelf** | Top Shelf (layered or off), App artwork, Photos, Photo themes, Fetch a new photo, Change every (10 s to 1 hour), Photo credit |
 | **Buttons & remote** | Remote buttons (press, hold or double press), Top bar buttons (icons, text, both, mixed or one choice per button), Reorder apps, Edit dock |
 | **System** | Default Home (switch to the TV's original Home), TV settings, Reset Theme |
 
 - **Style** picks a Clean Look preset: the launcher's own look, Cinematic (artwork shelf, glass dock), Glass,
-  Aurora, Minimal or Six columns. Applying one restarts Home and keeps your dock apps, columns, remote buttons,
-  VPN button and weather settings.
+  Aurora, Minimal, Six columns or Horizon. Applying one restarts Home and keeps your dock apps, columns, remote
+  buttons, VPN button and weather settings. Choosing one over a theme you pushed yourself saves that look first,
+  and a **Previous look** row brings it back (with your own widget positions).
+- **Glass > Opacity** is how solid every glass surface is (the dock band's old opacity row, now for all glass).
 - **Reset Theme** says how many changes it will clear before it does, and goes back to the theme's own settings.
 - Rows that need an add-on, such as Photos, are greyed with a reason while it is missing or too old.
 
@@ -100,9 +118,14 @@ The add-on's README has the full list of what it reads and sends.
 
 ## Defaults
 
-The defaults in `config.xml` are upstream's. Everything above is chosen on the TV or by a theme.
+The defaults in `config.xml` are upstream's, except the glass and the icons, which are on for every theme here:
+`grain` 6, `glass_edge` true, `glass_frost` 60, `glass_tint` 35, `glass_refraction` true, `icon_style` rounded.
+A theme can turn any of them down or off. Everything else above is chosen on the TV or by a theme. A personal
+setup (dock apps, remote buttons, clock and date layout) belongs in your own theme's `config.json`, so a fresh
+build of this fork plus your theme gives the same Home.
 
 ## Tested on
 
 NVIDIA SHIELD TV Pro (2019), Android TV 11, SHIELD Experience 9.2.4. Not tested on other TVs.
-Launcher unit tests and `lintRelease` pass; the release APK is about 1 MB.
+Launcher unit tests and `lintRelease` pass; the release APK is about 3 MB (Horizon's scenes are bundled for the
+Style picker).

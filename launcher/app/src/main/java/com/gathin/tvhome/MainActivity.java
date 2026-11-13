@@ -2141,6 +2141,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 // The scene clock is under the shelf (so its text and cards are in front), but it is big and would run
                 // into the Resume block: it fades out and the normal header comes back while that is up, and the other
                 // way round when it goes.
+                // Over a Horizon scene the shelf is text only and sits in front of the clock, so the clock stays where it
+                // is; only a real picture covering the screen (artwork on, no scene) would need it out of the way.
+                if (wallpaperPlayer.hasSceneClock()) covers = false;
                 shelfCovers = covers;
                 applySceneClockHeader();
                 wallpaperPlayer.setSceneSuppressed(covers);

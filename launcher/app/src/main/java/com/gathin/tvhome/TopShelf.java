@@ -159,7 +159,9 @@ final class TopShelf {
         this.animations = animations;
         this.reducedMotion = reducedMotion;
         android.content.SharedPreferences choices = context.getSharedPreferences(Config.SETTINGS_NAME, Context.MODE_PRIVATE);
-        this.appArtwork = choices.getBoolean(Config.TOP_SHELF_ARTWORK_KEY, true);
+        // Over a Horizon scene the shelf is text only (what to resume, progress, Resume and Up next): no app pictures,
+        // so the scene and its glass clock stay the background.
+        this.appArtwork = restPictures && choices.getBoolean(Config.TOP_SHELF_ARTWORK_KEY, true);
         this.showCredit = choices.getBoolean(Config.TOP_SHELF_CREDIT_KEY, true);
         this.density = context.getResources().getDisplayMetrics().density;
         this.accent = accent;

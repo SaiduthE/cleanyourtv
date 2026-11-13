@@ -63,8 +63,11 @@ final class TopShelf {
         /** Bottom edge of the clock row and the top bar, in the shelf's coordinates. */
         int headerBottom();
 
-        /** A show's backdrop now covers the screen (true), or no longer does (false). */
-        void onBackdropCover(boolean covers);
+        /**
+         * The shelf is showing a show's Resume block (its text, button and Up next cards, and the backdrop when it has a
+         * real one) or no longer is. The Horizon scene clock is big and would collide with that text, so it steps aside.
+         */
+        void onResumeShown(boolean shown);
     }
 
     private static final int ICON_DP = 56;
@@ -112,7 +115,7 @@ final class TopShelf {
     private final Legibility.Scrim topScrim;
     /** The header's own texts are on screen (the Horizon scene clock hides them, and its text has its own shadow). */
     private boolean headerText = true;
-    /** A real backdrop covers the screen (the Horizon scene clock steps aside for it). */
+    /** A Resume block is up (the Horizon scene clock steps aside for it). */
     private boolean covering;
 
     private final LinearLayout nameRow;
@@ -516,7 +519,7 @@ final class TopShelf {
         // The shelf's own large type takes the place of the app name above the dock.
         host.setTitleHidden(true);
         placeScrims();
-        reveal(backdropShown);
+        reveal(backdropShown, what == TopShelfLogic.Content.RESUME);
     }
 
     /** No resume item: the app's name in clean large type, and its icon small beside it when it stays crisp. */
@@ -681,12 +684,12 @@ final class TopShelf {
     }
 
     /** Fades the content in over the wallpaper (no darker frame in between); a real backdrop covers it and rests it. */
-    private void reveal(boolean coversWallpaper) {
+    private void reveal(boolean coversWallpaper, boolean resume) {
         int ms = SettingsModel.duration(animations, reducedMotion, 240);
         content.animate().cancel();
         content.setVisibility(View.VISIBLE);
         wall.setRotating(!coversWallpaper);
-        setCovering(coversWallpaper);
+        setCovering(resume);
         restScrim.animate().cancel();
         restScrim.animate().alpha(0f).setDuration(ms).start();
         if (ms == 0) {
@@ -725,7 +728,7 @@ final class TopShelf {
     private void setCovering(boolean on) {
         if (covering == on) return;
         covering = on;
-        host.onBackdropCover(on);
+        host.onResumeShown(on);
     }
 
     private void clearContent() {

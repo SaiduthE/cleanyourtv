@@ -114,7 +114,6 @@ use it and ends with the check to run.
 - [`launcher-switch.md`](docs/workflows/launcher-switch.md): add an off-by-default launcher switch, within the size gate.
 - [`translation.md`](docs/workflows/translation.md): add a launcher language, or fill strings missing from one.
 - [`theme.md`](docs/workflows/theme.md): add a theme from existing keys, with its screenshot from a real TV.
-- [`make-a-scene.md`](docs/workflows/make-a-scene.md): turn a photo into a Horizon wallpaper with a glass clock, offline, with `tools/make-scene.py`.
 - [`addon.md`](docs/workflows/addon.md): add a module-card app that never touches `launcher/`.
 - [`showcase.md`](docs/workflows/showcase.md): list a project that lives in its own repository.
 - [`press.md`](docs/workflows/press.md): add an article and update the four press counts.

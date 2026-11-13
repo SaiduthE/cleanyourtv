@@ -11,6 +11,9 @@ import androidx.recyclerview.widget.RecyclerView;
 /** Draws the tvOS style lighter band behind the first (dock) row and adds a gap below it. */
 public class DockDecoration extends RecyclerView.ItemDecoration implements Frost.Listener {
 
+    /** The band is baked at its size rounded up to these steps (px), so animations do not bake a new bitmap every frame. */
+    private static final int BAKE_STEP_W = 64, BAKE_STEP_H = 16;
+
     private final int dockSize;
     private final float density;
     private final RectF rect = new RectF();
@@ -179,6 +182,8 @@ public class DockDecoration extends RecyclerView.ItemDecoration implements Frost
             sy = where[1] + top;
             if (grid == null || grid.get() != parent) grid = new java.lang.ref.WeakReference<>(parent);
         }
-        glass.draw(c, left, top, Math.round(rect.right) - left, Math.round(rect.bottom) - top, radius, sx, sy);
+        // The rect's size shifts a little every frame while the grid scrolls or its tiles animate: bake at a rounded-up size.
+        glass.drawSnapped(c, left, top, Math.round(rect.right) - left, Math.round(rect.bottom) - top, radius, sx, sy,
+                BAKE_STEP_W, BAKE_STEP_H);
     }
 }

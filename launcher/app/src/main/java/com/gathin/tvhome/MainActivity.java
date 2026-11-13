@@ -634,11 +634,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         // scene_clock draws the time and date itself: the header's texts stay in the layout, unseen, so nothing moves and
         // the D-pad order is what it was (none of them takes focus).
-        if (wallpaperPlayer.sceneClockShown()) {
-            for (int id : new int[] {R.id.greeting, R.id.clock, R.id.ampm, R.id.clockDivider, R.id.date, R.id.shamsiDate, R.id.lunarDate}) {
-                findViewById(id).setVisibility(View.INVISIBLE);
-            }
-        }
+        applySceneClockHeader();
+        // The first picture may only appear later (a rotation, or the first files fail): the header follows the scene clock.
+        wallpaperPlayer.setSceneListener(this::applySceneClockHeader);
         // Widgets (weather chip, brightness chip) in the slots the owner chose, created below once the top bar exists.
         vpnApp = cfg.vpnApp;
         vpnPill = cfg.vpnPill && !cfg.topMenu;
@@ -1431,6 +1429,30 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
      * rebuild it when Home comes back. Not at UI_HIDDEN, the ordinary trip to an app, where keeping the
      * tiles is what makes the return instant.
      */
+    private static final int[] HEADER_TEXT_IDS = {R.id.greeting, R.id.clock, R.id.ampm, R.id.clockDivider, R.id.date,
+            R.id.shamsiDate, R.id.lunarDate};
+    /** The header texts' visibility before the scene clock hid them; null while they are as the layout left them. */
+    private int[] headerVisibility;
+
+    /**
+     * The header's clock, greeting and date step aside only while the scene clock really is on screen, and come back
+     * when it is not (no wallpaper could be shown).
+     */
+    private void applySceneClockHeader() {
+        boolean scene = wallpaperPlayer != null && wallpaperPlayer.sceneClockShown();
+        if (scene && headerVisibility == null) {
+            headerVisibility = new int[HEADER_TEXT_IDS.length];
+            for (int i = 0; i < HEADER_TEXT_IDS.length; i++) {
+                View v = findViewById(HEADER_TEXT_IDS[i]);
+                headerVisibility[i] = v.getVisibility();
+                v.setVisibility(View.INVISIBLE);
+            }
+        } else if (!scene && headerVisibility != null) {
+            for (int i = 0; i < HEADER_TEXT_IDS.length; i++) findViewById(HEADER_TEXT_IDS[i]).setVisibility(headerVisibility[i]);
+            headerVisibility = null;
+        }
+    }
+
     @Override
     public void onTrimMemory(int level) {
         super.onTrimMemory(level);

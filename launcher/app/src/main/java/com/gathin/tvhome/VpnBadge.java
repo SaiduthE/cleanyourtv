@@ -49,7 +49,7 @@ final class VpnBadge extends ReplacementSpan {
 
     /** icon_only_vpn: the closed lock while a VPN is up, the open lock while none is. */
     static int iconOnlyLock(boolean up) {
-        return up ? R.drawable.ic_lock : R.drawable.ic_lock_open;
+        return up ? Icons.LOCK : Icons.LOCK_OPEN;
     }
 
     /**

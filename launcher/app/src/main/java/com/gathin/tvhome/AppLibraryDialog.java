@@ -325,7 +325,7 @@ final class AppLibraryDialog {
             main.post(() -> {
                 iconsLoading.remove(pkg);
                 if (closed) return;
-                Drawable shown = result != null ? result : activity.getDrawable(R.drawable.ic_apps);
+                Drawable shown = result != null ? result : Icons.get(activity, Icons.APPS);
                 icons.put(pkg, shown);
                 // The view may show another app by now; a view bound to it later takes it from the cache.
                 if (pkg.equals(icon.getTag())) icon.setImageDrawable(shown);

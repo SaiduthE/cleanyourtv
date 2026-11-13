@@ -219,7 +219,7 @@ final class WidgetOverlays {
             tile.setAlpha(available || slot != null ? 1f : 0.55f);
 
             ImageView icon = new ImageView(ctx);
-            icon.setImageResource(def.iconRes);
+            icon.setImageResource(Icons.res(ctx, def.iconRes));
             tile.addView(icon, new LinearLayout.LayoutParams(dp(ctx, 40), dp(ctx, 40)));
             TextView label = text(ctx, ctx.getString(def.labelRes), 16, 0xEBFFFFFF, R.string.font_medium);
             label.setPadding(0, dp(ctx, 8), 0, 0);

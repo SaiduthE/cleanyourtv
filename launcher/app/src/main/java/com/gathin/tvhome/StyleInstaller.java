@@ -202,6 +202,7 @@ final class StyleInstaller {
             if (chosen.contains(Config.ROWS_BELOW_DOCK_KEY)) onTv.put("rows_below_dock", chosen.getInt(Config.ROWS_BELOW_DOCK_KEY, 1));
             if (chosen.contains(Config.DOCK_OPACITY_KEY)) onTv.put("dock_opacity", chosen.getInt(Config.DOCK_OPACITY_KEY, 100));
             if (chosen.contains(Config.CLOCK_FORMAT_KEY)) onTv.put("clock_format", chosen.getString(Config.CLOCK_FORMAT_KEY, "system"));
+            if (chosen.contains(Config.ICON_STYLE_KEY)) onTv.put(Config.ICON_STYLE_KEY, chosen.getString(Config.ICON_STYLE_KEY, Config.ICONS_ROUNDED));
             JSONObject next = merge(preset, current, onTv, id, presetKeys(activity));
 
             // Stage everything first.

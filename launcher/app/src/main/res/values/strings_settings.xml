@@ -22,6 +22,9 @@
 
     <string name="ls_animations_label" translatable="false">Animations</string>
     <string name="ls_clock_label" translatable="false">Clock</string>
+    <string name="ls_icons_label" translatable="false">Icons</string>
+    <string name="ls_icons_rounded" translatable="false">Rounded</string>
+    <string name="ls_icons_classic" translatable="false">Classic</string>
     <string name="ls_top_bar_buttons" translatable="false">Top bar buttons</string>
     <string name="ls_tbb_icons" translatable="false">Icons</string>
     <string name="ls_tbb_text" translatable="false">Text</string>
@@ -51,6 +54,7 @@
     <string name="ls_help_style" translatable="false">The look of Clean Look: wallpaper, dock, columns and colours.</string>
     <string name="ls_help_wallpaper" translatable="false">Pick one picture to keep, or let the theme change it.</string>
     <string name="ls_help_clock" translatable="false">System follows the TV\'s own 12 or 24 hour setting.</string>
+    <string name="ls_help_icons" translatable="false">Rounded or the original icons, in the top bar, menus and widgets.</string>
     <string name="ls_help_animations" translatable="false">Off makes every move instant, for slow TVs.</string>
     <string name="ls_help_advanced" translatable="false">Lifted tile, icon zoom and smooth colours. May use more memory.</string>
     <string name="ls_help_advanced_off" translatable="false">Turn Animations on first. Advanced effects need them.</string>

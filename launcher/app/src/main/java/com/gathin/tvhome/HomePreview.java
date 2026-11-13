@@ -229,25 +229,25 @@ final class HomePreview extends FrameLayout {
     private static void addButtons(Context ctx, Config cfg, LinearLayout buttons) {
         Map<TopButtonStyle.Button, String> styles = TopButtonStyler.load(ctx, cfg);
         if (cfg.topMenu) {
-            buttons.addView(pill(ctx, TopButtonStyle.ICON, R.drawable.ic_settings, ctx.getString(R.string.settings)));
+            buttons.addView(pill(ctx, TopButtonStyle.ICON, Icons.SETTINGS, ctx.getString(R.string.settings)));
             return;
         }
         if (cfg.showInputsPill) {
-            buttons.addView(pill(ctx, styles.get(TopButtonStyle.Button.INPUTS), R.drawable.ic_input,
+            buttons.addView(pill(ctx, styles.get(TopButtonStyle.Button.INPUTS), Icons.INPUT,
                     ctx.getString(R.string.inputs)));
         }
         if (cfg.showNetworkPill) {
             buttons.addView(pill(ctx, cfg.iconOnlyButtons ? TopButtonStyle.ICON : TopButtonStyle.BOTH,
-                    R.drawable.ic_wifi, ctx.getString(R.string.wifi)));
+                    Icons.WIFI, ctx.getString(R.string.wifi)));
         }
         if (cfg.reorderButton) {
-            buttons.addView(pill(ctx, TopButtonStyle.ICON, R.drawable.ic_swap_vert, ctx.getString(R.string.reorder)));
+            buttons.addView(pill(ctx, TopButtonStyle.ICON, Icons.SWAP_VERT, ctx.getString(R.string.reorder)));
         }
         if (cfg.libraryButton && cfg.appLibrary) {
-            buttons.addView(pill(ctx, TopButtonStyle.ICON, R.drawable.ic_apps_pill, ctx.getString(R.string.app_library)));
+            buttons.addView(pill(ctx, TopButtonStyle.ICON, Icons.APPS_PILL, ctx.getString(R.string.app_library)));
         }
         buttons.addView(pill(ctx, styles.get(TopButtonStyle.Button.SETTINGS),
-                cfg.launcherSettingsButton ? R.drawable.ic_home_settings_pill : R.drawable.ic_settings,
+                cfg.launcherSettingsButton ? Icons.HOME_SETTINGS_PILL : Icons.SETTINGS,
                 ctx.getString(cfg.launcherSettingsButton ? R.string.launcher_settings : R.string.settings)));
     }
 
@@ -345,7 +345,7 @@ final class HomePreview extends FrameLayout {
         if (def == null) return box;
         box.setPadding(dp(ctx, 8), 0, dp(ctx, 8), 0);
         ImageView icon = new ImageView(ctx);
-        icon.setImageResource(def.iconRes);
+        icon.setImageResource(Icons.res(ctx, def.iconRes));
         icon.setAlpha(0.7f);
         box.addView(icon, new LinearLayout.LayoutParams(dp(ctx, 22), dp(ctx, 22)));
         TextView name = text(ctx, ctx.getString(def.labelRes), 13, 0x99FFFFFF, R.string.font_medium);

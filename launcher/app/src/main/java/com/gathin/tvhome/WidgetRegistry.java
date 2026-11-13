@@ -73,7 +73,7 @@ final class WidgetRegistry {
     }
 
     private static WidgetDef weather() {
-        return new WidgetDef(WEATHER, R.string.widget_weather, R.drawable.ic_widget_weather,
+        return new WidgetDef(WEATHER, R.string.widget_weather, Icons.WIDGET_WEATHER,
                 R.string.widget_weather_missing, EnumSet.allOf(WidgetSlot.class), WidgetSlot.CLOCK_SIDE,
                 WeatherSource::available,
                 Arrays.asList(WEATHER_UNIT, WEATHER_PLACE, WEATHER_CITY),
@@ -84,7 +84,7 @@ final class WidgetRegistry {
     }
 
     private static WidgetDef brightness() {
-        return new WidgetDef(BRIGHTNESS, R.string.widget_brightness, R.drawable.ic_widget_brightness,
+        return new WidgetDef(BRIGHTNESS, R.string.widget_brightness, Icons.WIDGET_BRIGHTNESS,
                 R.string.widget_brightness_missing, EnumSet.allOf(WidgetSlot.class), null,
                 BrightnessSource::available,
                 Arrays.asList(BRIGHTNESS_STEP, BRIGHTNESS_STYLE),

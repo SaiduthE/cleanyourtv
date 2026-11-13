@@ -40,13 +40,13 @@ public final class QuickSettingsActivity extends Activity {
         }
         findViewById(R.id.scrim).setOnClickListener(v -> finish());
         LinearLayout rows = findViewById(R.id.rows);
-        addRow(rows, R.drawable.ic_settings, R.string.tv_settings, 0, SystemSettings.intent(this, Settings.ACTION_SETTINGS));
-        addRow(rows, R.drawable.ic_picture, R.string.quick_picture, 0, SystemSettings.displayIntent(this));
-        addRow(rows, R.drawable.ic_wifi, R.string.quick_network, 0, SystemSettings.intent(this, Settings.ACTION_WIFI_SETTINGS));
-        addRow(rows, R.drawable.ic_apps, R.string.quick_apps, R.string.quick_apps_hint,
+        addRow(rows, Icons.SETTINGS, R.string.tv_settings, 0, SystemSettings.intent(this, Settings.ACTION_SETTINGS));
+        addRow(rows, Icons.PICTURE, R.string.quick_picture, 0, SystemSettings.displayIntent(this));
+        addRow(rows, Icons.WIFI, R.string.quick_network, 0, SystemSettings.intent(this, Settings.ACTION_WIFI_SETTINGS));
+        addRow(rows, Icons.APPS, R.string.quick_apps, R.string.quick_apps_hint,
                 SystemSettings.intent(this, Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS));
         // Through Home, so it rebuilds with the new choices when Launcher settings closes.
-        addRow(rows, R.drawable.ic_home_settings, R.string.launcher_settings, 0,
+        addRow(rows, Icons.HOME_SETTINGS, R.string.launcher_settings, 0,
                 new Intent(this, MainActivity.class).setAction(MainActivity.ACTION_LAUNCHER_SETTINGS));
         rows.getChildAt(0).requestFocus();
     }
@@ -69,7 +69,7 @@ public final class QuickSettingsActivity extends Activity {
 
     private void addRow(LinearLayout rows, int icon, int title, int status, Intent target) {
         View row = getLayoutInflater().inflate(R.layout.item_input, rows, false);
-        ((ImageView) row.findViewById(R.id.icon)).setImageResource(icon);
+        ((ImageView) row.findViewById(R.id.icon)).setImageResource(Icons.res(this, icon));
         ((TextView) row.findViewById(R.id.title)).setText(title);
         row.findViewById(R.id.dot).setVisibility(View.GONE);
         TextView hint = row.findViewById(R.id.status);

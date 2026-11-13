@@ -15,7 +15,7 @@ final class SettingsModel {
 
     enum Row {
         COLUMNS, ROWS_BELOW_DOCK, DOCK_OPACITY, OPEN_ON_START,
-        STYLE, WALLPAPER, CLOCK, WIDGETS, ANIMATIONS, ADVANCED,
+        STYLE, WALLPAPER, CLOCK, WIDGETS, ICONS, ANIMATIONS, ADVANCED,
         TOP_SHELF, APP_ARTWORK, PHOTOS, PHOTO_THEMES, REFRESH_PHOTOS, CHANGE_EVERY, PHOTO_CREDIT,
         REMOTE_BUTTONS, TOP_BAR_BUTTONS, REORDER, EDIT_DOCK,
         DEFAULT_HOME, TV_SETTINGS, RESET_THEME
@@ -27,6 +27,8 @@ final class SettingsModel {
     static final int[] COLUMNS = {4, 5, 6, 7};
     static final int[] ROWS_BELOW_DOCK = {0, 1, 2, 3};
     static final String[] CLOCK_FORMATS = {"system", "12", "24"};
+    /** The Icons row: Config.ICONS_ROUNDED (the launcher's look) or Config.ICONS_DEFAULT (the original icons). */
+    static final String[] ICON_STYLES = {Config.ICONS_ROUNDED, Config.ICONS_DEFAULT};
 
     // ---- Top Shelf > Change every ----------------------------------------------------------------------------------
 
@@ -71,7 +73,7 @@ final class SettingsModel {
      */
     static final String[] RESET_KEYS = {
             "columns", Config.ROWS_BELOW_DOCK_KEY, "animations", "advanced_effects", Config.WALLPAPER_CHOICE_KEY,
-            Config.DOCK_OPACITY_KEY, Config.CLOCK_FORMAT_KEY, OpenOnStart.KEY, WidgetStore.PLACEMENTS_KEY,
+            Config.DOCK_OPACITY_KEY, Config.CLOCK_FORMAT_KEY, Config.ICON_STYLE_KEY, OpenOnStart.KEY, WidgetStore.PLACEMENTS_KEY,
     };
 
     private SettingsModel() { }
@@ -98,6 +100,7 @@ final class SettingsModel {
                 rows.add(Row.WALLPAPER);
                 rows.add(Row.CLOCK);
                 rows.add(Row.WIDGETS);
+                rows.add(Row.ICONS);
                 rows.add(Row.ANIMATIONS);
                 rows.add(Row.ADVANCED);
                 break;

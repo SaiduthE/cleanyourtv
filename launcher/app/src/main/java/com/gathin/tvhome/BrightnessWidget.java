@@ -31,6 +31,7 @@ final class BrightnessWidget implements HomeWidget {
         this.activity = wc.activity;
         // The same pill as the top bar's buttons (style TopButton), whichever slot it is docked in.
         chip = new TextView(activity, null, 0, R.style.TopButton);
+        GlassLook.decorate(chip);   // built after Home's own decorate pass: the frosted glass is put on here
         chip.setSingleLine(true);
         chip.setVisibility(View.GONE);
         chip.setOnClickListener(v -> wc.host.openBrightnessControl(this));
@@ -142,7 +143,11 @@ final class BrightnessWidget implements HomeWidget {
         }
     }
 
-    /** The rounded sun fills from the bottom as the brightness rises; it eases to a new level instead of jumping. */
+    /**
+     * The rounded sun's centre disc fills from the bottom as the brightness rises; it eases to a new level instead of
+     * jumping. TopButtonStyler.shape gave the chip a fresh drawable just before this runs, so the level is always set on
+     * the chip's current one (the tint is applied to a mutated copy, which keeps its own level).
+     */
     private void showFill() {
         Drawable sun = chip.getCompoundDrawablesRelative()[0];
         if (sun == null || !Icons.rounded(activity)) return;

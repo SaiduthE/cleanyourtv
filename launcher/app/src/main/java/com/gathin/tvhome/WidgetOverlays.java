@@ -657,6 +657,7 @@ final class WidgetOverlays {
             }
             value.setText(reading.level + "%");
             bar.set(reading.level);
+            widget.setLevel(reading);   // the chip behind follows every step, not only the close
             hint.setText(reading.canDraw ? R.string.widget_brightness_hint : R.string.widget_brightness_no_overlay);
         }
 

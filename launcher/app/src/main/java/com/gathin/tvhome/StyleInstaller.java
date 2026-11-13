@@ -50,7 +50,12 @@ final class StyleInstaller {
             {"aurora", "Aurora", "A dark aurora wallpaper in teal and violet"},
             {"minimal", "Minimal", "Flat graphite, no wallpaper or glow: the tiles float on their own"},
             {"six-columns", "Six columns", "The built-in look with six smaller tiles per row"},
+            {"horizon", "Horizon", "Big glass clock over five rotating scenes, with the scenery in front of the numerals"},
     };
+
+    /** Where the look that was on before a bundled style was applied is kept, inside the launcher's theme folder. */
+    static final String PREVIOUS_DIR = "previous_look";
+    private static final String PREVIOUS_MARK = ".saved";
 
     /**
      * Keys that are the owner's even when a preset sets them: the current value is kept and the preset's is never
@@ -167,13 +172,135 @@ final class StyleInstaller {
 
     // ---- applying -----------------------------------------------------------------------------------------------
 
+    /** Whether a look was set aside when a bundled style replaced it, so the picker can offer to go back to it. */
+    static boolean hasPrevious(Context ctx) {
+        File dir = Config.dir(ctx);
+        return dir != null && new File(new File(dir, PREVIOUS_DIR), PREVIOUS_MARK).isFile();
+    }
+
+    /** Whether the style ships its own wallpaper collection (Horizon's scenes), which then belongs to it, not the owner. */
+    private static boolean shipsCollection(Context ctx, String id) {
+        try {
+            return id != null && shipsCollection(ctx.getAssets().list("themes/" + id + "/" + ThemeFiles.WALLPAPERS));
+        } catch (IOException e) {
+            return false;
+        }
+    }
+
+    /** What a look is made of, wherever it comes from: a bundled style in assets, or the folder a look was set aside in. */
+    private interface Look {
+        /** The look's config.json keys (empty for the built-in look). */
+        JSONObject config() throws IOException, JSONException;
+
+        boolean hasWallpaper();
+
+        void copyWallpaper(File to) throws IOException;
+
+        /** The names of the collection's files, or null/empty when it brings none. */
+        String[] collection() throws IOException;
+
+        void copyCollectionFile(String name, File to) throws IOException;
+    }
+
+    private static final class AssetLook implements Look {
+        private final Context ctx;
+        private final String id;
+
+        AssetLook(Context ctx, String id) {
+            this.ctx = ctx;
+            this.id = id;
+        }
+
+        @Override
+        public JSONObject config() throws IOException, JSONException {
+            return id == null ? new JSONObject() : new JSONObject(stripBom(readAsset(ctx, "themes/" + id + "/config.json")));
+        }
+
+        @Override
+        public boolean hasWallpaper() {
+            return id != null && hasAssetFile(ctx, "themes/" + id + "/wallpaper.jpg");
+        }
+
+        @Override
+        public void copyWallpaper(File to) throws IOException {
+            copyAsset(ctx, "themes/" + id + "/wallpaper.jpg", to);
+        }
+
+        @Override
+        public String[] collection() throws IOException {
+            return id == null ? null : ctx.getAssets().list("themes/" + id + "/" + ThemeFiles.WALLPAPERS);
+        }
+
+        @Override
+        public void copyCollectionFile(String name, File to) throws IOException {
+            copyAsset(ctx, "themes/" + id + "/" + ThemeFiles.WALLPAPERS + "/" + name, to);
+        }
+    }
+
+    /** A look set aside in {@link #PREVIOUS_DIR}: config.json, wallpaper.jpg and wallpapers/ as they were. */
+    private static final class FolderLook implements Look {
+        private final File dir;
+
+        FolderLook(File dir) {
+            this.dir = dir;
+        }
+
+        @Override
+        public JSONObject config() {
+            JSONObject json = readJson(new File(dir, Config.FILE_NAME));
+            return json == null ? new JSONObject() : json;
+        }
+
+        @Override
+        public boolean hasWallpaper() {
+            return new File(dir, Config.WALLPAPER_NAME).isFile();
+        }
+
+        @Override
+        public void copyWallpaper(File to) throws IOException {
+            Files.copy(new File(dir, Config.WALLPAPER_NAME).toPath(), to.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        }
+
+        @Override
+        public String[] collection() {
+            File[] files = new File(dir, ThemeFiles.WALLPAPERS).listFiles(File::isFile);
+            if (files == null) return null;
+            String[] names = new String[files.length];
+            for (int i = 0; i < files.length; i++) names[i] = files[i].getName();
+            return names;
+        }
+
+        @Override
+        public void copyCollectionFile(String name, File to) throws IOException {
+            Files.copy(new File(new File(dir, ThemeFiles.WALLPAPERS), name).toPath(), to.toPath(),
+                    StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
     /**
      * Writes a style from assets (or the built-in look for a null id) where tools/theme.sh would put it, then
      * restarts Home and finishes the activity. Everything is staged in .tmp files first and moved into place only
      * when every copy has worked, config.json and theme_revision last, with the old config kept as config.json.bak.
-     * False, with a toast, when nothing could be written.
+     * Applying a bundled style over a custom look (a pushed theme) first sets that look aside, so
+     * {@link #restorePrevious} can bring it back. False, with a toast, when nothing could be written.
      */
     static boolean apply(Activity activity, String id, String name) {
+        return applyLook(activity, new AssetLook(activity, id), id, name, id != null && activeStyleId(activity) == null,
+                false);
+    }
+
+    /** Puts back the look that was set aside by {@link #apply}; the set-aside copy is deleted once it is back. */
+    static boolean restorePrevious(Activity activity, String name) {
+        File dir = Config.dir(activity);
+        if (dir == null || !hasPrevious(activity)) {
+            Toast.makeText(activity, "No previous look to go back to.", Toast.LENGTH_LONG).show();
+            return false;
+        }
+        return applyLook(activity, new FolderLook(new File(dir, PREVIOUS_DIR)), null, name, false, true);
+    }
+
+    private static boolean applyLook(Activity activity, Look look, String id, String name, boolean setAside,
+                                     boolean restoring) {
         File dir = Config.dir(activity);
         if (dir == null) {
             Toast.makeText(activity, "No storage to write the style to.", Toast.LENGTH_LONG).show();
@@ -192,8 +319,7 @@ final class StyleInstaller {
             // that drops the owner's keys.
             if (current == null && config.isFile()) current = ThemeOverlay.read(activity);
             if (current == null && config.isFile()) throw new IOException("config.json cannot be read");
-            JSONObject preset = id == null ? new JSONObject()
-                    : new JSONObject(readAsset(activity, "themes/" + id + "/config.json"));
+            JSONObject preset = look.config();
             // Choices made in Launcher settings belong to the old look and the launcher drops them when the theme
             // changes. These are the owner's, not the style's, so they move into the new config and survive.
             SharedPreferences chosen = activity.getSharedPreferences(Config.SETTINGS_NAME, Context.MODE_PRIVATE);
@@ -208,33 +334,35 @@ final class StyleInstaller {
             // Stage everything first.
             boolean writeConfig = next.length() > 0;
             if (writeConfig) writeText(configTmp, next.toString(2));
-            boolean copyWallpaper = id != null && hasAssetFile(activity, "themes/" + id + "/wallpaper.jpg");
-            if (copyWallpaper) copyAsset(activity, "themes/" + id + "/wallpaper.jpg", wallpaperTmp);
-            // The owner's own pictures stay unless the style brings a collection of its own.
-            String[] collection = id == null ? null
-                    : activity.getAssets().list("themes/" + id + "/" + ThemeFiles.WALLPAPERS);
+            boolean copyWallpaper = look.hasWallpaper();
+            if (copyWallpaper) look.copyWallpaper(wallpaperTmp);
+            // The owner's own pictures stay unless the look brings a collection of its own. A collection that came with
+            // the look being left (Horizon's scenes) is that look's, so it goes when the next one has none.
+            String[] collection = look.collection();
             boolean copyCollection = shipsCollection(collection);
+            boolean dropCollection = !copyCollection && shipsCollection(activity, activeStyleId(activity));
             if (copyCollection) {
                 clearCollection(collectionTmp);
                 if (!collectionTmp.isDirectory() && !collectionTmp.mkdirs()) throw new IOException("cannot create " + collectionTmp);
-                for (String file : collection) {
-                    copyAsset(activity, "themes/" + id + "/" + ThemeFiles.WALLPAPERS + "/" + file, new File(collectionTmp, file));
-                }
+                for (String file : collection) look.copyCollectionFile(file, new File(collectionTmp, file));
             }
             writeText(revisionTmp, UUID.randomUUID().toString().replace("-", ""));
+            if (setAside) setAsideCurrent(dir);
 
             // Move into place; config.json and theme_revision last.
             if (config.isFile()) {
                 Files.copy(config.toPath(), new File(dir, Config.FILE_NAME + ".bak").toPath(),
                         StandardCopyOption.REPLACE_EXISTING);
             }
-            if (copyCollection) {
+            if (copyCollection || dropCollection) {
                 File folder = new File(dir, ThemeFiles.WALLPAPERS);
                 clearCollection(folder);
-                if (!folder.isDirectory() && !folder.mkdirs()) throw new IOException("cannot create " + folder);
-                File[] staged = collectionTmp.listFiles();
-                if (staged != null) for (File f : staged) move(f, new File(folder, f.getName()));
-                collectionTmp.delete();
+                if (copyCollection) {
+                    if (!folder.isDirectory() && !folder.mkdirs()) throw new IOException("cannot create " + folder);
+                    File[] staged = collectionTmp.listFiles();
+                    if (staged != null) for (File f : staged) move(f, new File(folder, f.getName()));
+                    collectionTmp.delete();
+                }
             }
             if (copyWallpaper) move(wallpaperTmp, wallpaper);
             else wallpaper.delete();
@@ -242,6 +370,7 @@ final class StyleInstaller {
             else config.delete();
             // The launcher compares this to what it saw last and drops the on-TV choices of the old look.
             move(revisionTmp, new File(dir, "theme_revision"));
+            if (restoring) deleteTree(new File(dir, PREVIOUS_DIR));
         } catch (IOException | JSONException e) {
             configTmp.delete();
             wallpaperTmp.delete();
@@ -256,6 +385,30 @@ final class StyleInstaller {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TASK));
         activity.finish();
         return true;
+    }
+
+    /** Copies the current look (config.json, wallpaper.jpg, the wallpapers folder) into {@link #PREVIOUS_DIR}, marker last. */
+    private static void setAsideCurrent(File dir) throws IOException {
+        File saved = new File(dir, PREVIOUS_DIR);
+        deleteTree(saved);
+        if (!saved.mkdirs()) throw new IOException("cannot create " + saved);
+        for (String file : new String[] {Config.FILE_NAME, Config.WALLPAPER_NAME}) {
+            File from = new File(dir, file);
+            if (from.isFile()) Files.copy(from.toPath(), new File(saved, file).toPath(), StandardCopyOption.REPLACE_EXISTING);
+        }
+        File[] pictures = new File(dir, ThemeFiles.WALLPAPERS).listFiles(File::isFile);
+        if (pictures != null && pictures.length > 0) {
+            File folder = new File(saved, ThemeFiles.WALLPAPERS);
+            if (!folder.mkdirs()) throw new IOException("cannot create " + folder);
+            for (File f : pictures) Files.copy(f.toPath(), new File(folder, f.getName()).toPath(), StandardCopyOption.REPLACE_EXISTING);
+        }
+        writeText(new File(saved, PREVIOUS_MARK), "1");
+    }
+
+    private static void deleteTree(File file) {
+        File[] children = file.listFiles();
+        if (children != null) for (File child : children) deleteTree(child);
+        file.delete();
     }
 
     private static void move(File from, File to) throws IOException {

@@ -25,10 +25,37 @@ public class FrostTest {
     @Test
     public void darkeningFollowsTheStrengthAndStopsShortOfBlack() {
         assertEquals(0f, Frost.darken(0), 0f);
-        assertEquals(0.48f, Frost.darken(60), 0.001f);
-        assertEquals(0.8f, Frost.darken(100), 0.001f);
-        assertEquals(0.8f, Frost.darken(500), 0.001f);
+        assertEquals(0.27f, Frost.darken(60), 0.001f);
+        assertEquals(0.45f, Frost.darken(100), 0.001f);
+        assertEquals(0.45f, Frost.darken(500), 0.001f);
         assertEquals(0f, Frost.darken(-5), 0f);
+    }
+
+    @Test
+    public void darkFillsKeepAThirdOfTheirAlphaOverFrost() {
+        // The opaque card of Quick settings, a menu: 0xFF drops to about 0.32 of it.
+        assertEquals(Math.round(255 * Frost.FILL_KEEP), Frost.fillOnFrost(0xFF2A2A2E) >>> 24);
+        assertEquals(0x2A2A2E, Frost.fillOnFrost(0xFF2A2A2E) & 0xFFFFFF);
+        assertTrue(Frost.FILL_KEEP >= 0.25f && Frost.FILL_KEEP <= 0.35f);
+    }
+
+    @Test
+    public void dockBandStillFollowsItsOpacityOverFrost() {
+        int at100 = Frost.fillOnFrost(DockDecoration.bandColor(false, 100)) >>> 24;
+        int at65 = Frost.fillOnFrost(DockDecoration.bandColor(false, 65)) >>> 24;
+        int at30 = Frost.fillOnFrost(DockDecoration.bandColor(false, 30)) >>> 24;
+        int at0 = Frost.fillOnFrost(DockDecoration.bandColor(false, 0)) >>> 24;
+        assertTrue(at100 > at65 && at65 > at30 && at30 > at0);
+        assertEquals(0, at0);
+        assertEquals(Math.round(166 * Frost.FILL_KEEP), at65, 1);   // 65 percent of 255 is 166
+    }
+
+    @Test
+    public void whiteGlassIsLeftAsDesigned() {
+        assertEquals(0x2EFFFFFF, Frost.fillOnFrost(0x2EFFFFFF));
+        assertEquals(0x14FFFFFF, Frost.fillOnFrost(0x14FFFFFF));
+        assertTrue(Frost.isDarkFill(0xFF141416));
+        assertTrue(!Frost.isDarkFill(0x24FFFFFF));
     }
 
     @Test

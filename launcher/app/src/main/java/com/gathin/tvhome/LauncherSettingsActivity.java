@@ -907,13 +907,24 @@ public final class LauncherSettingsActivity extends Activity {
         }
         p.add(getString(R.string.ls_style_builtin), getString(R.string.ls_style_builtin_caption),
                 new StylePreviewDrawable(null), false);
+        // The look a bundled style replaced (a pushed theme), while it is still set aside.
+        boolean previous = StyleInstaller.hasPrevious(this);
+        if (previous) {
+            p.add(getString(R.string.ls_style_previous), getString(R.string.ls_style_previous_caption),
+                    new StylePreviewDrawable(null), false);
+        }
         p.show(list, focus, position -> {
             boolean builtin = position == styles.size();
-            String id = builtin ? null : styles.get(position)[0];
-            String name = builtin ? getString(R.string.ls_style_builtin) : styles.get(position)[1];
-            if (!builtin && id.equals(active)) return;
+            boolean back = previous && position == styles.size() + 1;
+            String id = builtin || back ? null : styles.get(position)[0];
+            String name = back ? getString(R.string.ls_style_previous)
+                    : builtin ? getString(R.string.ls_style_builtin) : styles.get(position)[1];
+            if (!builtin && !back && id.equals(active)) return;
             confirm(view, name, getString(R.string.ls_style_confirm_body), getString(R.string.ls_apply),
-                    getString(android.R.string.cancel), true, () -> StyleInstaller.apply(this, id, name));
+                    getString(android.R.string.cancel), true, () -> {
+                        if (back) StyleInstaller.restorePrevious(this, name);
+                        else StyleInstaller.apply(this, id, name);
+                    });
         }, null);
     }
 
@@ -924,6 +935,7 @@ public final class LauncherSettingsActivity extends Activity {
             case "aurora": return getString(R.string.ls_style_aurora_caption);
             case "minimal": return getString(R.string.ls_style_minimal_caption);
             case "six-columns": return getString(R.string.ls_style_six_columns_caption);
+            case "horizon": return getString(R.string.ls_style_horizon_caption);
             default: return style[2];
         }
     }

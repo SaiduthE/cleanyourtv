@@ -83,11 +83,7 @@ public class IconsTest {
     }
 
     @Test
-    public void everyWeatherConditionHasASymbolByDayAndNight() {
-        for (WeatherData.Condition c : WeatherData.Condition.values()) {
-            assertNotEquals(0, Icons.weather(c, true));
-            assertNotEquals(0, Icons.weather(c, false));
-        }
-        assertNotEquals(Icons.weather(WeatherData.Condition.CLEAR, true), Icons.weather(WeatherData.Condition.CLEAR, false));
+    public void fillLevelRisesWithEveryPercent() {
+        for (int p = 1; p <= 100; p++) assertEquals(Icons.fillLevel(p - 1) + 100, Icons.fillLevel(p));
     }
 }

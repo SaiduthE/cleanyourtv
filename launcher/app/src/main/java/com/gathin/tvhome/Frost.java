@@ -21,7 +21,7 @@ import java.util.WeakHashMap;
  * is built.
  *
  * Steps: filtered downscale to 1/16 of the screen, a small stack blur, a bilinear scale up to 1/4 of the screen
- * through a saturation 1.3 colour matrix that also blends the picture toward dark by the strength.
+ * through a saturation 1.4 colour matrix that also blends the picture toward dark by the strength.
  */
 final class Frost {
 
@@ -30,9 +30,18 @@ final class Frost {
         void onFrostChanged();
     }
 
-    private static final float SATURATION = 1.3f;
-    /** The most the picture is darkened at strength 100, so a bright wallpaper never turns the glass white. */
-    private static final float MAX_DARK = 0.8f;
+    private static final float SATURATION = 1.4f;
+    /** The most the picture is darkened at strength 100 (0.27 at the default 60): the wallpaper's colours stay clearly visible. */
+    private static final float MAX_DARK = 0.45f;
+    /**
+     * What is left of a dark surface's own fill when it sits on the frost: the frost is the glass, the fill only a light
+     * tint that keeps white text readable (it used to be drawn at 69 percent and more, which hid the frost).
+     */
+    static final float FILL_KEEP = 0.32f;
+    /** A fill lighter than this (white glass) is already a sheen and is drawn as designed. */
+    private static final float DARK_LUMA = 0.55f;
+    /** The soft white sheen over frosted dark glass, top to bottom (alpha, 0 to 255). */
+    static final int SHEEN_TOP = 0x24, SHEEN_BOTTOM = 0x06;
     private static final int DARK_R = 16, DARK_G = 18, DARK_B = 24;
     private static final int BLUR_RADIUS = 4;
 
@@ -91,9 +100,24 @@ final class Frost {
 
     // ---- pure helpers (JVM-tested) --------------------------------------------------------------------------------
 
-    /** How far the picture is blended toward dark, 0 to 0.8, for a strength of 0 to 100. */
+    /** How far the picture is blended toward dark, 0 to 0.45, for a strength of 0 to 100 (60 gives 0.27). */
     static float darken(int strength) {
         return MAX_DARK * Math.max(0, Math.min(100, strength)) / 100f;
+    }
+
+    /** Whether a fill is dark enough that, over the frost, it is cut back to a light tint (white glass is left as it is). */
+    static boolean isDarkFill(int argb) {
+        float luma = (0.299f * ((argb >> 16) & 0xFF) + 0.587f * ((argb >> 8) & 0xFF) + 0.114f * (argb & 0xFF)) / 255f;
+        return luma < DARK_LUMA;
+    }
+
+    /**
+     * The fill to draw over the frost for a surface designed with {@code argb}: a dark fill keeps {@link #FILL_KEEP} of its
+     * alpha (so the dock band still follows dock_opacity: its alpha is already scaled by it), a light one is unchanged.
+     */
+    static int fillOnFrost(int argb) {
+        if (!isDarkFill(argb)) return argb;
+        return (Math.round((argb >>> 24) * FILL_KEEP) << 24) | (argb & 0xFFFFFF);
     }
 
     /** The size of the blurred source: 1/16 of the screen, never under 8 px. */
@@ -313,7 +337,7 @@ final class Frost {
         }
     }
 
-    /** Saturation 1.3, then a blend toward dark by the strength: rgb * (1 - t) + dark * t. */
+    /** Saturation 1.4, then a blend toward dark by the strength: rgb * (1 - t) + dark * t. */
     private static ColorMatrix matrix(int strength) {
         float t = darken(strength);
         ColorMatrix cm = new ColorMatrix();

@@ -17,6 +17,9 @@
     <string name="ls_style_aurora_caption" translatable="false">Teal and violet sky</string>
     <string name="ls_style_minimal_caption" translatable="false">Flat graphite, no band</string>
     <string name="ls_style_six_columns_caption" translatable="false">Black, smaller tiles</string>
+    <string name="ls_style_horizon_caption" translatable="false">Glass clock over five scenes</string>
+    <string name="ls_style_previous" translatable="false">Previous look</string>
+    <string name="ls_style_previous_caption" translatable="false">Back to your own theme</string>
     <string name="ls_style_confirm_body" translatable="false">Home restarts to apply it. Your dock apps, columns, remote buttons, VPN button and weather settings are kept.</string>
     <string name="ls_apply" translatable="false">Apply</string>
 

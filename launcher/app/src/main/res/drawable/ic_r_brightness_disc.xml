@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The solid centre disc of the Brightness sun (radius 190 of the 960 grid, the hole of ic_r_brightness_sun's ring), on
+     a viewport that is exactly the disc, so a clip by level fills it linearly from the bottom. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="8.71dp" android:height="8.71dp"
+    android:viewportWidth="380" android:viewportHeight="380">
+    <path android:fillColor="#FFFFFFFF"
+        android:pathData="M190 0a190 190 0 1 1 0 380a190 190 0 1 1 0-380Z" />
+</vector>

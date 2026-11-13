@@ -72,9 +72,6 @@ final class GlassSurface {
     private static final Set<GlassSurface> LIVE = Collections.synchronizedSet(
             Collections.newSetFromMap(new WeakHashMap<GlassSurface, Boolean>()));
 
-    /** A frost-backed opaque card keeps this much of its fill over the frost, so text stays readable on a bright picture. */
-    private static final float FILL_OVER_FROST = 0.69f;
-
     private final Spec spec;
     private Bitmap baked;
     private int bakedW, bakedH, bakedGrain;
@@ -258,11 +255,19 @@ final class GlassSurface {
         Canvas c = new Canvas(b);   // bitmap-backed, so software: OVERLAY and every other blend mode work
         RectF shape = new RectF(0, 0, w, h);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        // Over frost a card lets some of it through; white glass (already translucent) is drawn as designed.
-        float keep = frost && spec.opaque() ? FILL_OVER_FROST : 1f;
-        p.setShader(new LinearGradient(0, 0, 0, h, GlassEdge.scaleAlpha(spec.fillTop, keep),
-                GlassEdge.scaleAlpha(spec.fillBottom, keep), Shader.TileMode.CLAMP));
+        // Over the frost the surface is only a light tint (Frost.fillOnFrost): the blurred wallpaper is the glass. White
+        // glass (already a sheen) is drawn as designed.
+        int top = frost ? Frost.fillOnFrost(spec.fillTop) : spec.fillTop;
+        int bottom = frost ? Frost.fillOnFrost(spec.fillBottom) : spec.fillBottom;
+        p.setShader(new LinearGradient(0, 0, 0, h, top, bottom, Shader.TileMode.CLAMP));
         c.drawRoundRect(shape, r, r, p);
+        if (frost && (Frost.isDarkFill(spec.fillTop) || Frost.isDarkFill(spec.fillBottom))) {
+            // A soft white sheen, brightest at the top, so dark glass reads as glass and not as a grey plate. It scales with
+            // spec.light, which the dock band sets to its opacity: a band at 0 percent stays invisible.
+            p.setShader(new LinearGradient(0, 0, 0, h, (Math.round(Frost.SHEEN_TOP * spec.light) << 24) | 0xFFFFFF,
+                    (Math.round(Frost.SHEEN_BOTTOM * spec.light) << 24) | 0xFFFFFF, Shader.TileMode.CLAMP));
+            c.drawRoundRect(shape, r, r, p);
+        }
         Grain.bakeGrain(b, grain, shape, r);
         if (edge && spec.hasRim()) {
             GlassEdge.draw(c, shape, r, spec.strokePx, spec.light, GlassEdge.RIM_START, GlassEdge.RIM_END);

@@ -81,13 +81,4 @@ public class IconsTest {
         assertEquals(0, Icons.fillLevel(-5));
         assertEquals(10000, Icons.fillLevel(140));
     }
-
-    @Test
-    public void everyWeatherConditionHasASymbolByDayAndNight() {
-        for (WeatherData.Condition c : WeatherData.Condition.values()) {
-            assertNotEquals(0, Icons.weather(c, true));
-            assertNotEquals(0, Icons.weather(c, false));
-        }
-        assertNotEquals(Icons.weather(WeatherData.Condition.CLEAR, true), Icons.weather(WeatherData.Condition.CLEAR, false));
-    }
 }

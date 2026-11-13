@@ -12,7 +12,7 @@ import java.util.Map;
  * from here, and nothing else looks up an {@code R.drawable.ic_*} resource. A new icon is added here first: a constant
  * for the original, a rounded twin in {@link #TWINS}, and a {@code res/drawable/ic_r_*} file. With icon_style
  * "default" every call returns the original drawable; with "rounded" (the default) it returns the Material Symbols
- * Rounded twin, and the icons that carry state (Wi-Fi bars, Ethernet, Brightness, weather) pick the twin that says so.
+ * Rounded twin, and the icons that carry state (Wi-Fi bars, Ethernet, Brightness) pick the twin that says so.
  */
 final class Icons {
 
@@ -139,20 +139,5 @@ final class Icons {
     /** A brightness of 0 to 100 percent as the level of {@code ic_r_brightness_level}. */
     static int fillLevel(int percent) {
         return Math.max(0, Math.min(100, percent)) * (MAX_LEVEL / 100);
-    }
-
-    /** The rounded weather symbol for a condition, by day or night (the Canvas art draws it with icon_style default). */
-    static int weather(WeatherData.Condition condition, boolean day) {
-        switch (condition) {
-            case CLEAR: return day ? R.drawable.ic_r_sunny : R.drawable.ic_r_bedtime;
-            case PARTLY: return day ? R.drawable.ic_r_partly_cloudy_day : R.drawable.ic_r_partly_cloudy_night;
-            case FOG: return R.drawable.ic_r_foggy;
-            case DRIZZLE:
-            case RAIN:
-            case SLEET: return R.drawable.ic_r_rainy;
-            case SNOW: return R.drawable.ic_r_ac_unit;
-            case THUNDER: return R.drawable.ic_r_thunderstorm;
-            default: return R.drawable.ic_r_cloud;
-        }
     }
 }

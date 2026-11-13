@@ -47,7 +47,17 @@ def mood_names():
     assert found, "WallpaperMood.java no longer states MORNING, EVENING and NIGHT on one line"
     names = list(found.groups())
     assert len(names) == 3 and all(names), names
-    return names
+    finer = re.search(r'static final String DAWN = "([a-z]+)", DAY = "([a-z]+)", GOLDEN = "([a-z]+)"', text)
+    assert finer, "WallpaperMood.java no longer states DAWN, DAY and GOLDEN on one line"
+    return names + list(finer.groups())
+
+
+def weather_names():
+    """WallpaperMood.WEATHER, read out of the constants: the groups wallpaper_weather may hold."""
+    text = MOOD_JAVA.read_text(encoding="utf-8")
+    found = re.search(r'static final String FOG = "([a-z]+)", RAIN = "([a-z]+)", SNOW = "([a-z]+)", CLOUDY = "([a-z]+)"', text)
+    assert found, "WallpaperMood.java no longer states FOG, RAIN, SNOW and CLOUDY on one line"
+    return list(found.groups())
 
 
 def collection_image():
@@ -148,7 +158,7 @@ class ShippedThemesTest(unittest.TestCase):
 
     def test_the_rules_are_read_out_of_the_launcher(self):
         with self.subTest(part="mood names"):
-            self.assertEqual(["morning", "evening", "night"], mood_names())
+            self.assertEqual(["morning", "evening", "night", "dawn", "day", "golden"], mood_names())
         with self.subTest(part="the key"):
             self.assertEqual("wallpaper_moods", moods_key())
         accepted = collection_image()
@@ -182,6 +192,26 @@ class ShippedThemesTest(unittest.TestCase):
             with self.subTest(theme=folder.name):
                 self.assertEqual([], problems(moods, shipped_pictures(folder), allowed, accepted,
                                               f"themes/{folder.name}"))
+
+    def test_every_shipped_weather_group_is_one_the_launcher_reads(self):
+        """wallpaper_weather's groups are held to the same rules, under fog, rain, snow and cloudy."""
+        text = CONFIG_JAVA.read_text(encoding="utf-8")
+        self.assertIn('json.optJSONObject("wallpaper_weather")', text)
+        self.assertEqual(["fog", "rain", "snow", "cloudy"], weather_names())
+        accepted = collection_image()
+        seen = []
+        for folder in sorted((ROOT / "themes").iterdir()):
+            config = folder / "config.json"
+            if not folder.is_dir() or not config.is_file():
+                continue
+            groups = json.loads(config.read_text(encoding="utf-8")).get("wallpaper_weather")
+            if groups is None:
+                continue
+            seen.append(folder.name)
+            with self.subTest(theme=folder.name):
+                self.assertEqual([], problems(groups, shipped_pictures(folder), weather_names(), accepted,
+                                              f"themes/{folder.name}"))
+        self.assertIn("horizon", seen)
 
     def test_every_shipped_group_names_only_pictures_that_are_there(self):
         """The names, one by one, so a renamed picture is named instead of reading as a group that still works."""
@@ -228,7 +258,7 @@ class TheReaderTest(unittest.TestCase):
                              collection_image(), "themes/dusk")
             self.assertEqual(1, len(found), found)
             self.assertIn("'dusk'", found[0])
-            self.assertIn("morning/evening/night", found[0])
+            self.assertIn("morning/evening/night/dawn/day/golden", found[0])
 
     def test_a_group_named_in_another_case_is_named(self):
         """`Morning` is not `morning`: Config walks the constants, so the capital is a different group."""

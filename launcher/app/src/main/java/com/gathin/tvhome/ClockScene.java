@@ -239,8 +239,8 @@ final class ClockScene {
         if (moods.isEmpty()) return rotation;
         LocalDateTime now = LocalDateTime.now();
         int[] sun = WallpaperMood.sun(now.toLocalDate(), latitude, longitude, ZoneId.systemDefault());
-        return WallpaperMood.select(rotation, moods,
-                WallpaperMood.timeOfDay(now.getHour() * 60 + now.getMinute(), sun[0], sun[1]));
+        return WallpaperMood.select(rotation, moods, java.util.Collections.emptyMap(), null,
+                now.getHour() * 60 + now.getMinute(), sun[0], sun[1]);
     }
 
     private void moveClock() {

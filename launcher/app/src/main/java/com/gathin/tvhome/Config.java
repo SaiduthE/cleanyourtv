@@ -794,6 +794,7 @@ final class Config {
                 Math.max(0, Math.min(30, grain)), glassEdge,
                 Math.max(0, Math.min(100, glassFrost)), glassRefraction, iconStyle,
                 sceneClockOn ? new SceneClockSettings(true, wallpaperDepth, sceneLayouts) : SceneClockSettings.OFF);
+        GlassLook.setOpacity(loaded.dockOpacity);   // the dock band opacity is the glass opacity, launcher-wide
         GlassLook.set(loaded.grain, loaded.glassEdge, loaded.glassFrost, loaded.glassRefraction);   // the glass surfaces, which have no Config of their own, read it from here
         GlassLook.markLive();
         Icons.remember(loaded.iconStyle);

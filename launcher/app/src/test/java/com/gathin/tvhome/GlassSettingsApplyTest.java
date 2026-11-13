@@ -88,4 +88,13 @@ public class GlassSettingsApplyTest {
         assertEquals(1f, spec(0, 0, 0, 0f, 1f).frostAlpha, 0f);
         assertEquals(1f, new GlassSurface.Spec(0, 0, 0, 0f, 0f, 1f, true, 9f).frostAlpha, 0f);
     }
+
+    @org.junit.Test
+    public void glassOpacityFollowsTheSettingWithAFloor() {
+        org.junit.Assert.assertEquals(1f, GlassLook.surfaceOpacity(100), 0.001f);
+        org.junit.Assert.assertEquals(0.65f, GlassLook.surfaceOpacity(65), 0.001f);
+        org.junit.Assert.assertEquals(GlassLook.MIN_SURFACE_OPACITY, GlassLook.surfaceOpacity(0), 0.001f);
+        org.junit.Assert.assertEquals(GlassLook.MIN_SURFACE_OPACITY, GlassLook.surfaceOpacity(-5), 0.001f);
+        org.junit.Assert.assertEquals(1f, GlassLook.surfaceOpacity(140), 0.001f);
+    }
 }

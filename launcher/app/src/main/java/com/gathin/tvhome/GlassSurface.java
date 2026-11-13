@@ -37,6 +37,8 @@ final class GlassSurface {
          * not an opaque slab of frost under a transparent fill). Applied when drawing, so it is not part of the bake.
          */
         final float frostAlpha;
+        /** True for the dock band, which scales itself by dock_opacity; every other surface follows GlassLook.opacity. */
+        final boolean ownOpacity;
 
         Spec(int fillTop, int fillBottom, int strokeColor, float strokePx, float radiusPx) {
             this(fillTop, fillBottom, strokeColor, strokePx, radiusPx, 1f, true);
@@ -47,11 +49,17 @@ final class GlassSurface {
         }
 
         Spec(int fillTop, int fillBottom, int strokeColor, float strokePx, float radiusPx, float light, boolean frost) {
-            this(fillTop, fillBottom, strokeColor, strokePx, radiusPx, light, frost, 1f);
+            this(fillTop, fillBottom, strokeColor, strokePx, radiusPx, light, frost, 1f, false);
         }
 
         Spec(int fillTop, int fillBottom, int strokeColor, float strokePx, float radiusPx, float light, boolean frost,
              float frostAlpha) {
+            this(fillTop, fillBottom, strokeColor, strokePx, radiusPx, light, frost, frostAlpha, true);
+        }
+
+        private Spec(int fillTop, int fillBottom, int strokeColor, float strokePx, float radiusPx, float light, boolean frost,
+                     float frostAlpha, boolean ownOpacity) {
+            this.ownOpacity = ownOpacity;
             this.frostAlpha = Math.max(0f, Math.min(1f, frostAlpha));
             this.frost = frost;
             this.fillTop = fillTop;
@@ -144,7 +152,19 @@ final class GlassSurface {
         float r = Math.min(radius, Math.min(w, h) / 2f);
         boolean frost = drawFrost(c, left, top, w, h, r, screenX, screenY);
         ensureBaked(w, h, r, frost);
-        if (baked != null) c.drawBitmap(baked, left, top, null);
+        if (baked != null) c.drawBitmap(baked, left, top, opacityPaint());
+    }
+
+    /** The glass opacity (dock_opacity, launcher-wide) as one alpha over the whole surface: tint, sheen, rim and grain. */
+    private float opacity() {
+        return spec.ownOpacity ? 1f : GlassLook.surfaceOpacity();
+    }
+
+    private Paint opacityPaint() {
+        float o = opacity();
+        if (o >= 1f) return null;
+        scalePaint.setAlpha(Math.round(255 * o));
+        return scalePaint;
     }
 
     /**
@@ -161,10 +181,15 @@ final class GlassSurface {
         ensureBaked(snap(w, stepW), snap(h, stepH), r, frost);
         if (baked == null) return;
         if (bakedW == w && bakedH == h) {
-            c.drawBitmap(baked, left, top, null);
+            c.drawBitmap(baked, left, top, opacityPaint());
         } else {
             scaleTo.set(left, top, left + w, top + h);
-            c.drawBitmap(baked, null, scaleTo, scalePaint);
+            Paint p = opacityPaint();
+            if (p == null) {
+                scalePaint.setAlpha(255);
+                p = scalePaint;
+            }
+            c.drawBitmap(baked, null, scaleTo, p);
         }
     }
 
@@ -241,7 +266,7 @@ final class GlassSurface {
         matrix.postTranslate(mapped[2], mapped[3]);
         frostShader.setLocalMatrix(matrix);
         // The strength sets how much of the frost covers the picture; the surface's own alpha (dock opacity) scales it more.
-        int alpha = Frost.paintAlpha(spec.frostAlpha, GlassLook.frost);
+        int alpha = Frost.paintAlpha(spec.frostAlpha * opacity(), GlassLook.frost);
         frostPaint.setAlpha(alpha);
         c.drawRoundRect(left, top, left + w, top + h, r, r, frostPaint);
         if (bend) drawBevel(c, left, top, w, h, r, alpha, cx, cy, offX, offY);

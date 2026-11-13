@@ -21,7 +21,32 @@ final class GlassLook {
     /** glass_refraction: the frost behind glass is magnified a little (a lens) and bends at the rim (a bevel). */
     static volatile boolean refraction = true;
 
+    /**
+     * The glass opacity in percent: the Dock band opacity setting (dock_opacity), launcher-wide. The dock band scales itself
+     * by it; every other glass surface (pills, chips, cards, menus, panels) is drawn at this opacity, never under
+     * {@link #MIN_SURFACE_OPACITY} so a menu or a focused pill never vanishes.
+     */
+    static volatile int opacity = 100;
+    static final float MIN_SURFACE_OPACITY = 0.2f;
+
     private GlassLook() { }
+
+    /** A surface's alpha for the glass opacity: opacity/100, floored at {@link #MIN_SURFACE_OPACITY}. */
+    static float surfaceOpacity(int percent) {
+        return Math.max(MIN_SURFACE_OPACITY, Math.max(0, Math.min(100, percent)) / 100f);
+    }
+
+    static float surfaceOpacity() {
+        return surfaceOpacity(opacity);
+    }
+
+    /** Config.load: the dock band opacity in use; a change redraws every glass surface. */
+    static void setOpacity(int percent) {
+        int clamped = Math.max(0, Math.min(100, percent));
+        if (clamped == opacity) return;
+        opacity = clamped;
+        if (live) Frost.lookChanged();
+    }
 
     static void set(int grain, boolean edge, int frost) {
         set(grain, edge, frost, refraction);

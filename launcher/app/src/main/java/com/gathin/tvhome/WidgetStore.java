@@ -39,7 +39,15 @@ final class WidgetStore implements WidgetOption.Values {
             if (text != null) edit.putString(PLACEMENTS_KEY, text);
             edit.apply();
         }
-        return WidgetPlacements.parse(text, WidgetRegistry.defaults(sceneClockOn()), WidgetRegistry.RULES);
+        boolean scene = sceneClockOn();
+        if (scene && text != null && !prefs.contains(BEFORE_SCENE_KEY)) {
+            // A scene-clock look that was put on without setting the owner's placements aside (an older build, or a
+            // theme pushed over ADB): set them aside once now, so the look's own defaults show and leaving it brings
+            // them back. Placements the owner chooses while it is on are kept from then on.
+            setAsideForScene();
+            text = null;
+        }
+        return WidgetPlacements.parse(text, WidgetRegistry.defaults(scene), WidgetRegistry.RULES);
     }
 
     /** Whether the look in use draws the scene clock (Horizon), which shows the weather itself. */

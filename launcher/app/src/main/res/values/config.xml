@@ -527,7 +527,7 @@
     <!-- Film grain, 0 to 30 percent. A small noise tile made in code is drawn once into the sky gradient, the dock
          band, the glass panels, pills and menus, the focus glass and the clock screensaver glow, so smooth
          gradients do not band and glass reads as frosted. Baked once, so it costs nothing per frame; glass takes
-         3 to 5 percent of it. 0 draws none. Can also be set with "grain": 6 in a theme's config.json. -->
+         half of it (1 to 15 percent). 0 draws none. Can also be set with "grain": 6 in a theme's config.json. -->
     <integer name="grain">6</integer>
     <!-- Edge light on glass: the rim of every glass surface (dock band, pills, panels, menus, the focus glass)
          becomes a gradient, bright at the top left (about 40 percent white) and fading to about 8 percent at the

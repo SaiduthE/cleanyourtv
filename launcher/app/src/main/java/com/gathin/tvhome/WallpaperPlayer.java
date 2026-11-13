@@ -108,6 +108,7 @@ final class WallpaperPlayer {
         // Frost is process-wide: a previous wallpaper's frost must not outlive it. A picture publishes its own in show(); with
         // none (wallpaper off, or every file unreadable) there is nothing to frost but the sky, which builds its own after this.
         Frost.release();
+        Frost.setRebuilder(Frost.LAYER_WALL, frostRebuilder);
         boolean scene = config.wallpaperEnabled && !files.isEmpty() && sceneSettings.enabled;
         sceneClock = scene ? new SceneClockView(context, ClockFormat.is24(context, config.clockFormat),
                 config.animations && !config.reducedMotion) : null;
@@ -213,9 +214,38 @@ final class WallpaperPlayer {
         return WallpaperMood.select(files, moods, WallpaperMood.timeOfDay(now.getHour() * 60 + now.getMinute(), sun[0], sun[1]));
     }
 
+    /** Frost.rebuildAll() runs this when glass_frost changes: the shown picture is frosted again at the new strength. */
+    private final Runnable frostRebuilder = this::rebuildFrost;
+
+    private void rebuildFrost() {
+        if (closed || loading || displayed.isEmpty() || current == null) return;
+        File shown = null;
+        for (File f : files) if (f.getName().equals(displayed)) shown = f;
+        if (shown == null) return;
+        File file = shown;
+        loading = true;   // a rotation waits: decode() hands its frost over through the same field
+        decoder.execute(() -> {
+            Bitmap copy = decode(file);   // makes pendingFrost at the new strength
+            Bitmap frost = pendingFrost;
+            pendingFrost = null;
+            if (copy != null) copy.recycle();
+            root.post(() -> {
+                loading = false;
+                if (closed || !displayed.equals(file.getName())) return;
+                if (frost != null) {
+                    Frost.set(frost, width, height);
+                    publishedFrost = frost;
+                } else {
+                    Frost.clearLayer(Frost.LAYER_WALL);
+                }
+            });
+        });
+    }
+
     void close() {
         active = false;
         closed = true;
+        Frost.clearRebuilder(Frost.LAYER_WALL, frostRebuilder);
         if (sceneClock != null) sceneClock.release();
         decoder.shutdownNow();
         // Free this player's frost, unless a newer owner (the next Home, the sky) has already replaced it.

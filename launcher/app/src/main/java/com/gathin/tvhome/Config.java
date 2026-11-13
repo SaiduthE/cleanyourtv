@@ -788,6 +788,7 @@ final class Config {
                 Math.max(0, Math.min(100, glassFrost)), iconStyle,
                 sceneClockOn ? new SceneClockSettings(true, wallpaperDepth, sceneLayouts) : SceneClockSettings.OFF);
         GlassLook.set(loaded.grain, loaded.glassEdge, loaded.glassFrost);   // the glass surfaces, which have no Config of their own, read it from here
+        GlassLook.markLive();
         Icons.remember(loaded.iconStyle);
         return loaded;
     }

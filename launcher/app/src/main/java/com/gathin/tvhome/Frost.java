@@ -52,6 +52,9 @@ final class Frost {
      */
     static final int LAYER_WALL = 0, LAYER_SHELF = 1, LAYER_ART = 2;
     private static final Bitmap[] LAYERS = new Bitmap[3];
+    /** How to build each layer again from the picture it was built from (buildLayer), and the owners that build theirs. */
+    private static final Runnable[] SOURCES = new Runnable[3];
+    private static final Runnable[] OWNERS = new Runnable[3];
     private static volatile Bitmap bitmap;
     private static volatile float scaleX = 4f, scaleY = 4f;
     /** Made on first use, so the JVM tests (no Looper) can load this class. */
@@ -106,6 +109,7 @@ final class Frost {
         synchronized (LAYERS) {
             changed = LAYERS[layer] != null;
             LAYERS[layer] = null;
+            SOURCES[layer] = null;
         }
         if (changed) publish();
     }
@@ -118,6 +122,76 @@ final class Frost {
         }
         if (top == bitmap) return;
         bitmap = top;
+        lookChanged();
+    }
+
+    /**
+     * Builds a layer's frost from a picture on {@code worker}, then publishes it on the main thread if {@code wanted}
+     * still says so (the picture may have changed meanwhile). Nothing happens with glass_frost at 0. The call is also
+     * remembered for the layer, so a new glass_frost strength rebuilds the layer from the same picture
+     * ({@link #rebuildAll()}) instead of waiting for the picture to change; clearLayer forgets it.
+     */
+    static void buildLayer(int layer, Bitmap src, android.content.Context ctx, java.util.concurrent.Executor worker,
+                           java.util.function.BooleanSupplier wanted) {
+        if (src == null) return;
+        android.util.DisplayMetrics dm = ctx.getResources().getDisplayMetrics();
+        int w = dm.widthPixels, h = dm.heightPixels;
+        synchronized (LAYERS) {
+            SOURCES[layer] = () -> buildNow(layer, src, w, h, worker, wanted);
+        }
+        buildNow(layer, src, w, h, worker, wanted);
+    }
+
+    private static void buildNow(int layer, Bitmap src, int w, int h, java.util.concurrent.Executor worker,
+                                 java.util.function.BooleanSupplier wanted) {
+        int strength = GlassLook.frost;   // read now, so a rebuild after a settings change uses the new one
+        if (strength <= 0 || src.isRecycled()) return;
+        try {
+            worker.execute(() -> {
+                Bitmap f = build(src, w, h, strength, 0, 1f, true);   // a picture recycled meanwhile just gives null
+                if (f == null) return;
+                main().post(() -> {
+                    if (wanted.getAsBoolean() && strength == GlassLook.frost) setLayer(layer, f, w, h);
+                });
+            });
+        } catch (java.util.concurrent.RejectedExecutionException ignored) {
+            // the owner is closing
+        }
+    }
+
+    /**
+     * A layer whose owner builds it itself (the wallpaper's decode, the sky's render): {@code rebuild} runs on the main thread
+     * when the strength changes. Pass null to forget it; {@code clearRebuilder} only if it is still yours.
+     */
+    static void setRebuilder(int layer, Runnable rebuild) {
+        synchronized (LAYERS) {
+            OWNERS[layer] = rebuild;
+        }
+    }
+
+    static void clearRebuilder(int layer, Runnable mine) {
+        synchronized (LAYERS) {
+            if (OWNERS[layer] == mine) OWNERS[layer] = null;
+        }
+    }
+
+    /**
+     * glass_frost changed while Home is alive (Launcher settings do it through Config.load): every owner builds its layer
+     * again at the new strength, so the glass follows the setting without waiting for the next wallpaper. Main thread.
+     */
+    static void rebuildAll() {
+        Runnable[] all = new Runnable[2 * LAYERS.length];
+        synchronized (LAYERS) {
+            for (int i = 0; i < LAYERS.length; i++) {
+                all[i] = OWNERS[i];
+                all[LAYERS.length + i] = OWNERS[i] == null ? SOURCES[i] : null;   // an owner that builds it itself wins
+            }
+        }
+        for (Runnable r : all) if (r != null) r.run();
+    }
+
+    /** Every glass surface redraws (the look changed: grain, edge, frost or refraction). */
+    static void lookChanged() {
         main().post(() -> {
             Listener[] all;
             synchronized (LISTENERS) {
@@ -125,29 +199,6 @@ final class Frost {
             }
             for (Listener l : all) l.onFrostChanged();
         });
-    }
-
-    /**
-     * Builds a layer's frost from a picture on {@code worker}, then publishes it on the main thread if {@code wanted}
-     * still says so (the picture may have changed meanwhile). Nothing happens with glass_frost at 0.
-     */
-    static void buildLayer(int layer, Bitmap src, android.content.Context ctx, java.util.concurrent.Executor worker,
-                           java.util.function.BooleanSupplier wanted) {
-        int strength = GlassLook.frost;
-        if (strength <= 0 || src == null) return;
-        android.util.DisplayMetrics dm = ctx.getResources().getDisplayMetrics();
-        int w = dm.widthPixels, h = dm.heightPixels;
-        try {
-            worker.execute(() -> {
-                Bitmap f = build(src, w, h, strength, 0, 1f, true);   // a picture recycled meanwhile just gives null
-                if (f == null) return;
-                main().post(() -> {
-                    if (wanted.getAsBoolean()) setLayer(layer, f, w, h);
-                });
-            });
-        } catch (java.util.concurrent.RejectedExecutionException ignored) {
-            // the owner is closing
-        }
     }
 
     /** Frees every layer (onTrimMemory, glass_frost off); each owner builds its own again when it shows a picture. */
@@ -178,6 +229,21 @@ final class Frost {
     /** How far the picture is blended toward dark, 0 to 0.45, for a strength of 0 to 100 (60 gives 0.27). */
     static float darken(int strength) {
         return MAX_DARK * Math.max(0, Math.min(100, strength)) / 100f;
+    }
+
+    /**
+     * How opaque the frost is drawn over the real picture, 0 to 1, for a strength of 0 to 100: at 60 and above the frost
+     * covers it fully; below that the sharp picture shows through more and more, so the slider has a visible effect over
+     * its whole range, not only through the small darkening.
+     */
+    static float opacity(int strength) {
+        int s = Math.max(0, Math.min(100, strength));
+        return Math.min(1f, 0.25f + s / 80f);
+    }
+
+    /** The paint alpha (0..255) of a surface's frost: the strength's opacity times the surface's own (the dock band's opacity). */
+    static int paintAlpha(float surfaceAlpha, int strength) {
+        return Math.round(255 * Math.max(0f, Math.min(1f, surfaceAlpha)) * opacity(strength));
     }
 
     /** Whether a fill is dark enough that, over the frost, it is cut back to a light tint (white glass is left as it is). */

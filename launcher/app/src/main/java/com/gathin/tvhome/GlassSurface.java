@@ -32,6 +32,11 @@ final class GlassSurface {
         final float light;
         /** Whether the surface shows the shared frost behind it (glass_frost); false for a card that sits on the tile art. */
         final boolean frost;
+        /**
+         * 0 to 1: how much of the frost this surface draws (the dock band's opacity, so a band at 0 percent shows nothing,
+         * not an opaque slab of frost under a transparent fill). Applied when drawing, so it is not part of the bake.
+         */
+        final float frostAlpha;
 
         Spec(int fillTop, int fillBottom, int strokeColor, float strokePx, float radiusPx) {
             this(fillTop, fillBottom, strokeColor, strokePx, radiusPx, 1f, true);
@@ -42,6 +47,12 @@ final class GlassSurface {
         }
 
         Spec(int fillTop, int fillBottom, int strokeColor, float strokePx, float radiusPx, float light, boolean frost) {
+            this(fillTop, fillBottom, strokeColor, strokePx, radiusPx, light, frost, 1f);
+        }
+
+        Spec(int fillTop, int fillBottom, int strokeColor, float strokePx, float radiusPx, float light, boolean frost,
+             float frostAlpha) {
+            this.frostAlpha = Math.max(0f, Math.min(1f, frostAlpha));
             this.frost = frost;
             this.fillTop = fillTop;
             this.fillBottom = fillBottom;
@@ -98,7 +109,7 @@ final class GlassSurface {
 
     /** Whether this surface would show the frost now: the switch is on, the spec allows it and a frost is built. */
     boolean frosted() {
-        return spec.frost && GlassLook.frost > 0 && Frost.get() != null;
+        return spec.frost && spec.frostAlpha > 0f && GlassLook.frost > 0 && Frost.get() != null;
     }
 
     /**
@@ -194,13 +205,14 @@ final class GlassSurface {
         matrix.setScale(Frost.scaleX(), Frost.scaleY());
         matrix.postTranslate(-(screenX - left), -(screenY - top));
         frostShader.setLocalMatrix(matrix);
+        // The strength sets how much of the frost covers the picture; the surface's own alpha (dock opacity) scales it more.
+        frostPaint.setAlpha(Frost.paintAlpha(spec.frostAlpha, GlassLook.frost));
         c.drawRoundRect(left, top, left + w, top + h, r, r, frostPaint);
         return true;
     }
 
     private Bitmap bitmap(int w, int h, float r, int grain, boolean edge, boolean frost) {
-        String key = spec.fillTop + ":" + spec.fillBottom + ":" + spec.strokeColor + ":" + spec.strokePx + ":" + spec.light + ":" + w + "x" + h
-                + ":" + r + ":" + grain + ":" + edge + ":" + frost;
+        String key = cacheKey(spec, w, h, r, grain, edge, frost);
         synchronized (CACHE) {
             Bitmap hit = CACHE.get(key);
             if (hit != null && !hit.isRecycled()) return hit;
@@ -219,6 +231,15 @@ final class GlassSurface {
             }
         }
         return made;
+    }
+
+    /**
+     * The cache key of one bake: every input of {@link #bake}. A look that changes any of them (grain, edge, frost, the
+     * fill, the opacity-scaled alpha of a dock band, the size) must bake again, not hit an older bitmap.
+     */
+    static String cacheKey(Spec spec, int w, int h, float r, int grain, boolean edge, boolean frost) {
+        return spec.fillTop + ":" + spec.fillBottom + ":" + spec.strokeColor + ":" + spec.strokePx + ":" + spec.light + ":" + w + "x" + h
+                + ":" + r + ":" + grain + ":" + edge + ":" + frost;
     }
 
     private static long bytes(Bitmap b) {

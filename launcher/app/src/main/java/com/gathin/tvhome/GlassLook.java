@@ -22,10 +22,26 @@ final class GlassLook {
     private GlassLook() { }
 
     static void set(int grain, boolean edge, int frost) {
+        int oldFrost = GlassLook.frost;
+        boolean changed = GlassLook.grain != grain || GlassLook.edge != edge;
         GlassLook.grain = Math.max(0, Math.min(30, grain));
         GlassLook.edge = edge;
         GlassLook.frost = Math.max(0, Math.min(100, frost));
+        changed |= oldFrost != GlassLook.frost;
         if (GlassLook.frost == 0) Frost.release();
+        if (!changed || !live) return;
+        // A look that changed under a running Home (not the first load): the frost layers are built again at the new
+        // strength, and every glass surface redraws (their bakes are keyed by grain and edge, so they bake again).
+        if (oldFrost != GlassLook.frost && GlassLook.frost > 0) Frost.rebuildAll();
+        Frost.lookChanged();
+    }
+
+    /** False until the first Config.load: nothing is on screen to rebuild before that (and the JVM tests have no Looper). */
+    private static boolean live;
+
+    /** Config.load calls this after its first set(): from then on a change is applied to what is on screen. */
+    static void markLive() {
+        live = true;
     }
 
     /** Glass takes a light share of the grain, 3 to 5 percent. */

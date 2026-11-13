@@ -59,10 +59,21 @@ final class Grain {
         return Math.round(255 * Math.max(0, Math.min(100, percent)) / 100f);
     }
 
-    /** What glass surfaces take of the grain setting: a light 3 to 5 percent, so panels read as frosted, not noisy. */
+    /** The most grain a glass surface takes, at the slider's top (30): 15 percent, so panels read as frosted, not noisy. */
+    static final int GLASS_MAX = 15;
+
+    /**
+     * What glass surfaces take of the grain setting: half of it, so every step of the slider is a visible step (it used to be
+     * pinned between 3 and 5 percent, which made 6 and 30 look the same). 0 stays 0, and any grain shows at least 1 percent.
+     */
     static int glassPercent(int grain) {
         if (grain <= 0) return 0;
-        return Math.max(3, Math.min(5, Math.round(grain / 2f)));
+        return Math.max(1, Math.min(GLASS_MAX, Math.round(grain / 2f)));
+    }
+
+    /** The alpha (0..255) of the noise layer a glass surface bakes for a grain setting: the setting to the layer, in one place. */
+    static int glassAlpha(int grain) {
+        return alphaFor(glassPercent(grain));
     }
 
     /** Bakes the grain over a whole bitmap; the target must be mutable ARGB_8888. 0 percent does nothing. */

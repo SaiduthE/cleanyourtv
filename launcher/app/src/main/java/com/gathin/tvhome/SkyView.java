@@ -64,6 +64,19 @@ public class SkyView extends View {
     void setFrostSource(boolean source, int under) {
         frostSource = source;
         frostUnder = under;
+        if (source) Frost.setRebuilder(Frost.LAYER_WALL, frostRebuilder);
+        else Frost.clearRebuilder(Frost.LAYER_WALL, frostRebuilder);
+    }
+
+    /** Frost.rebuildAll() runs this when glass_frost changes: the sky is frosted again at the new strength. */
+    private final Runnable frostRebuilder = () -> {
+        if (intensity > 0 && frostSource) render(true);
+    };
+
+    @Override
+    protected void onDetachedFromWindow() {
+        Frost.clearRebuilder(Frost.LAYER_WALL, frostRebuilder);
+        super.onDetachedFromWindow();
     }
 
     /** Picks up a new time of day; cheap and safe to call every minute. */

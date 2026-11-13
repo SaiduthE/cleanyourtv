@@ -60,10 +60,26 @@ public class GrainTest {
     }
 
     @Test
-    public void glassTakesThreeToFivePercent() {
+    public void glassGrainFollowsTheSliderInVisibleSteps() {
         assertEquals(0, Grain.glassPercent(0));
-        assertEquals(3, Grain.glassPercent(1));
-        assertEquals(4, Grain.glassPercent(8));
-        assertEquals(5, Grain.glassPercent(30));
+        assertEquals(1, Grain.glassPercent(1));
+        assertEquals(3, Grain.glassPercent(6));
+        assertEquals(15, Grain.glassPercent(30));
+        int last = 0;
+        for (int g = 0; g <= 30; g++) {
+            int p = Grain.glassPercent(g);
+            assertTrue("never goes down at " + g, p >= last);
+            last = p;
+        }
+        // The default (6) and the top (30) no longer look the same.
+        assertTrue(Grain.glassAlpha(30) > 4 * Grain.glassAlpha(6) - 1);
+    }
+
+    @Test
+    public void glassOverlayAlphaComesFromThePercent() {
+        assertEquals(0, Grain.glassAlpha(0));
+        assertEquals(Grain.alphaFor(3), Grain.glassAlpha(6));
+        assertEquals(Grain.alphaFor(Grain.GLASS_MAX), Grain.glassAlpha(30));
+        assertEquals(Grain.glassAlpha(30), Grain.glassAlpha(99));
     }
 }

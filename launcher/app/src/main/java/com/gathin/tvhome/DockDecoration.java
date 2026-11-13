@@ -61,8 +61,9 @@ public class DockDecoration extends RecyclerView.ItemDecoration implements Frost
         this.opacity = DockOpacity.forDraw(opacity);
         int top = lightGlass ? glassTop(this.opacity) : bandColor(translucent, this.opacity);
         int bottom = lightGlass ? glassBottom(this.opacity) : top;
+        // The band's opacity also scales the frost under it, or a band at 0 percent would still show an opaque slab of frost.
         glass = new GlassSurface(new GlassSurface.Spec(top, bottom, edgeColor(translucent, lightGlass, this.opacity),
-                density, 0f, this.opacity / 100f));
+                density, 0f, this.opacity / 100f, true, frostAlphaFor(this.opacity)));
         Frost.listen(this);
     }
 
@@ -78,6 +79,11 @@ public class DockDecoration extends RecyclerView.ItemDecoration implements Frost
     private static final int TRANSLUCENT_BAND = 0x8C121014;
     private static final int GLASS_TOP = 0x24FFFFFF;
     private static final int GLASS_BOTTOM = 0x0DFFFFFF;
+
+    /** How much of the frost the band draws for an opacity setting: 0 to 1, the same ramp as the band's own colour. */
+    static float frostAlphaFor(int opacityPercent) {
+        return DockOpacity.forDraw(opacityPercent) / 100f;
+    }
 
     static int bandColor(boolean translucent, int opacity) {
         return DockOpacity.scaleColor(translucent ? TRANSLUCENT_BAND : PLAIN_BAND, opacity);

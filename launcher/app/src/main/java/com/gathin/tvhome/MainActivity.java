@@ -3912,6 +3912,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     }
 
     private PopupWindow glassPopup(View panel, int width) {
+        // Every Home popup (the gear menu, Inputs, tile menus) is a floating glass panel, whether or not its layout's
+        // background was recognised as glass_panel (a restyled or recoloured background would otherwise stay flat).
+        if (!(panel.getBackground() instanceof GlassDrawable)) panel.setBackground(new GlassDrawable(GlassLook.panel(this), null));
         final PopupWindow popup = new PopupWindow(panel, width, ViewGroup.LayoutParams.WRAP_CONTENT, true);
         popup.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));   // needed for Back to dismiss
         popup.setOutsideTouchable(true);

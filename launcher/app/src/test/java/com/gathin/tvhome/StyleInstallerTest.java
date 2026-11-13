@@ -153,4 +153,25 @@ public class StyleInstallerTest {
         assertFalse(StyleInstaller.keepKeys().contains("columns"));
         assertFalse(StyleInstaller.keepKeys().contains("home_idle_clock_minutes"));
     }
+
+    @Test
+    public void horizonThenBackToTheOwnLookKeepsTheOwnersKeys() {
+        Set<String> presetKeys = keys("scene_clock", "wallpaper_depth", "scene_clock_layouts", "background_color", "dock_apps");
+        Map<String, Object> mine = map("background_color", "#101010", "dock_apps", "mine", "weather_widget", true);
+        Map<String, Object> horizon = map("scene_clock", true, "wallpaper_depth", true, "scene_clock_layouts", "x",
+                "background_color", "#090C14", "dock_apps", "preset");
+        Map<String, Object> onHorizon = StyleInstaller.mergeMaps(horizon, mine, null, "horizon", presetKeys);
+        assertEquals("horizon", onHorizon.get("style"));
+        assertEquals(true, onHorizon.get("scene_clock"));
+        assertEquals("mine", onHorizon.get("dock_apps"));
+        // Back: the set-aside config is the preset, no markers; Horizon's own keys are gone, the owner's stay.
+        Map<String, Object> back = StyleInstaller.mergeMaps(mine, onHorizon, null, null, presetKeys);
+        assertEquals("#101010", back.get("background_color"));
+        assertEquals("mine", back.get("dock_apps"));
+        assertEquals(true, back.get("weather_widget"));
+        assertFalse(back.containsKey("scene_clock"));
+        assertFalse(back.containsKey("wallpaper_depth"));
+        assertFalse(back.containsKey("scene_clock_layouts"));
+        assertFalse(back.containsKey("style"));
+    }
 }

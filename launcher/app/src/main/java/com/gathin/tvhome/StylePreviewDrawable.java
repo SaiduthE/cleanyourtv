@@ -48,6 +48,11 @@ final class StylePreviewDrawable extends Drawable {
             a = 160f;
             t = 5;
             b = true;
+        } else if ("horizon".equals(id)) {
+            c = new int[] {0xFF1A2347, 0xFF3A5A7E, 0xFFC98A5E};
+            s = new float[] {0f, 0.55f, 1f};
+            a = 180f;
+            b = true;
         } else if ("minimal".equals(id)) {
             c = new int[] {0xFF2A2C31, 0xFF2A2C31};
             t = 5;

@@ -108,7 +108,8 @@ def licence(text):
     """
     found = LICENCE.search(text)
     if not found:
-        return None
+        # A picture the repository's own MIT licence covers (themes/horizon, from couch-tv) states that, and only that.
+        return "MIT" if re.search(r"\bMIT\b", text) else None
     said = re.sub(r"[\s_-]+", " ", found.group(0).strip().lower())
     if said.startswith("cc0"):
         return "CC0"
@@ -162,7 +163,7 @@ def problems(folder):
             out.append(f"themes/{folder.name}/CREDITS.md credits {name}, and there is no such picture")
     if licence(text) is None:
         out.append(f"themes/{folder.name}/CREDITS.md states no licence "
-                   f"(CC0, CC BY, CC BY-SA or public domain)")
+                   f"(CC0, CC BY, CC BY-SA, public domain or MIT)")
     for name, caption in captions(folder).items():
         on_the_tv, credited = licence(caption), licence(credit_line(text, name) or "")
         if on_the_tv and credited and on_the_tv != credited:
@@ -309,7 +310,7 @@ class TheProblemsFound(unittest.TestCase):
     def test_a_file_that_states_no_licence_is_reported(self):
         self.picture("001.jpg")
         self.credits('- 001.jpg: "Dusk" by Someone\n')
-        self.assertEqual(["themes/one/CREDITS.md states no licence (CC0, CC BY, CC BY-SA or public domain)"],
+        self.assertEqual(["themes/one/CREDITS.md states no licence (CC0, CC BY, CC BY-SA, public domain or MIT)"],
                          problems(self.folder))
 
     def test_a_caption_and_a_credit_that_state_different_licences_are_reported(self):

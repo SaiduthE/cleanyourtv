@@ -6,6 +6,18 @@
   "wallpaper_order": "sequential",
   "wallpaper_dim": 0,
   "wallpaper_true_color": true,
+  "wallpaper_moods": {
+    "dawn": ["05-dawn.jpg"],
+    "day": ["03-water.jpg"],
+    "golden": ["02-golden.jpg"],
+    "night": ["01-night.jpg"]
+  },
+  "wallpaper_weather": {
+    "fog": ["04-fog.jpg"],
+    "rain": ["04-fog.jpg"],
+    "snow": ["04-fog.jpg"],
+    "cloudy": ["04-fog.jpg"]
+  },
   "scene_clock": true,
   "wallpaper_depth": true,
   "scene_clock_layouts": {

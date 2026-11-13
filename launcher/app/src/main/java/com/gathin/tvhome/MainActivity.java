@@ -705,8 +705,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 // rows_below_dock leaves visible ends there; nudging it up was the bug). A row that has to scroll
                 // in still stops at the padding line, clear of the screen edge, as before.
                 int limitBottom = getHeight() - getPaddingBottom();
+                // A focused row stays below the feathered top edge (fade_rows): it is as tall as the grid has scrolled,
+                // so at rest, and with no fade, this is the old rule (a row above the top edge scrolls to it).
+                int clear = cfg.fadeRows ? (int) TopFade.height(parent.computeVerticalScrollOffset(), TopFade.TOP_DP * density) : 0;
                 int dy;
-                if (top < 0) dy = top;
+                if (top < clear) dy = top - clear;
                 else if (bottom <= getHeight()) dy = 0;
                 else dy = Math.min(top, bottom - limitBottom);
                 if (dy == 0) return false;
@@ -735,7 +738,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
         if (dockRow) grid.addItemDecoration(new DockDecoration(COLUMNS, density, cinematic, cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass, cfg.dockEvenPadding, cfg.dockBand,
                 singleRow, cfg.dockBandAll));
-        if (cfg.fadeRows) TopFade.attach(grid, 48 * density);
+        // A sideways row has no top or bottom edge to fade.
+        if (cfg.fadeRows && !singleRow) TopFade.attach(grid, TopFade.TOP_DP * density, TopFade.BOTTOM_DP * density);
         // Reduced motion: the tiles are simply there, with no entrance (reloadApps skips it there too).
         if (animations && !reducedMotion) {
             grid.setLayoutAnimation(new LayoutAnimationController(
@@ -914,7 +918,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         widgets = new HomeWidgets(this, root, cfg.animations, cfg.reducedMotion, cfg.topMenu, new HomeWidgets.Nav() {
             @Override public void focusGrid() { focusTile(singleRow ? lastFocused : lastFocused % COLUMNS); }
             @Override public void focusFirstButton() {
-                (btnInputs.getVisibility() == View.VISIBLE ? btnInputs : firstTopButton()).requestFocus();
+                // The first focusable thing in the bar, a chip beside the network pill included (the bar runs mirrored in Hebrew).
+                boolean mirrored = getResources().getBoolean(R.bool.rtl_menu_bar);
+                if (!BarFocus.focusEdge(findViewById(R.id.topButtons), mirrored ? -1 : 1)) firstTopButton().requestFocus();
             }
             @Override public void focusLastButton() { gear.requestFocus(); }
         });
@@ -968,7 +974,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
         // Keep focus on the top bar at its ends and at the top: Android's focus finder would otherwise
         // jump to a tile far below when there is nothing in that direction.
-        boolean rtlMenuBar = getResources().getBoolean(R.bool.rtl_menu_bar);
         View.OnKeyListener pillKeys = (v, keyCode, event) -> {
             if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return true;
@@ -977,19 +982,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 focusTile(singleRow ? lastFocused : lastFocused % COLUMNS);
                 return true;
             }
-            int firstButton = btnInputs.getVisibility() == View.VISIBLE ? R.id.btnInputs : firstTopButton().getId();
-            int leftButton = rtlMenuBar ? R.id.btnSettings : firstButton;
-            int rightButton = rtlMenuBar ? firstButton : R.id.btnSettings;
-            // Left from the leftmost button reaches the widget before the bar, right from the last one the widget after it.
-            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                if (v.getId() == leftButton && widgets != null) widgets.focusBeforeBar();
-                return v.getId() == leftButton;
+            if (keyCode != KeyEvent.KEYCODE_DPAD_LEFT && keyCode != KeyEvent.KEYCODE_DPAD_RIGHT) return false;
+            // Along the bar in its own order, so a widget chip beside the network pill is reached from the pill after
+            // it and from the one before it. Left from the leftmost thing in the bar reaches the widget before the bar,
+            // right from the last one the widget after it.
+            ViewGroup bar = findViewById(R.id.topButtons);
+            if (bar.indexOfChild(v) < 0) return false;
+            int direction = keyCode == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 1;
+            if (BarFocus.move(bar, v, direction)) return true;
+            if (widgets != null) {
+                if (direction < 0) widgets.focusBeforeBar();
+                else widgets.focusAfterBar();
             }
-            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && v.getId() == rightButton) {
-                if (widgets != null) widgets.focusAfterBar();
-                return true;
-            }
-            return false;
+            return true;
         };
         btnInputs.setOnKeyListener(pillKeys);
         btnWifi.setOnKeyListener(pillKeys);

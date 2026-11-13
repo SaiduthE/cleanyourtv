@@ -67,6 +67,13 @@ final class WallpaperPlayer {
     private final Map<String, String> names;
     /** wallpaper_moods: the collection's groups by time of day; empty rotates through all of it. */
     private final Map<String, Set<String>> moods;
+    /** wallpaper_weather: pictures for fog, rain, snow and cloudy weather; empty means the weather is not read. */
+    private final Map<String, Set<String>> weatherGroups;
+    /** The Weather add-on's latest reading (main thread); null without the add-on or a city. */
+    private final WeatherSource weatherSource;
+    private WeatherData weatherReading;
+    /** True once the add-on has answered (with a reading or none): from then on the reading, not last time's memory, decides. */
+    private boolean weatherHeard;
     /** config.xml latitude and longitude for the sun's times, and today's {sunrise, sunset} once worked out. */
     private final String latitude, longitude;
     private LocalDate sunDay;
@@ -86,8 +93,13 @@ final class WallpaperPlayer {
         order = config.wallpaperOrder;
         preferences = context.getSharedPreferences("wallpaper_rotation", Context.MODE_PRIVATE);
         moods = config.wallpaperMoods;
-        latitude = moods.isEmpty() ? "" : context.getString(R.string.latitude);
-        longitude = moods.isEmpty() ? "" : context.getString(R.string.longitude);
+        weatherGroups = config.wallpaperWeather;
+        boolean timed = !moods.isEmpty() || !weatherGroups.isEmpty();
+        latitude = timed ? context.getString(R.string.latitude) : "";
+        longitude = timed ? context.getString(R.string.longitude) : "";
+        // The add-on is read only while Home shows (start/stop), and only for a theme that has weather pictures.
+        weatherSource = !weatherGroups.isEmpty() && config.wallpaperEnabled && !config.wallpapers.isEmpty()
+                && WeatherSource.available(context) ? new WeatherSource(context, this::onWeather) : null;
         // Playback state belongs to one collection. Changing the collection starts from its first
         // picture instead of resuming a filename that belonged to the previous one.
         String collection = collectionKey(files);
@@ -195,11 +207,37 @@ final class WallpaperPlayer {
     void start() {
         active = true;
         if (sceneClock != null) sceneClock.start();
+        if (weatherSource != null) weatherSource.resume();
         update();
+    }
+
+    /** A new weather reading: the picture changes now if the weather (not just its numbers) moved it to another group. */
+    private void onWeather(WeatherData data) {
+        String before = currentWeather();
+        weatherReading = data;
+        weatherHeard = true;
+        String now = currentWeather();
+        // Kept for the next Home start, so its first picture already follows the weather instead of changing a moment later.
+        preferences.edit().putString("weather", now == null ? "" : now).putLong("weather_at", System.currentTimeMillis()).apply();
+        if (closed || !active) return;
+        if (!java.util.Objects.equals(before, now)) update();
+    }
+
+    /** How long a remembered weather group stands in for a reading that has not arrived yet. */
+    private static final long WEATHER_MEMORY_MS = 3L * 60L * 60_000L;
+
+    /** wallpaper_weather's group for the weather now: the latest reading's, or before one arrives the one remembered from last time. */
+    private String currentWeather() {
+        long now = System.currentTimeMillis();
+        if (weatherHeard) return WallpaperMood.weather(weatherReading, now);
+        long at = preferences.getLong("weather_at", 0L);
+        String kept = preferences.getString("weather", "");
+        return kept.isEmpty() || now < at || now - at > WEATHER_MEMORY_MS ? null : kept;
     }
 
     void stop() {
         active = false;
+        if (weatherSource != null) weatherSource.pause();
         if (sceneClock != null) sceneClock.stop();
     }
 
@@ -217,13 +255,14 @@ final class WallpaperPlayer {
 
     /** The pictures the rotation picks from now: wallpaper_moods' group for the time of day, or the whole collection. */
     private List<File> playable() {
-        if (moods.isEmpty()) return files;
+        if (moods.isEmpty() && weatherGroups.isEmpty()) return files;
         LocalDateTime now = LocalDateTime.now();
         if (!now.toLocalDate().equals(sunDay)) {
             sunDay = now.toLocalDate();
             sun = WallpaperMood.sun(sunDay, latitude, longitude, ZoneId.systemDefault());
         }
-        return WallpaperMood.select(files, moods, WallpaperMood.timeOfDay(now.getHour() * 60 + now.getMinute(), sun[0], sun[1]));
+        String weather = weatherSource == null ? null : currentWeather();
+        return WallpaperMood.select(files, moods, weatherGroups, weather, now.getHour() * 60 + now.getMinute(), sun[0], sun[1]);
     }
 
     /** Frost.rebuildAll() runs this when glass_frost changes: the shown picture is frosted again at the new strength. */
@@ -257,6 +296,7 @@ final class WallpaperPlayer {
     void close() {
         active = false;
         closed = true;
+        if (weatherSource != null) weatherSource.pause();
         Frost.clearRebuilder(Frost.LAYER_WALL, frostRebuilder);
         if (sceneClock != null) sceneClock.release();
         decoder.shutdownNow();

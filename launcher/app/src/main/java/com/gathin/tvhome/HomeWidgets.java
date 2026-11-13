@@ -126,18 +126,17 @@ final class HomeWidgets implements WidgetOverlays.Host {
 
     /** A widget's Left (-1) or Right (+1): the next focusable thing along the header. Always consumes the key. */
     boolean neighbour(WidgetSlot from, int direction) {
-        if (from == WidgetSlot.TOP_BAR_END) {
-            if (direction < 0) nav.focusLastButton();
-            return true;
-        }
-        if (from == WidgetSlot.BESIDE_NETWORK) {
-            // In the middle of the bar: the next pill that way, else (left of the first pill) the widgets before the bar.
+        if (from.barOrder() >= 0) {
+            // A chip in the top bar: the next focusable pill or chip that way in the bar's own order (BarFocus), so a chip
+            // beside the network pill and one before the bar are reached from each other and from the pills.
+            ViewGroup bar = activity.findViewById(R.id.topButtons);
             android.view.View current = activity.getCurrentFocus();
-            android.view.View bar = activity.findViewById(R.id.topButtons);
-            android.view.View next = current == null ? null
-                    : current.focusSearch(direction < 0 ? android.view.View.FOCUS_LEFT : android.view.View.FOCUS_RIGHT);
-            if (next != null && next != current && next.getParent() == bar) next.requestFocus();
-            else if (direction < 0) focusBeforeBar();
+            if (bar != null && current != null && current.getParent() == bar && BarFocus.move(bar, current, direction)) return true;
+            if (direction < 0) {
+                // Left of the first thing in the bar: the widgets before it (the gear for a chip after the bar).
+                if (from == WidgetSlot.TOP_BAR_END) nav.focusLastButton();
+                else focusFrom(from == WidgetSlot.TOP_BAR_START ? from : null, -1);
+            }
             return true;
         }
         // Along the clock row and the start of the bar (WidgetSlot.beforeBar); past its right end are the buttons.

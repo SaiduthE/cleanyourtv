@@ -517,6 +517,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
         root = findViewById(R.id.root);
         root.setBackgroundColor(cfg.backgroundColor);
+        GlassLook.decorate(root);   // the stock glass (pills, panels) takes the grain, rim light and frost switches
         // root fills the window with an opaque colour (Config keeps background_color opaque), so the window's own
         // black under it is a second full-screen fill on every frame for nothing. The starting window still uses
         // the theme's background, so launch looks the same.
@@ -2789,6 +2790,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             TextView button = (TextView) getLayoutInflater().inflate(R.layout.top_app_button, bar, false);
             // pillKeys finds the bar's ends by id: without one of its own, every app button would be an end.
             button.setId(View.generateViewId());
+            GlassLook.decorate(button);
             logo.setBounds(0, 0, size, size);
             button.setCompoundDrawablesRelative(logo, null, null, null);
             button.setCompoundDrawableTintList(null);
@@ -3599,6 +3601,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         boolean underGear = topMenu;
         View anchor = findViewById(underGear ? R.id.btnSettings : R.id.btnInputs);
         View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
+        GlassLook.decorate(panel);
         LinearLayout rows = panel.findViewById(R.id.rows);
 
         // Compact: as wide as the Inputs pill (a touch wider so "HDMI 1" fits), hanging right below it.
@@ -3865,6 +3868,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void showTopMenu() {
         View anchor = findViewById(R.id.btnSettings);
         View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
+        GlassLook.decorate(panel);
         LinearLayout rows = panel.findViewById(R.id.rows);
         PopupWindow popup = glassPopup(panel, (int) (220 * density));
         // Inputs opens its own list once this one has closed.
@@ -3897,6 +3901,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void showSettingsMenu() {
         View anchor = findViewById(R.id.btnSettings);
         View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
+        GlassLook.decorate(panel);
         LinearLayout rows = panel.findViewById(R.id.rows);
         PopupWindow popup = glassPopup(panel, (int) (200 * density));
         addSettingsMenuRow(rows, popup, R.string.launcher_settings, () -> startActivityForResult(
@@ -4026,6 +4031,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // Empty dock slots and the Default-home tile carry the launcher's own package: no menu for them.
         if (key == null || pkg == null || pkg.equals(getPackageName())) return;
         View panel = getLayoutInflater().inflate(R.layout.popup_inputs, root, false);
+        GlassLook.decorate(panel);
         LinearLayout rows = panel.findViewById(R.id.rows);
         PopupWindow popup = glassPopup(panel, (int) (200 * density));
         if (dockRow && position < adapter.movableCount()) {
@@ -4117,6 +4123,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (card == null) return;
 
         View panel = getLayoutInflater().inflate(R.layout.dialog_card_prompt, root, false);
+        GlassLook.decorate(panel);
         boolean rtl = getResources().getBoolean(R.bool.rtl_menu_bar);
         if (rtl) panel.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         ((TextView) panel.findViewById(R.id.title)).setText(getString(R.string.card_prompt_title, card.appLabel));
@@ -4210,6 +4217,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void showModuleCardsNow() {
         View anchor = findViewById(R.id.btnSettings);
         View panel = getLayoutInflater().inflate(R.layout.popup_cards, root, false);
+        GlassLook.decorate(panel);
         if (getResources().getBoolean(R.bool.rtl_menu_bar))
             panel.setLayoutDirection(View.LAYOUT_DIRECTION_RTL);
         LinearLayout rows = panel.findViewById(R.id.rows);

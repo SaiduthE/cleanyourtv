@@ -953,7 +953,10 @@ public class AppAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                boolean reducedMotion, float restNameAlpha, boolean overshoot) {
             super(v);
             card = v.findViewById(R.id.card);
-            cardBackground = card.getBackground();
+            final float tileDensity = v.getResources().getDisplayMetrics().density;
+            cardBackground = GlassLook.active()
+                    ? new GlassDrawable(GlassLook.tile(v.getContext()), null, (w, h) -> cornerRadius(w, tileDensity))
+                    : card.getBackground();
             banner = v.findViewById(R.id.banner);
             icon = v.findViewById(R.id.icon);
             label = v.findViewById(R.id.label);

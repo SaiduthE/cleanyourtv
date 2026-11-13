@@ -111,6 +111,9 @@ public class SkyView extends View {
             canvas.drawRect(0f, 0f, TEX_W, TEX_H, paint);
         }
 
+        // Film grain (config.xml grain), baked into the one bitmap: it dithers the gradient so it does not band.
+        Grain.bakeGrain(texture, GlassLook.grain);
+
         if (drawable == null) {
             drawable = new BitmapDrawable(getResources(), texture);
             drawable.setGravity(Gravity.FILL);

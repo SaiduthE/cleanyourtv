@@ -5,6 +5,8 @@ import android.content.Context;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
@@ -49,6 +51,11 @@ final class ClockScene {
     /** Weather under the date, from the Weather add-on; null without it (WeatherScreensaver). */
     private WeatherScreensaver weather;
     private final GradientDrawable glow;
+    /** grain above 0: the glow is drawn into this small bitmap with the grain baked in, instead of as a gradient. */
+    private static final int GLOW_W = 480, GLOW_H = 270;
+    private Bitmap glowTexture;
+    private BitmapDrawable glowBaked;
+    private float glowCx = 0.5f, glowCy = 0.5f;
     private int colorIndex;
     private int glowColor;
     /** clock_wallpaper or clock_glow false: something else (a picture, or plain black) replaced the coloured glow. */
@@ -105,6 +112,7 @@ final class ClockScene {
         }
         if (weather != null) weather.start();
         if (wallpaperFile != null && !wallpaperShown) loadWallpaper();
+        applyGlow();   // useHomeWallpaper has read the config by now: the grain may have changed
     }
 
     void stop() {
@@ -252,8 +260,10 @@ final class ClockScene {
         content.setX(x);
         content.setY(y);
         if (parent.getWidth() > 0 && parent.getHeight() > 0) {
-            glow.setGradientCenter((x + content.getWidth() / 2f) / parent.getWidth(),
-                    (y + content.getHeight() / 2f) / parent.getHeight());
+            glowCx = (x + content.getWidth() / 2f) / parent.getWidth();
+            glowCy = (y + content.getHeight() / 2f) / parent.getHeight();
+            glow.setGradientCenter(glowCx, glowCy);
+            applyGlow();
         }
     }
 
@@ -273,5 +283,33 @@ final class ClockScene {
         glowColor = color;
         int c = color & 0x00FFFFFF;
         glow.setColors(new int[]{0x40000000 | c, 0x14000000 | c, 0x00000000 | c});
+        applyGlow();
+    }
+
+    /**
+     * With grain, the glow is baked into a small opaque bitmap (on the scene's black) with the noise over it, so the
+     * soft gradient does not band; the bitmap is stretched like any background. Without grain it stays the plain
+     * gradient. A picture (clock_wallpaper) or plain black replaces either one.
+     */
+    private void applyGlow() {
+        if (wallpaperShown) return;
+        if (GlassLook.grain <= 0) {
+            if (ambient.getBackground() != glow) ambient.setBackground(glow);
+            return;
+        }
+        if (glowTexture == null) glowTexture = Bitmap.createBitmap(GLOW_W, GLOW_H, Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(glowTexture);
+        canvas.drawColor(Color.BLACK);
+        glow.setBounds(0, 0, GLOW_W, GLOW_H);
+        glow.setGradientRadius(GLOW_W * 0.55f);
+        glow.setGradientCenter(glowCx, glowCy);
+        glow.draw(canvas);
+        Grain.bakeGrain(glowTexture, GlassLook.grain);
+        if (glowBaked == null) {
+            glowBaked = new BitmapDrawable(ambient.getResources(), glowTexture);
+            glowBaked.setGravity(android.view.Gravity.FILL);
+        }
+        if (ambient.getBackground() != glowBaked) ambient.setBackground(glowBaked);
+        else glowBaked.invalidateSelf();
     }
 }

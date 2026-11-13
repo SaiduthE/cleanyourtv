@@ -19,6 +19,8 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
     private final Paint band = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint edge = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
+    /** The band as glass (grain, rim, frost): the same fill and stroke as above, baked once for the band's size. */
+    private final GlassSurface glass;
 
     /** Extra band below the tiles for their names (always_show_names), in px. */
     private final float namesRoom;
@@ -62,6 +64,10 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
         edge.setStyle(Paint.Style.STROKE);
         edge.setStrokeWidth(density);
         edge.setColor(edgeColor(translucent, lightGlass, this.opacity));
+        int top = lightGlass ? glassTop(this.opacity) : bandColor(translucent, this.opacity);
+        int bottom = lightGlass ? glassBottom(this.opacity) : top;
+        glass = new GlassSurface(new GlassSurface.Spec(top, bottom, edgeColor(translucent, lightGlass, this.opacity),
+                density, 0f));
     }
 
     // The band of each style as designed (at 100%). The opacity setting scales every one of them, so it works in the
@@ -171,6 +177,11 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
                     Shader.TileMode.CLAMP));
             shaderTop = rect.top;
             shaderBottom = rect.bottom;
+        }
+        if (GlassLook.active()) {
+            int left = Math.round(rect.left), top = Math.round(rect.top);
+            glass.draw(c, left, top, Math.round(rect.right) - left, Math.round(rect.bottom) - top, radius);
+            return;
         }
         c.drawRoundRect(rect, radius, radius, band);
         c.drawRoundRect(rect, radius, radius, edge);

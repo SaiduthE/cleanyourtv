@@ -28,6 +28,7 @@ public final class QuickSettingsActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         setContentView(R.layout.activity_quick_settings);
+        GlassLook.decorate(findViewById(R.id.panel));
         if (getResources().getBoolean(R.bool.rtl_menu_bar)) {
             View panel = findViewById(R.id.panel);
             android.widget.FrameLayout.LayoutParams position =

@@ -97,10 +97,10 @@ public class ClockRowLayoutTest {
         assertNull(p.slotOf("brightness"));
     }
 
-    @Test public void noSequenceOfMovesPutsTwoWidgetsInOneOfTheFourSlots() {
+    @Test public void noSequenceOfMovesPutsTwoWidgetsInOneOfTheFiveSlots() {
         WidgetPlacements p = WidgetPlacements.parse(null, defaults());
         WidgetSlot[] slots = WidgetSlot.values();
-        assertEquals(4, slots.length);
+        assertEquals(5, slots.length);
         for (int i = 0; i < 60; i++) {
             p.place(i % 2 == 0 ? "weather" : "brightness", slots[(i * 5 + i / 3) % slots.length], WidgetRegistry.RULES);
             Set<WidgetSlot> used = new HashSet<>();
@@ -300,13 +300,48 @@ public class ClockRowLayoutTest {
     // ---- the top bar's slots -------------------------------------------------------------------------------------
 
     @Test public void theTopBarHasItsOwnSlotOrderAndGroups() {
-        assertArrayEquals(new WidgetSlot[] {WidgetSlot.TOP_BAR_START, WidgetSlot.TOP_BAR_END}, WidgetSlot.bar());
+        assertArrayEquals(new WidgetSlot[] {WidgetSlot.TOP_BAR_START, WidgetSlot.BESIDE_NETWORK, WidgetSlot.TOP_BAR_END},
+                WidgetSlot.bar());
         assertEquals(0, WidgetSlot.TOP_BAR_START.barOrder());
-        assertEquals(1, WidgetSlot.TOP_BAR_END.barOrder());
+        assertEquals(1, WidgetSlot.BESIDE_NETWORK.barOrder());
+        assertEquals(2, WidgetSlot.TOP_BAR_END.barOrder());
+        assertEquals(WidgetSlot.TOP_BAR_START, WidgetSlot.BESIDE_NETWORK.groupLead());
+        assertFalse(WidgetSlot.BESIDE_NETWORK.inClockRow());
+        assertNull(WidgetSlot.BESIDE_NETWORK.nextBeforeBar());
+        assertNull(WidgetSlot.BESIDE_NETWORK.previousBeforeBar());
+        assertEquals(WidgetSlot.BESIDE_NETWORK, WidgetSlot.fromKey("beside_network"));
         assertEquals(-1, WidgetSlot.CLOCK_SIDE.barOrder());
         assertEquals(WidgetSlot.CLOCK_SIDE, WidgetSlot.BESIDE_WEATHER.groupLead());
         assertEquals(WidgetSlot.CLOCK_SIDE, WidgetSlot.CLOCK_SIDE.groupLead());
         assertEquals(WidgetSlot.TOP_BAR_START, WidgetSlot.TOP_BAR_END.groupLead());
+    }
+
+    // ---- Horizon's widget defaults -------------------------------------------------------------------------------
+
+    @Test public void aSceneClockLookDocksNoWeatherAndBrightnessBeforeTheNetworkPill() {
+        WidgetPlacements p = WidgetPlacements.parse(null, WidgetRegistry.defaults(true), WidgetRegistry.RULES);
+        assertNull(p.slotOf("weather"));
+        assertEquals(WidgetSlot.BESIDE_NETWORK, p.slotOf("brightness"));
+        assertEquals("brightness=beside_network;weather=none", p.serialize());
+    }
+
+    @Test public void otherLooksKeepTheWeatherBesideTheClock() {
+        WidgetPlacements p = WidgetPlacements.parse(null, WidgetRegistry.defaults(), WidgetRegistry.RULES);
+        assertEquals(WidgetSlot.CLOCK_SIDE, p.slotOf("weather"));
+        assertNull(p.slotOf("brightness"));
+    }
+
+    @Test public void theOwnersSavedChoicesBeatTheSceneClockDefaults() {
+        WidgetPlacements p = WidgetPlacements.parse("weather=clock_side;brightness=top_bar_end",
+                WidgetRegistry.defaults(true), WidgetRegistry.RULES);
+        assertEquals(WidgetSlot.CLOCK_SIDE, p.slotOf("weather"));
+        assertEquals(WidgetSlot.TOP_BAR_END, p.slotOf("brightness"));
+    }
+
+    @Test public void bothWidgetsCanDockBeforeTheNetworkPillSlotAndSwap() {
+        WidgetPlacements p = WidgetPlacements.parse("weather=clock_side;brightness=beside_network", defaults());
+        assertEquals(Result.SWAPPED, p.place("weather", WidgetSlot.BESIDE_NETWORK, WidgetRegistry.RULES));
+        assertEquals(WidgetSlot.CLOCK_SIDE, p.slotOf("brightness"));
     }
 
     // ---- stored placements that can never be shown ---------------------------------------------------------------

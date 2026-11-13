@@ -130,6 +130,16 @@ final class HomeWidgets implements WidgetOverlays.Host {
             if (direction < 0) nav.focusLastButton();
             return true;
         }
+        if (from == WidgetSlot.BESIDE_NETWORK) {
+            // In the middle of the bar: the next pill that way, else (left of the first pill) the widgets before the bar.
+            android.view.View current = activity.getCurrentFocus();
+            android.view.View bar = activity.findViewById(R.id.topButtons);
+            android.view.View next = current == null ? null
+                    : current.focusSearch(direction < 0 ? android.view.View.FOCUS_LEFT : android.view.View.FOCUS_RIGHT);
+            if (next != null && next != current && next.getParent() == bar) next.requestFocus();
+            else if (direction < 0) focusBeforeBar();
+            return true;
+        }
         // Along the clock row and the start of the bar (WidgetSlot.beforeBar); past its right end are the buttons.
         if (!focusFrom(from, direction) && direction > 0) nav.focusFirstButton();
         return true;

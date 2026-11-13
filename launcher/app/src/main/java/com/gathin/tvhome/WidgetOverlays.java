@@ -68,6 +68,7 @@ final class WidgetOverlays {
             case CLOCK_SIDE: return ctx.getString(R.string.widget_slot_clock_side);
             case BESIDE_WEATHER: return ctx.getString(R.string.widget_slot_beside_weather);
             case TOP_BAR_START: return ctx.getString(R.string.widget_slot_top_bar_start);
+            case BESIDE_NETWORK: return ctx.getString(R.string.widget_slot_beside_network);
             default: return ctx.getString(R.string.widget_slot_top_bar_end);
         }
     }

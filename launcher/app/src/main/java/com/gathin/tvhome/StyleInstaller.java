@@ -42,6 +42,8 @@ final class StyleInstaller {
     static final String THEME_NAME = "Clean Look";
     static final String KEY_THEME = "theme";
     static final String KEY_STYLE = "style";
+    /** The style id of Horizon, the look with the scene clock: it brings its own widget defaults (see WidgetRegistry). */
+    static final String HORIZON = "horizon";
 
     /** id (the assets folder), name, one line about it. */
     private static final String[][] STYLES = {
@@ -306,6 +308,7 @@ final class StyleInstaller {
             Toast.makeText(activity, "No storage to write the style to.", Toast.LENGTH_LONG).show();
             return false;
         }
+        String before = activeStyleId(activity);
         File configTmp = new File(dir, Config.FILE_NAME + ".tmp");
         File wallpaperTmp = new File(dir, Config.WALLPAPER_NAME + ".tmp");
         File revisionTmp = new File(dir, "theme_revision.tmp");
@@ -371,6 +374,11 @@ final class StyleInstaller {
             // The launcher compares this to what it saw last and drops the on-TV choices of the old look.
             move(revisionTmp, new File(dir, "theme_revision"));
             if (restoring) deleteTree(new File(dir, PREVIOUS_DIR));
+            // Horizon's widget defaults (no weather, brightness before the network pill) are the style's own: the owner's
+            // placements are set aside when it is applied and come back, with Previous look or any other style.
+            WidgetStore widgets = new WidgetStore(activity);
+            if (HORIZON.equals(id) && !HORIZON.equals(before)) widgets.setAsideForScene();
+            else if (!HORIZON.equals(id) && HORIZON.equals(before)) widgets.restoreAfterScene();
         } catch (IOException | JSONException e) {
             configTmp.delete();
             wallpaperTmp.delete();

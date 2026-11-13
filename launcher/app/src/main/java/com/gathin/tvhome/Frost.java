@@ -45,8 +45,22 @@ final class Frost {
     private static final int DARK_R = 16, DARK_G = 18, DARK_B = 24;
     private static final int BLUR_RADIUS = 4;
 
+    /**
+     * What the frost is made from, bottom to top: the theme's wallpaper (or sky), the Top Shelf's photo at rest, and a
+     * show's own Resume artwork. The glass always frosts the top one that is on screen, so it shows what is really
+     * behind it, not a wallpaper the shelf covers.
+     */
+    static final int LAYER_WALL = 0, LAYER_SHELF = 1, LAYER_ART = 2;
+    private static final Bitmap[] LAYERS = new Bitmap[3];
     private static volatile Bitmap bitmap;
     private static volatile float scaleX = 4f, scaleY = 4f;
+    /** Made on first use, so the JVM tests (no Looper) can load this class. */
+    private static Handler main;
+
+    private static synchronized Handler main() {
+        if (main == null) main = new Handler(Looper.getMainLooper());
+        return main;
+    }
     private static final Set<Listener> LISTENERS = Collections.synchronizedSet(
             Collections.newSetFromMap(new WeakHashMap<Listener, Boolean>()));
 
@@ -70,16 +84,41 @@ final class Frost {
         LISTENERS.add(l);
     }
 
-    /** Publishes a new frost made for a screen of this size (the old one is dropped, not recycled: views may be drawing it). */
+    /** The wallpaper's (or sky's) frost, made for a screen of this size; null clears that layer. */
     static void set(Bitmap frost, int screenW, int screenH) {
-        if (frost == null) {
-            release();
-            return;
+        setLayer(LAYER_WALL, frost, screenW, screenH);
+    }
+
+    /** One layer's frost (the old one is dropped, not recycled: views may be drawing it); null clears the layer. */
+    static void setLayer(int layer, Bitmap frost, int screenW, int screenH) {
+        synchronized (LAYERS) {
+            if (frost != null) {
+                scaleX = screenW / (float) frost.getWidth();
+                scaleY = screenH / (float) frost.getHeight();
+            }
+            LAYERS[layer] = frost;
         }
-        scaleX = screenW / (float) frost.getWidth();
-        scaleY = screenH / (float) frost.getHeight();
-        bitmap = frost;
-        new Handler(Looper.getMainLooper()).post(() -> {
+        publish();
+    }
+
+    static void clearLayer(int layer) {
+        boolean changed;
+        synchronized (LAYERS) {
+            changed = LAYERS[layer] != null;
+            LAYERS[layer] = null;
+        }
+        if (changed) publish();
+    }
+
+    /** The top layer becomes the frost on show, and every glass surface redraws with it. */
+    private static void publish() {
+        Bitmap top = null;
+        synchronized (LAYERS) {
+            for (int i = LAYERS.length - 1; i >= 0 && top == null; i--) top = LAYERS[i];
+        }
+        if (top == bitmap) return;
+        bitmap = top;
+        main().post(() -> {
             Listener[] all;
             synchronized (LISTENERS) {
                 all = LISTENERS.toArray(new Listener[0]);
@@ -88,14 +127,50 @@ final class Frost {
         });
     }
 
-    /** Frees the frost (wallpaper change, onTrimMemory, glass_frost off). */
+    /**
+     * Builds a layer's frost from a picture on {@code worker}, then publishes it on the main thread if {@code wanted}
+     * still says so (the picture may have changed meanwhile). Nothing happens with glass_frost at 0.
+     */
+    static void buildLayer(int layer, Bitmap src, android.content.Context ctx, java.util.concurrent.Executor worker,
+                           java.util.function.BooleanSupplier wanted) {
+        int strength = GlassLook.frost;
+        if (strength <= 0 || src == null) return;
+        android.util.DisplayMetrics dm = ctx.getResources().getDisplayMetrics();
+        int w = dm.widthPixels, h = dm.heightPixels;
+        try {
+            worker.execute(() -> {
+                Bitmap f = build(src, w, h, strength, 0, 1f, true);   // a picture recycled meanwhile just gives null
+                if (f == null) return;
+                main().post(() -> {
+                    if (wanted.getAsBoolean()) setLayer(layer, f, w, h);
+                });
+            });
+        } catch (java.util.concurrent.RejectedExecutionException ignored) {
+            // the owner is closing
+        }
+    }
+
+    /** Frees every layer (onTrimMemory, glass_frost off); each owner builds its own again when it shows a picture. */
     static void release() {
+        synchronized (LAYERS) {
+            java.util.Arrays.fill(LAYERS, null);
+        }
         bitmap = null;
     }
 
-    /** Frees the frost only if it is still this one (a closing wallpaper must not drop a newer owner's frost). */
-    static synchronized void releaseIf(Bitmap published) {
-        if (published != null && bitmap == published) bitmap = null;
+    /** Frees a frost only if it is still published (a closing wallpaper must not drop a newer owner's frost). */
+    static void releaseIf(Bitmap published) {
+        if (published == null) return;
+        boolean changed = false;
+        synchronized (LAYERS) {
+            for (int i = 0; i < LAYERS.length; i++) {
+                if (LAYERS[i] == published) {
+                    LAYERS[i] = null;
+                    changed = true;
+                }
+            }
+        }
+        if (changed) publish();
     }
 
     // ---- pure helpers (JVM-tested) --------------------------------------------------------------------------------

@@ -398,6 +398,7 @@ final class TopShelf {
         for (ImageView t : thumbImages) t.setImageDrawable(null);
         card.setImageDrawable(null);
         recycle(artBitmap);
+        Frost.clearLayer(Frost.LAYER_ART);
         recycle(cardBitmap);
         artBitmap = cardBitmap = null;
         for (int i = 0; i < thumbBitmaps.length; i++) {
@@ -708,6 +709,9 @@ final class TopShelf {
         Bitmap old = artBitmap;
         artBitmap = next;
         art.setImageBitmap(next);
+        // A show's backdrop covers the screen: the glass frosts it while it shows.
+        if (next == null) Frost.clearLayer(Frost.LAYER_ART);
+        else Frost.buildLayer(Frost.LAYER_ART, next, context, worker, () -> !closed && artBitmap == next);
         retire(old, next);
     }
 

@@ -370,7 +370,7 @@ final class WallpaperPlayer {
         Bitmap frost = pendingFrost;
         pendingFrost = null;
         if (frost != null) Frost.set(frost, width, height);
-        else Frost.release();
+        else Frost.clearLayer(Frost.LAYER_WALL);
         publishedFrost = frost;
         notifyScene();
         if (old != null && old != bitmap) image.postDelayed(old::recycle, keep);

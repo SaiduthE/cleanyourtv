@@ -151,6 +151,7 @@ final class ShelfWallpaper {
         retire(backBitmap);
         frontBitmap = backBitmap = null;
         shownKey = null;
+        Frost.clearLayer(Frost.LAYER_SHELF);
         if (listener != null) listener.onCredit("");
     }
 
@@ -295,6 +296,9 @@ final class ShelfWallpaper {
 
     /** The new picture fades in over the one on screen; then it becomes the one on screen and the old one goes. */
     private void crossfade(Bitmap bitmap) {
+        // The glass frosts this photo, since it is what lies behind the dock and the pills while the shelf rests.
+        Frost.buildLayer(Frost.LAYER_SHELF, bitmap, front.getContext(), worker,
+                () -> !closed && running && (bitmap == backBitmap || bitmap == frontBitmap));
         int ms = SettingsModel.duration(animations, reducedMotion, TopShelfLogic.FADE_MS);
         front.animate().cancel();
         back.animate().cancel();

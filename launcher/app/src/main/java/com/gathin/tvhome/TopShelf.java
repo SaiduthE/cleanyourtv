@@ -45,6 +45,9 @@ import java.util.concurrent.Executors;
  * Focus away from the dock for {@link TopShelfLogic#LEAVE_MS} brings the plain wallpaper back. Nothing is blurred and
  * no picture is scaled up beyond that limit. The Resume button and the up-next items take focus (Up from the dock),
  * and the shelf never goes away while one of them has it.
+ *
+ * With a Horizon scene as Home's background ({@code restPictures} false) the shelf draws no pictures of its own at rest (no
+ * photos, no other wallpapers) and tells Home when a show's backdrop covers the screen, so the scene clock can step aside.
  */
 final class TopShelf {
 
@@ -93,6 +96,8 @@ final class TopShelf {
      * type, above a real backdrop). Same maths, same strength: it follows the brightness of the picture on screen.
      */
     private final Legibility.Scrim restScrim, contentScrim;
+    /** The rest shade's alpha: 1 while the dock's big app name shows at rest (it is the only type there), else none. */
+    private final float restShade;
     /** The photo's author and licence: tiny and faint at the bottom right, only while a photo shows on the idle shelf. */
     private final TextView credit;
     private String photoCredit = "";
@@ -142,7 +147,8 @@ final class TopShelf {
 
     /** @param wallpapers the launcher's wallpaper pictures (empty when the wallpaper is off); the feed's are added */
     TopShelf(Context context, FrameLayout container, Host host, boolean animations, boolean reducedMotion, int accent,
-             List<File> wallpapers, int dockOpacity, boolean dockBand, boolean restPictures) {
+             List<File> wallpapers, int dockOpacity, boolean dockBand, boolean restPictures, boolean titleAtRest) {
+        this.restShade = titleAtRest ? 1f : 0f;
         this.context = context;
         this.container = container;
         this.host = host;
@@ -165,6 +171,7 @@ final class TopShelf {
         light.setBackground(edgeFade(Edge.BOTTOM, ShelfGradients.BOTTOM_SPAN, bottomPeak));
         container.addView(light, new FrameLayout.LayoutParams(-1, -1));
         restScrim = new Legibility.Scrim(context, scrimFade);
+        restScrim.setAlpha(restShade);
         container.addView(restScrim, new FrameLayout.LayoutParams(-1, -1));
         credit = new TextView(context);
         credit.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
@@ -705,7 +712,7 @@ final class TopShelf {
         wall.setRotating(true);
         setCovering(false);
         restScrim.animate().cancel();
-        restScrim.animate().alpha(1f).setDuration(ms).start();
+        restScrim.animate().alpha(restShade).setDuration(ms).start();
         if (ms == 0) {
             clearContent();
             return;

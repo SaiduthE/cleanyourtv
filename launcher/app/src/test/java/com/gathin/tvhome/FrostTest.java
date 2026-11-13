@@ -69,4 +69,44 @@ public class FrostTest {
         assertEquals(0x66FFFFFF, GlassEdge.scaleAlpha(0x66FFFFFF, 2f));
         assertEquals(0x80112233, GlassEdge.scaleAlpha(0x80112233, 1f));
     }
+
+    @Test
+    public void centerCropOfAWiderPictureCutsTheSides() {
+        // 4000x1000 on a 16:9 screen: the full height, 1778 px wide, centred.
+        assertArrayEquals(new int[] {1111, 0, 1778, 1000}, Frost.centerCrop(4000, 1000, 1920, 1080));
+    }
+
+    @Test
+    public void centerCropOfATallerPictureCutsTopAndBottom() {
+        // 1000x1000 on 16:9: the full width, 563 px tall, centred.
+        assertArrayEquals(new int[] {0, 218, 1000, 563}, Frost.centerCrop(1000, 1000, 1920, 1080));
+    }
+
+    @Test
+    public void centerCropOfAMatchingPictureIsTheWholePicture() {
+        assertArrayEquals(new int[] {0, 0, 1920, 1080}, Frost.centerCrop(1920, 1080, 1920, 1080));
+        assertArrayEquals(new int[] {0, 0, 960, 540}, Frost.centerCrop(960, 540, 1920, 1080));
+    }
+
+    @Test
+    public void centerCropNeverLeavesThePicture() {
+        int[][] sizes = {{1, 1}, {3, 900}, {5000, 7}, {1921, 1080}, {1920, 1081}};
+        for (int[] s : sizes) {
+            int[] r = Frost.centerCrop(s[0], s[1], 1920, 1080);
+            assertTrue(r[2] >= 1 && r[3] >= 1);
+            assertTrue(r[0] >= 0 && r[1] >= 0 && r[0] + r[2] <= s[0] && r[1] + r[3] <= s[1]);
+        }
+    }
+
+    @Test
+    public void bakeSizesRoundUpToAStepSoAnimationsReuseOneBake() {
+        assertEquals(1472, GlassSurface.snap(1409, 64));
+        assertEquals(1472, GlassSurface.snap(1472, 64));
+        assertEquals(1536, GlassSurface.snap(1473, 64));
+        assertEquals(256, GlassSurface.snap(241, 16));
+        assertEquals(241, GlassSurface.snap(241, 1));
+        assertEquals(0, GlassSurface.snap(0, 16));
+        // Every height an animation passes through in one step bakes to the same size.
+        for (int h = 241; h <= 256; h++) assertEquals(256, GlassSurface.snap(h, 16));
+    }
 }

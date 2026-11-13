@@ -75,6 +75,8 @@ final class SceneClockView extends View {
     private final WeatherSource weather;
     private final Runnable tick = this::minute;
     private Scene scene;
+    /** A scene waiting for the fade-out to end before it replaces {@link #scene}; recycled if the fade is cut short. */
+    private Scene pending;
     private String time = "", date = "";
     private WeatherData reading;
     private boolean running;
@@ -141,14 +143,19 @@ final class SceneClockView extends View {
 
     /** Shows a scene, fading the old one out and this one in; null removes the clock (the wallpaper went away). */
     void setScene(Scene next) {
-        animate().cancel();
+        animate().cancel();   // drops a pending fade-out's end action, so its scene was never applied
+        Scene queued = pending;
+        pending = null;
+        if (queued != null && queued != next) queued.recycle();
         Scene old = scene;
         if (!fade || old == null || next == null || getAlpha() == 0f) {
             apply(next, old);
             if (next != null) fadeIn();
             return;
         }
+        pending = next;
         animate().alpha(0f).setDuration(FADE_OUT_MS).withEndAction(() -> {
+            pending = null;
             apply(next, old);
             fadeIn();
         }).start();
@@ -173,9 +180,12 @@ final class SceneClockView extends View {
         animate().cancel();
         setAlpha(0f);
         Scene old = scene;
+        Scene queued = pending;
         scene = null;
+        pending = null;
         builtFor = 0;
         if (old != null) old.recycle();
+        if (queued != null && queued != old) queued.recycle();
     }
 
     // ---- the minute ----------------------------------------------------------------------------------------------

@@ -52,6 +52,10 @@ final class WallpaperPlayer {
     private final int dimColor;
     /** glass_frost: the frost of the picture decode() just made, published by show() with the picture. Null without frost. */
     private volatile Bitmap pendingFrost;
+    /** The frost this player published with its picture, so close() frees it only if it is still the one in use. */
+    private Bitmap publishedFrost;
+    /** Told when a picture first appears (or none could be shown), so the header can step aside for the scene clock or return. */
+    private Runnable sceneListener;
     /** The picture on screen, released once the next one has been drawn. */
     private Bitmap current;
     private boolean active;
@@ -101,6 +105,9 @@ final class WallpaperPlayer {
                 ? WallpaperCaptions.read(files.get(0).getParentFile()) : Collections.emptyMap();
         caption = names.isEmpty() ? null : makeCaption(context, root);
         sceneSettings = config.sceneClock;
+        // Frost is process-wide: a previous wallpaper's frost must not outlive it. A picture publishes its own in show(); with
+        // none (wallpaper off, or every file unreadable) there is nothing to frost but the sky, which builds its own after this.
+        Frost.release();
         boolean scene = config.wallpaperEnabled && !files.isEmpty() && sceneSettings.enabled;
         sceneClock = scene ? new SceneClockView(context, ClockFormat.is24(context, config.clockFormat),
                 config.animations && !config.reducedMotion) : null;
@@ -117,9 +124,21 @@ final class WallpaperPlayer {
         }
     }
 
-    /** True when Home draws the clock itself, so the top bar's clock, greeting and date step aside. */
+    /**
+     * True when Home draws the clock itself, so the top bar's clock, greeting and date step aside: the scene clock exists
+     * and a picture is on screen for it (when every file fails to decode there is no scene, and the header keeps its clock).
+     */
     boolean sceneClockShown() {
-        return sceneClock != null;
+        return sceneClock != null && current != null;
+    }
+
+    /** {@code listener} runs (on the main thread) whenever a picture is shown or none could be, so the header can follow. */
+    void setSceneListener(Runnable listener) {
+        sceneListener = listener;
+    }
+
+    private void notifyScene() {
+        if (sceneListener != null) sceneListener.run();
     }
 
     /** The wall clock was set (ACTION_TIME_CHANGED). */
@@ -156,6 +175,8 @@ final class WallpaperPlayer {
             playable = playable();
             first = WallpaperRotation.pick(playable, previous, order, random);
         }
+        // No playable file: no picture and no scene clock, so the header's own clock and date stay (or come back).
+        notifyScene();
     }
 
     void start() {
@@ -197,6 +218,9 @@ final class WallpaperPlayer {
         closed = true;
         if (sceneClock != null) sceneClock.release();
         decoder.shutdownNow();
+        // Free this player's frost, unless a newer owner (the next Home, the sky) has already replaced it.
+        Frost.releaseIf(publishedFrost);
+        publishedFrost = null;
     }
 
     void update() {
@@ -226,6 +250,7 @@ final class WallpaperPlayer {
                     files.remove(next);
                     Log.w("TvHome.Wallpaper", "Skipping unreadable image: " + next.getName());
                     update();
+                    if (!loading) notifyScene();   // nothing left to try: the header may need its clock back
                     return;
                 }
                 show(bitmap, true);
@@ -346,6 +371,8 @@ final class WallpaperPlayer {
         pendingFrost = null;
         if (frost != null) Frost.set(frost, width, height);
         else Frost.release();
+        publishedFrost = frost;
+        notifyScene();
         if (old != null && old != bitmap) image.postDelayed(old::recycle, keep);
     }
 
@@ -354,13 +381,13 @@ final class WallpaperPlayer {
             BitmapFactory.Options options = new BitmapFactory.Options();
             options.inJustDecodeBounds = true;
             BitmapFactory.decodeFile(file.getPath(), options);
-            int width = options.outWidth, height = options.outHeight;
-            if (width <= 0 || height <= 0) return null;
-            int sample = WallpaperSize.sampleSize(width, height, this.width, this.height);
-            if (!WallpaperSize.accepted(width / sample, height / sample)) return null;
+            int sourceW = options.outWidth, sourceH = options.outHeight;   // the file's size, not the screen's
+            if (sourceW <= 0 || sourceH <= 0) return null;
+            int sample = WallpaperSize.sampleSize(sourceW, sourceH, width, height);
+            if (!WallpaperSize.accepted(sourceW / sample, sourceH / sample)) return null;
             options.inJustDecodeBounds = false;
             options.inSampleSize = sample;
-            int[] scale = WallpaperSize.coverScale(width / sample, height / sample, this.width, this.height);
+            int[] scale = WallpaperSize.coverScale(sourceW / sample, sourceH / sample, width, height);
             if (scale != null) {
                 options.inScaled = true;
                 options.inDensity = scale[0];
@@ -372,7 +399,7 @@ final class WallpaperPlayer {
             if (decoded == null) return null;
             if (dimColor != 0) new Canvas(decoded).drawColor(dimColor);
             // The picture's frost (glass_frost) is made from the readable copy here, before it becomes a GPU texture.
-            pendingFrost = GlassLook.frost > 0 ? Frost.build(decoded, width, height, GlassLook.frost, 0, 1f) : null;
+            pendingFrost = GlassLook.frost > 0 ? Frost.build(decoded, width, height, GlassLook.frost, 0, 1f, true) : null;
             // One copy in GPU memory instead of a software bitmap plus its texture; the decode stays off the UI
             // thread for rotations, and Home's return no longer uploads 4-8 MB to the GPU.
             Bitmap gpu = decoded.copy(Bitmap.Config.HARDWARE, false);

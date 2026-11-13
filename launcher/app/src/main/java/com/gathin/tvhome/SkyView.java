@@ -128,7 +128,7 @@ public class SkyView extends View {
             // A few milliseconds once a minute: the sky changes slowly and the glass follows it.
             android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
             Frost.set(Frost.build(texture, dm.widthPixels, dm.heightPixels, GlassLook.frost, frostUnder,
-                    intensity / 100f), dm.widthPixels, dm.heightPixels);
+                    intensity / 100f, false), dm.widthPixels, dm.heightPixels);
         }
 
         if (drawable == null) {

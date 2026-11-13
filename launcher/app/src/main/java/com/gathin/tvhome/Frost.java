@@ -84,6 +84,11 @@ final class Frost {
         bitmap = null;
     }
 
+    /** Frees the frost only if it is still this one (a closing wallpaper must not drop a newer owner's frost). */
+    static synchronized void releaseIf(Bitmap published) {
+        if (published != null && bitmap == published) bitmap = null;
+    }
+
     // ---- pure helpers (JVM-tested) --------------------------------------------------------------------------------
 
     /** How far the picture is blended toward dark, 0 to 0.8, for a strength of 0 to 100. */
@@ -99,6 +104,21 @@ final class Frost {
     /** The size of the shared frost: 1/4 of the screen, never under 8 px. */
     static int[] frostSize(int screenW, int screenH) {
         return new int[] {Math.max(8, screenW / 4), Math.max(8, screenH / 4)};
+    }
+
+    /**
+     * The part of a picture a screen shows when the picture is scaled to cover it and centred (ImageView CENTER_CROP):
+     * {x, y, width, height} in picture pixels. The whole picture when the aspect ratios match.
+     */
+    static int[] centerCrop(int srcW, int srcH, int screenW, int screenH) {
+        if (srcW <= 0 || srcH <= 0 || screenW <= 0 || screenH <= 0) return new int[] {0, 0, Math.max(0, srcW), Math.max(0, srcH)};
+        if ((long) srcW * screenH > (long) srcH * screenW) {
+            // Wider than the screen: the sides are cut off.
+            int w = Math.max(1, Math.min(srcW, Math.round(srcH * (float) screenW / screenH)));
+            return new int[] {(srcW - w) / 2, 0, w, srcH};
+        }
+        int h = Math.max(1, Math.min(srcH, Math.round(srcW * (float) screenH / screenW)));
+        return new int[] {0, (srcH - h) / 2, srcW, h};
     }
 
     /** Stack blur (Mario Klingemann's) of an ARGB image in place, alpha forced opaque. */
@@ -240,16 +260,26 @@ final class Frost {
      * @param src      the wallpaper as shown (dim already painted in), or the sky texture
      * @param under    a colour the picture is laid over when {@code alpha} is under 1 (the sky is partly transparent)
      * @param alpha    how opaque the picture is on screen, 0 to 1
+     * @param crop     true for a picture shown centre-cropped (a wallpaper ImageView): only the part of it the screen
+     *                 shows is frosted, so the frost lines up with what is on screen. False for a texture stretched
+     *                 over the whole screen (the sky).
      */
-    static Bitmap build(Bitmap src, int screenW, int screenH, int strength, int under, float alpha) {
+    static Bitmap build(Bitmap src, int screenW, int screenH, int strength, int under, float alpha, boolean crop) {
         if (src == null || src.isRecycled() || strength <= 0 || screenW <= 0 || screenH <= 0) return null;
         int[] small = smallSize(screenW, screenH);
         int[] size = frostSize(screenW, screenH);
         Bitmap cur = src;
         Bitmap blurred = null;
+        boolean own = false;
         try {
+            if (crop) {
+                int[] area = centerCrop(src.getWidth(), src.getHeight(), screenW, screenH);
+                if (area[2] != src.getWidth() || area[3] != src.getHeight()) {
+                    cur = Bitmap.createBitmap(src, area[0], area[1], area[2], area[3]);
+                    own = cur != src;
+                }
+            }
             // Halve with filtering until about the size wanted, then one last filtered step to exactly 1/16.
-            boolean own = false;
             while (cur.getWidth() / 2 >= small[0] && cur.getHeight() / 2 >= small[1]) {
                 Bitmap next = Bitmap.createScaledBitmap(cur, cur.getWidth() / 2, cur.getHeight() / 2, true);
                 if (own) cur.recycle();
@@ -279,6 +309,7 @@ final class Frost {
             return null;
         } finally {
             if (blurred != null) blurred.recycle();
+            if (own && cur != src) cur.recycle();   // the crop or a halving left over by a failure (recycle is idempotent)
         }
     }
 

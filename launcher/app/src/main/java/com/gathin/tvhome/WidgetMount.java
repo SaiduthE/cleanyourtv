@@ -261,15 +261,15 @@ final class WidgetMount {
         void update() {
             // The first chip on screen keeps its own margin; the others follow at the plain gap.
             int[] margins = marginsDp();
-            int height = 0;
-            for (WidgetMount m : mounts) if (m != null && m.viewCount() > 0) height = Math.max(height, m.heightDp);
             for (int i = 0; i < mounts.length; i++) {
                 WidgetMount m = mounts[i];
                 if (m == null || m.viewCount() == 0 || !(m.content.getLayoutParams() instanceof LinearLayout.LayoutParams)) continue;
                 LinearLayout.LayoutParams lp = (LinearLayout.LayoutParams) m.content.getLayoutParams();
-                if (lp.getMarginStart() == dp(margins[i]) && lp.height == dp(height)) continue;
+                // Each chip keeps its own height, centred in the row: a 42 dp icon circle (Brightness) next to the
+                // taller weather chip stays a circle, the same shape as the top bar's buttons, instead of an oval.
+                if (lp.getMarginStart() == dp(margins[i]) && lp.height == dp(m.heightDp)) continue;
                 lp.setMarginStart(dp(margins[i]));
-                lp.height = dp(height);
+                lp.height = dp(m.heightDp);
                 m.content.setLayoutParams(lp);
             }
             boolean room = false;

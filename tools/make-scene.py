@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Make a "Horizon" wallpaper from any photo, on this computer: the photo at 1920x1080, the frosted copy
 the launcher's glass clock is filled with, optionally the cut-out of the scenery that is drawn over the
-clock, and the clock's place in the theme's config.json. docs/workflows/make-a-scene.md walks through it.
+clock, and the clock's place in the theme's config.json. tools/make-scene.md walks through it.
 
     python3 tools/make-scene.py PHOTO NAME                          the wallpaper and its glass copy
     python3 tools/make-scene.py PHOTO NAME --depth --preview        plus the cut-out, found without AI
@@ -515,7 +515,7 @@ def pale_behind(img, entry):
 
 def parse_args(argv=None):
     ap = argparse.ArgumentParser(
-        description="Turn a photo into a Horizon wallpaper with a glass clock (docs/workflows/make-a-scene.md).")
+        description="Turn a photo into a Horizon wallpaper with a glass clock (tools/make-scene.md).")
     ap.add_argument("photo")
     ap.add_argument("name", help="the wallpaper's name: lowercase letters, digits and '-', e.g. 06-valley")
     ap.add_argument("--theme", default=DEFAULT_THEME, help="the theme folder (default themes/horizon)")

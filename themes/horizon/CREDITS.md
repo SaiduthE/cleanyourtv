@@ -30,7 +30,7 @@ The scenery cut out of a wallpaper with the sky transparent (couch-tv "scene-NAM
 - 04-fog_fg.webp
 - 05-dawn_fg.webp
 
-To add a scene of your own from any photo, offline and with no AI, see `docs/workflows/make-a-scene.md`
+To add a scene of your own from any photo, offline and with no AI, see `tools/make-scene.md`
 (`tools/make-scene.py`, adapted from couch-tv's `make-scene.py`, MIT, with the no-AI cut-out route by roliusz).
 
 These `_glass` and `_fg` files are companions, not wallpapers: the launcher never shows them on their own.

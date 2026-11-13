@@ -39,7 +39,7 @@ public class InputKeyService extends AccessibilityService {
     private boolean repairRecord;
     /** consume_volume_keys: Volume Up/Down go to VolumeKeys instead of on to the firmware. */
     private boolean consumeVolumeKeys;
-    /** Stops key filtering while a game controller is connected; null unless gamepad_passthrough and key_filter. */
+    /** Stops key filtering while a game controller is connected or after a volume change; null unless gamepad_passthrough or volume_pauses_filter, and key_filter. */
     private GamepadPassthrough gamepads;
     /** The bound helper, for global actions Home's own key path asks for (RemoteKeys). */
     static InputKeyService running;
@@ -59,11 +59,9 @@ public class InputKeyService extends AccessibilityService {
         loadMaps();
         KeyMap.listen(this, mapListener);
         RemoteKeys.applyKeyFilter(this, config.keyFilter);
-        // gamepad_passthrough, off by default. Only with key_filter on: off, the service never filters keys.
-        if (config.gamepadPassthrough && config.keyFilter && gamepads == null) {
-            gamepads = new GamepadPassthrough(this);
-            gamepads.start();
-        }
+        // gamepad_passthrough and volume_pauses_filter, off by default. The button maps (front: entries included) come
+        // from loadMaps(), which lays the mappings made on the TV over app_keys.
+        if (gamepads == null) gamepads = GamepadPassthrough.start(this, config);
     }
 
     /** The button maps: app_keys from config.xml / the theme with the mappings made on the TV laid over them. */
@@ -106,7 +104,7 @@ public class InputKeyService extends AccessibilityService {
         if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) {
             try {
                 startActivity(new Intent(ACTION_VIEW_INPUTS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-            } catch (ActivityNotFoundException ignored) {
+            } catch (ActivityNotFoundException | SecurityException ignored) {
             }
         }
         return true;

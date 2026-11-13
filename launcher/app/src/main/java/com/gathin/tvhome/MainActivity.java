@@ -918,7 +918,9 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         widgets = new HomeWidgets(this, root, cfg.animations, cfg.reducedMotion, cfg.topMenu, new HomeWidgets.Nav() {
             @Override public void focusGrid() { focusTile(singleRow ? lastFocused : lastFocused % COLUMNS); }
             @Override public void focusFirstButton() {
-                (btnInputs.getVisibility() == View.VISIBLE ? btnInputs : firstTopButton()).requestFocus();
+                // The first focusable thing in the bar, a chip beside the network pill included (the bar runs mirrored in Hebrew).
+                boolean mirrored = getResources().getBoolean(R.bool.rtl_menu_bar);
+                if (!BarFocus.focusEdge(findViewById(R.id.topButtons), mirrored ? -1 : 1)) firstTopButton().requestFocus();
             }
             @Override public void focusLastButton() { gear.requestFocus(); }
         });
@@ -972,7 +974,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
         // Keep focus on the top bar at its ends and at the top: Android's focus finder would otherwise
         // jump to a tile far below when there is nothing in that direction.
-        boolean rtlMenuBar = getResources().getBoolean(R.bool.rtl_menu_bar);
         View.OnKeyListener pillKeys = (v, keyCode, event) -> {
             if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
             if (keyCode == KeyEvent.KEYCODE_DPAD_UP) return true;
@@ -981,19 +982,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 focusTile(singleRow ? lastFocused : lastFocused % COLUMNS);
                 return true;
             }
-            int firstButton = btnInputs.getVisibility() == View.VISIBLE ? R.id.btnInputs : firstTopButton().getId();
-            int leftButton = rtlMenuBar ? R.id.btnSettings : firstButton;
-            int rightButton = rtlMenuBar ? firstButton : R.id.btnSettings;
-            // Left from the leftmost button reaches the widget before the bar, right from the last one the widget after it.
-            if (keyCode == KeyEvent.KEYCODE_DPAD_LEFT) {
-                if (v.getId() == leftButton && widgets != null) widgets.focusBeforeBar();
-                return v.getId() == leftButton;
+            if (keyCode != KeyEvent.KEYCODE_DPAD_LEFT && keyCode != KeyEvent.KEYCODE_DPAD_RIGHT) return false;
+            // Along the bar in its own order, so a widget chip beside the network pill is reached from the pill after
+            // it and from the one before it. Left from the leftmost thing in the bar reaches the widget before the bar,
+            // right from the last one the widget after it.
+            ViewGroup bar = findViewById(R.id.topButtons);
+            if (bar.indexOfChild(v) < 0) return false;
+            int direction = keyCode == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 1;
+            if (BarFocus.move(bar, v, direction)) return true;
+            if (widgets != null) {
+                if (direction < 0) widgets.focusBeforeBar();
+                else widgets.focusAfterBar();
             }
-            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT && v.getId() == rightButton) {
-                if (widgets != null) widgets.focusAfterBar();
-                return true;
-            }
-            return false;
+            return true;
         };
         btnInputs.setOnKeyListener(pillKeys);
         btnWifi.setOnKeyListener(pillKeys);

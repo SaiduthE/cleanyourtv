@@ -374,6 +374,15 @@
          pictures in wallpapers/ ("01-dusk.jpg<TAB>Dusk over the peaks", one per line). A picture without a line
          shows no name. Can also be set with "wallpaper_captions": true in a theme's config.json. -->
     <bool name="wallpaper_captions">false</bool>
+    <!-- Draw a big frosted-glass clock over the wallpaper in place of the top bar's clock, greeting and date, with the
+         date and the weather (Weather add-on) in a line above it. Each wallpaper's blurred copy "<name>_glass.jpg" in
+         wallpapers/ is the glass; without one the wallpaper itself is used. Its place comes from the theme's
+         "scene_clock_layouts". Needs a wallpaper. Can also be set with "scene_clock": true in a theme's config.json. -->
+    <bool name="scene_clock">false</bool>
+    <!-- With scene_clock: draw each wallpaper's cut-out "<name>_fg.webp" over the clock, so the scenery overlaps the
+         bottom of the digits (the lock-screen depth look). Read at half the screen's size, only when this is on and the
+         file exists. Can also be set with "wallpaper_depth": true in a theme's config.json. -->
+    <bool name="wallpaper_depth">false</bool>
     <!-- Rotating wallpapers grouped by the time of day, as JSON: {"morning": [file names], "evening": [...],
          "night": [...]}. While set, the rotation picks only from the group that fits now: morning from sunrise to
          noon, evening until half an hour after sunset, night the rest, with the sun at latitude and longitude (07:00

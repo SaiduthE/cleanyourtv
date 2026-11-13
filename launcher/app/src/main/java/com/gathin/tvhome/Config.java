@@ -285,6 +285,8 @@ final class Config {
     final boolean singleRow;
     /** With single_row, the band runs behind every app in the row, not only the dock apps (config.xml, dock_band_all). */
     final boolean dockBandAll;
+    /** scene_clock and wallpaper_depth with the theme's per-wallpaper layouts; {@link SceneClockSettings#OFF} by default. */
+    final SceneClockSettings sceneClock;
 
     private Config(List<String> dockApps, boolean fillDock, List<String> hiddenApps, List<String> libraryApps, List<String> libraryExcludedApps, String liveTvPackage,
                    String liveTvAction, String liveTvInputId, Map<String, String> launchActions, Map<String, String> appLabels,
@@ -300,7 +302,8 @@ final class Config {
                    boolean keyFilter, boolean dockGlass, String glowStyle, boolean wallpaperCaptions,
                    boolean handleViewInputs, boolean tileMenu, boolean dockEvenPadding, boolean dockBand, boolean cinematicDots, boolean cinematicWhiteFocus, boolean wifiStatusColor, int cinematicScrim, int cinematicArt,
                    Map<String, Set<String>> wallpaperMoods, boolean gamepadPassthrough, boolean consumeVolumeKeys, boolean powerOnHome, boolean homeLongPressHome, boolean wifiStatusWarnings, List<String> topBarApps, boolean showGreeting, boolean headerWhite, boolean clockWallpaper, int clockWallpaperDim, boolean clockGlow, String glassStyle, boolean singleRow, boolean dockBandAll, boolean lunarDate, int lunarUtcOffset, boolean dateBelowClock, boolean vpnPill, String locale, boolean powerOnHomeAlways, boolean inputsConnectedOnly, boolean inputsCecStateOnly,
-                   int openOnStartNetworkWait, boolean openOnStartOnWake, boolean iconOnlyVpn, String clockFormat, boolean backOpensClock, boolean glowSnap) {
+                   int openOnStartNetworkWait, boolean openOnStartOnWake, boolean iconOnlyVpn, String clockFormat, boolean backOpensClock, boolean glowSnap, SceneClockSettings sceneClock) {
+        this.sceneClock = sceneClock;
         this.handleViewInputs = handleViewInputs;
         this.tileMenu = tileMenu;
         this.inputKeycodes = inputKeycodes;
@@ -534,6 +537,9 @@ final class Config {
         String glowStyle = res.getString(R.string.glow_style);
         boolean wifiStatusWarnings = res.getBoolean(R.bool.wifi_status_warnings);
         boolean dateBelowClock = res.getBoolean(R.bool.date_below_clock);
+        boolean sceneClockOn = res.getBoolean(R.bool.scene_clock);
+        boolean wallpaperDepth = res.getBoolean(R.bool.wallpaper_depth);
+        Map<String, SceneClockLayout> sceneLayouts = Collections.emptyMap();
         boolean vpnPill = res.getBoolean(R.bool.vpn_pill);
         String locale = res.getString(R.string.locale).trim();
         List<String> topBarApps = new ArrayList<>(Arrays.asList(res.getStringArray(R.array.top_bar_apps)));
@@ -660,6 +666,10 @@ final class Config {
             dockBandAll = bool(json, "dock_band_all", dockBandAll);
             glowStyle = string(json, "glow_style", glowStyle);
             glassStyle = string(json, "glass_style", glassStyle);
+            sceneClockOn = bool(json, "scene_clock", sceneClockOn);
+            wallpaperDepth = bool(json, "wallpaper_depth", wallpaperDepth);
+            JSONObject layouts = json.optJSONObject("scene_clock_layouts");
+            if (layouts != null) sceneLayouts = sceneLayouts(layouts);
         }
         // A top-bar app is moved there, not copied: it leaves the grid.
         for (String pkg : topBarApps) if (!hidden.contains(pkg)) hidden.add(pkg);
@@ -723,7 +733,26 @@ final class Config {
                 consumeVolumeKeys, powerOnHome, homeLongPressHome, wifiStatusWarnings, topBarApps, showGreeting, headerWhite, clockWallpaper,
                 Math.max(0, Math.min(90, clockWallpaperDim)), clockGlow, glassStyle, singleRow && dockRow, dockBandAll, lunar, lunarOffset,
                 dateBelowClock, vpnPill, locale, powerOnHomeAlways, inputsConnectedOnly, inputsCecStateOnly,
-                Math.max(0, Math.min(600, openOnStartNetworkWait)), openOnStartOnWake, iconOnlyVpn, clockFormat, backOpensClock, glowSnap);
+                Math.max(0, Math.min(600, openOnStartNetworkWait)), openOnStartOnWake, iconOnlyVpn, clockFormat, backOpensClock, glowSnap,
+                sceneClockOn ? new SceneClockSettings(true, wallpaperDepth, sceneLayouts) : SceneClockSettings.OFF);
+    }
+
+    /**
+     * {"01-night": {"x": "centre", "y": 0.139, "size": 0.37, "tint": "light", "date_y": 0.089}, ...}: one clock layout per
+     * wallpaper name (without its extension), or "default" for the rest. An entry that is not an object is left out.
+     */
+    private static Map<String, SceneClockLayout> sceneLayouts(JSONObject o) {
+        Map<String, SceneClockLayout> out = new HashMap<>();
+        java.util.Iterator<String> names = o.keys();
+        while (names.hasNext()) {
+            String name = names.next();
+            JSONObject e = o.optJSONObject(name);
+            if (e == null) continue;
+            out.put(name, SceneClockLayout.parse(string(e, "x", null), e.optDouble("y", Double.NaN),
+                    e.optDouble("size", Double.NaN), e.optDouble("inset", Double.NaN), string(e, "tint", null),
+                    e.optDouble("date_y", Double.NaN), string(e, "rim", null), string(e, "date_color", null)));
+        }
+        return out;
     }
 
     /**

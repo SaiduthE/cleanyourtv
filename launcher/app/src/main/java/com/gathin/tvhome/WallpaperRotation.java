@@ -25,7 +25,9 @@ final class WallpaperRotation {
         Arrays.sort(entries, Comparator.comparing(File::getName));
         for (File entry : entries) {
             String name = entry.getName().toLowerCase(Locale.ROOT);
+            // A scene clock's companions (name_fg.webp, name_glass.jpg) sit beside the pictures and are not wallpapers.
             if (entry.isFile() && entry.length() > 0 && entry.length() <= 10 * 1024 * 1024
+                    && !SceneFiles.isCompanion(name)
                     && (name.endsWith(".jpg") || name.endsWith(".jpeg")
                     || name.endsWith(".png") || name.endsWith(".webp"))) {
                 result.add(entry);

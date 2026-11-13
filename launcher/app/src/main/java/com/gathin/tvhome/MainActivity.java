@@ -444,6 +444,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         public void onReceive(Context context, Intent intent) {
             updateClockVisibility();
             clockRefresh.start();   // the wall clock was set: line the redraw up with the new minute
+            wallpaperPlayer.timeChanged();
         }
     };
     /** Keeps the Home clocks moving on Android before 12 when the firmware stops ACTION_TIME_TICK (see ClockRefresh). */
@@ -556,7 +557,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // dock_title false: the name above the dock (and the cinematic lines under it) never shows; the glow
         // still follows the dock.
         if (!cfg.dockTitle) hero.setVisibility(View.GONE);
-        if (layeredShelf) setUpTopShelf(cfg.dockTitle, cfg.wallpaperEnabled ? cfg.wallpapers : java.util.Collections.<java.io.File>emptyList(), cfg.dockOpacity, cfg.dockBand);
+        // scene_clock: the shelf's own resting picture would cover the glass clock, so the wallpaper alone shows at rest.
+        if (layeredShelf) setUpTopShelf(cfg.dockTitle, cfg.wallpaperEnabled && !wallpaperPlayer.sceneClockShown() ? cfg.wallpapers : java.util.Collections.<java.io.File>emptyList(), cfg.dockOpacity, cfg.dockBand);
         reorderIndicator.attach(root, animations, reducedMotion);
         greeting = findViewById(R.id.greeting);
         clockBlock = findViewById(R.id.leftBlock);
@@ -627,6 +629,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // The date line under the time at 60% of its size, never below 12 sp (after the shamsi size above).
             TextView dateView = findViewById(R.id.date);
             dateView.setTextSize(Math.max(12f, dateView.getTextSize() / getResources().getDisplayMetrics().scaledDensity * 0.6f));
+        }
+        // scene_clock draws the time and date itself: the header's texts stay in the layout, unseen, so nothing moves and
+        // the D-pad order is what it was (none of them takes focus).
+        if (wallpaperPlayer.sceneClockShown()) {
+            for (int id : new int[] {R.id.greeting, R.id.clock, R.id.ampm, R.id.clockDivider, R.id.date, R.id.shamsiDate, R.id.lunarDate}) {
+                findViewById(id).setVisibility(View.INVISIBLE);
+            }
         }
         // Widgets (weather chip, brightness chip) in the slots the owner chose, created below once the top bar exists.
         vpnApp = cfg.vpnApp;

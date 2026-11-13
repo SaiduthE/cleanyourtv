@@ -116,9 +116,10 @@ final class WallpaperPlayer {
             root.addView(image, 0, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             if (sceneClock != null) {
-                // Over the Top Shelf's own picture (it would hide the clock), under the header, the glow and the dock.
+                // Under the Top Shelf: with the scene clock on the shelf draws no picture at rest, and a show's backdrop
+                // fades the clock out, so the shelf's text, Resume button and Up next cards always stay in front of it.
                 View shelf = root.findViewById(R.id.topShelf);
-                root.addView(sceneClock, shelf == null ? 1 : root.indexOfChild(shelf) + 1,
+                root.addView(sceneClock, shelf == null ? 1 : root.indexOfChild(shelf),
                         new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             }
             showFirst();

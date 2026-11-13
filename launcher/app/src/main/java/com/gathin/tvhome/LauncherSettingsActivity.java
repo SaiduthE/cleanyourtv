@@ -531,7 +531,7 @@ public final class LauncherSettingsActivity extends Activity {
                 break;
             case GLASS_FROST:
                 percentSlider(row, view, getString(R.string.ls_glass_frost_label), SettingsModel.FROST_MAX,
-                        SettingsModel.FROST_STEP, glassFrost, Config.GLASS_FROST_KEY, v -> glassFrost = v);
+                        SettingsModel.FROST_STEP, glassFrost, Config.FROST_KEY, v -> glassFrost = v);
                 break;
             case GRAIN:
                 percentSlider(row, view, getString(R.string.ls_grain_label), SettingsModel.GRAIN_MAX,
@@ -541,7 +541,7 @@ public final class LauncherSettingsActivity extends Activity {
                 options(row, view, new String[] {getString(R.string.on), getString(R.string.off)},
                         glassEdge ? 0 : 1, i -> {
                             glassEdge = i == 0;
-                            choices.edit().putBoolean(Config.GLASS_EDGE_KEY, glassEdge).apply();
+                            choices.edit().putBoolean(Config.EDGE_LIGHT_KEY, glassEdge).apply();
                             committed(row);
                         });
                 break;
@@ -549,7 +549,7 @@ public final class LauncherSettingsActivity extends Activity {
                 options(row, view, new String[] {getString(R.string.on), getString(R.string.off)},
                         glassRefraction ? 0 : 1, i -> {
                             glassRefraction = i == 0;
-                            choices.edit().putBoolean(Config.GLASS_REFRACTION_KEY, glassRefraction).apply();
+                            choices.edit().putBoolean(Config.REFRACTION_KEY, glassRefraction).apply();
                             committed(row);
                         });
                 break;

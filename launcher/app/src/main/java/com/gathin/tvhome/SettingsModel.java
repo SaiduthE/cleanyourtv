@@ -76,7 +76,7 @@ final class SettingsModel {
     static final String[] RESET_KEYS = {
             "columns", Config.ROWS_BELOW_DOCK_KEY, "animations", "advanced_effects", Config.WALLPAPER_CHOICE_KEY,
             Config.DOCK_OPACITY_KEY, Config.CLOCK_FORMAT_KEY, Config.ICON_STYLE_KEY, OpenOnStart.KEY, WidgetStore.PLACEMENTS_KEY,
-            Config.GLASS_FROST_KEY, Config.GLASS_EDGE_KEY, Config.GLASS_REFRACTION_KEY, Config.GRAIN_KEY,
+            Config.FROST_KEY, Config.EDGE_LIGHT_KEY, Config.REFRACTION_KEY, Config.GRAIN_KEY,
     };
 
     private SettingsModel() { }

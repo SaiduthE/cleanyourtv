@@ -39,6 +39,12 @@ final class GlassSurface {
         final float frostAlpha;
         /** True for the dock band, which scales itself by dock_opacity; every other surface follows GlassLook.opacity. */
         final boolean ownOpacity;
+        /**
+         * True for a panel, popup or menu that floats over Home's own views: the frost is what it is made of, so it is drawn
+         * fully opaque (it replaces what is behind, or the sharp Home UI would show through the glass), and the glass
+         * opacity only scales its tint, sheen and rim. False for a surface in place (the dock band, a pill, a card).
+         */
+        final boolean floating;
 
         Spec(int fillTop, int fillBottom, int strokeColor, float strokePx, float radiusPx) {
             this(fillTop, fillBottom, strokeColor, strokePx, radiusPx, 1f, true);
@@ -49,17 +55,18 @@ final class GlassSurface {
         }
 
         Spec(int fillTop, int fillBottom, int strokeColor, float strokePx, float radiusPx, float light, boolean frost) {
-            this(fillTop, fillBottom, strokeColor, strokePx, radiusPx, light, frost, 1f, false);
+            this(fillTop, fillBottom, strokeColor, strokePx, radiusPx, light, frost, 1f, false, false);
         }
 
         Spec(int fillTop, int fillBottom, int strokeColor, float strokePx, float radiusPx, float light, boolean frost,
              float frostAlpha) {
-            this(fillTop, fillBottom, strokeColor, strokePx, radiusPx, light, frost, frostAlpha, true);
+            this(fillTop, fillBottom, strokeColor, strokePx, radiusPx, light, frost, frostAlpha, true, false);
         }
 
         private Spec(int fillTop, int fillBottom, int strokeColor, float strokePx, float radiusPx, float light, boolean frost,
-                     float frostAlpha, boolean ownOpacity) {
+                     float frostAlpha, boolean ownOpacity, boolean floating) {
             this.ownOpacity = ownOpacity;
+            this.floating = floating;
             this.frostAlpha = Math.max(0f, Math.min(1f, frostAlpha));
             this.frost = frost;
             this.fillTop = fillTop;
@@ -68,6 +75,11 @@ final class GlassSurface {
             this.strokePx = strokePx;
             this.radiusPx = radiusPx;
             this.light = light;
+        }
+
+        /** The same look as a floating surface: a panel, popup or menu over Home's views (frost fully opaque). */
+        Spec floating() {
+            return new Spec(fillTop, fillBottom, strokeColor, strokePx, radiusPx, light, frost, frostAlpha, ownOpacity, true);
         }
 
         /** A surface with a hairline has a rim to light; one without (a borderless tile) keeps none. */
@@ -105,9 +117,12 @@ final class GlassSurface {
      * the centre (the outer ring the strongest), so the picture bends at the edge. Their shaders are made once per frost
      * bitmap, like the lens's, and only their matrices change per draw.
      */
-    private BitmapShader bevelOuter, bevelInner;
-    private final Paint bevelOuterPaint = bevelPaint(), bevelInnerPaint = bevelPaint();
+    private BitmapShader bevelShader;
+    private final Paint bevelPaint = bevelPaint();
+    private final Paint tintPaint = tintPaint();
     private final float[] mapped = new float[4];
+    /** How much the host view is scaled on screen (a focus zoom, a popup opening): the frost is un-scaled to match. */
+    private float viewScaleX = 1f, viewScaleY = 1f;
     private final RectF ring = new RectF();
     /** The screen's density, for the bevel's width in dp (read once: a surface has no Context). */
     private static float density;
@@ -116,6 +131,21 @@ final class GlassSurface {
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
         p.setStyle(Paint.Style.STROKE);
         return p;
+    }
+
+    private static Paint tintPaint() {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+        p.setColor(0xFF000000);
+        return p;
+    }
+
+    /**
+     * The scale of the view this surface is drawn into, when it is not 1 (GlassDrawable sets it every draw). The frost slice
+     * is positioned on the screen, but the canvas it is drawn on is scaled with the view, so the slice is divided by it.
+     */
+    void setViewScale(float sx, float sy) {
+        viewScaleX = sx > 0.01f ? sx : 1f;
+        viewScaleY = sy > 0.01f ? sy : 1f;
     }
 
     private static float density() {
@@ -152,7 +182,7 @@ final class GlassSurface {
         float r = Math.min(radius, Math.min(w, h) / 2f);
         boolean frost = drawFrost(c, left, top, w, h, r, screenX, screenY);
         ensureBaked(w, h, r, frost);
-        if (baked != null) c.drawBitmap(baked, left, top, opacityPaint());
+        if (baked != null) c.drawBitmap(baked, left, top, opacityPaint(frost));
     }
 
     /** The glass opacity (dock_opacity, launcher-wide) as one alpha over the whole surface: tint, sheen, rim and grain. */
@@ -160,8 +190,16 @@ final class GlassSurface {
         return spec.ownOpacity ? 1f : GlassLook.surfaceOpacity();
     }
 
-    private Paint opacityPaint() {
-        float o = opacity();
+    /**
+     * The opacity of the baked fill, sheen, rim and grain. A floating panel with no frost under it (frost off, none built)
+     * keeps its fill whole: with the frost gone the fill is all that hides the Home UI behind it.
+     */
+    private float opacity(boolean frostDrawn) {
+        return spec.floating && !frostDrawn ? 1f : opacity();
+    }
+
+    private Paint opacityPaint(boolean frostDrawn) {
+        float o = opacity(frostDrawn);
         if (o >= 1f) return null;
         scalePaint.setAlpha(Math.round(255 * o));
         return scalePaint;
@@ -181,10 +219,10 @@ final class GlassSurface {
         ensureBaked(snap(w, stepW), snap(h, stepH), r, frost);
         if (baked == null) return;
         if (bakedW == w && bakedH == h) {
-            c.drawBitmap(baked, left, top, opacityPaint());
+            c.drawBitmap(baked, left, top, opacityPaint(frost));
         } else {
             scaleTo.set(left, top, left + w, top + h);
-            Paint p = opacityPaint();
+            Paint p = opacityPaint(frost);
             if (p == null) {
                 scalePaint.setAlpha(255);
                 p = scalePaint;
@@ -229,78 +267,102 @@ final class GlassSurface {
 
     private void forgetFrost() {
         frostShader = null;
-        bevelOuter = bevelInner = null;
+        bevelShader = null;
         frostFor = null;
         frostPaint.setShader(null);
-        bevelOuterPaint.setShader(null);
-        bevelInnerPaint.setShader(null);
-    }
-
-    /** The slice of the shared frost behind this surface, clipped to its rounded rectangle; false when there is none to draw. */
-    private boolean drawFrost(Canvas c, float left, float top, int w, int h, float r, float screenX, float screenY) {
-        dropIfStale();
-        Bitmap f = Frost.get();
-        if (f == null) {
-            // The frost was released: do not keep a shader that holds the old bitmap alive.
-            if (frostShader != null) forgetFrost();
-            return false;
-        }
-        if (!frosted() || Float.isNaN(screenX) || Float.isNaN(screenY)) return false;
-        if (f != frostFor || frostShader == null) {
-            frostShader = new BitmapShader(f, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-            frostPaint.setShader(frostShader);
-            bevelOuter = new BitmapShader(f, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-            bevelOuterPaint.setShader(bevelOuter);
-            bevelInner = new BitmapShader(f, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
-            bevelInnerPaint.setShader(bevelInner);
-            frostFor = f;
-        }
-        boolean bend = GlassLook.refraction;
-        float offX = screenX - left, offY = screenY - top;
-        float cx = screenX + w / 2f, cy = screenY + h / 2f;
-        // Frost pixel -> this canvas: scale it up to the screen (magnified a little about the centre when the glass is a
-        // lens), then move the screen's origin to where the canvas starts.
-        float lens = bend ? Refraction.LENS : 1f;
-        Refraction.mapping(Frost.scaleX(), Frost.scaleY(), lens, lens, cx, cy, offX, offY, mapped);
-        matrix.setScale(mapped[0], mapped[1]);
-        matrix.postTranslate(mapped[2], mapped[3]);
-        frostShader.setLocalMatrix(matrix);
-        // The strength sets how much of the frost covers the picture; the surface's own alpha (dock opacity) scales it more.
-        int alpha = Frost.paintAlpha(spec.frostAlpha * opacity(), GlassLook.frost);
-        frostPaint.setAlpha(alpha);
-        c.drawRoundRect(left, top, left + w, top + h, r, r, frostPaint);
-        if (bend) drawBevel(c, left, top, w, h, r, alpha, cx, cy, offX, offY);
-        return true;
+        bevelPaint.setShader(null);
     }
 
     /**
-     * The liquid-glass bevel: two rings inside the rim (clipped to the rounded rectangle by being strokes of it), drawn from
-     * the frost at a stronger magnification than the lens, so what is behind the glass visibly bends at the edge.
+     * Everything drawn under the baked fill: the slice of the shared frost behind this surface (lens and bevel), clipped to
+     * its rounded rectangle, then the tint over it. Returns whether the frost was drawn.
      */
-    private void drawBevel(Canvas c, float left, float top, int w, int h, float r, int alpha, float cx, float cy,
-                           float offX, float offY) {
-        float d = density();
-        float band = Refraction.bandPx(d, Math.min(w, h));
-        float bend = Math.min(Refraction.BEND_DP * d, Math.min(w, h) / 2f * 0.4f);
-        drawRing(c, bevelOuter, bevelOuterPaint, left, top, w, h, r, band, bend, alpha, cx, cy, offX, offY);
-        drawRing(c, bevelInner, bevelInnerPaint, left, top, w, h, r, band / 2f, bend * Refraction.INNER_SHARE, alpha, cx, cy,
-                offX, offY);
+    private boolean drawFrost(Canvas c, float left, float top, int w, int h, float r, float screenX, float screenY) {
+        dropIfStale();
+        Bitmap f = Frost.get();
+        // The frost was released: do not keep a shader that holds the old bitmap alive.
+        if (f == null && frostShader != null) forgetFrost();
+        boolean drawn = f != null && frosted() && !Float.isNaN(screenX) && !Float.isNaN(screenY);
+        if (drawn) drawSlice(f, c, left, top, w, h, r, screenX, screenY);
+        drawTint(c, left, top, w, h, r);
+        return drawn;
     }
 
-    private void drawRing(Canvas c, BitmapShader shader, Paint paint, float left, float top, int w, int h, float r,
-                          float width, float bendPx, int alpha, float cx, float cy, float offX, float offY) {
-        float magX = Refraction.magFor(w / 2f, bendPx) * Refraction.LENS;
-        float magY = Refraction.magFor(h / 2f, bendPx) * Refraction.LENS;
+    /**
+     * glass_tint: a black layer over the frost, in the same rounded rectangle, under the baked fill and rim. Drawn with a
+     * paint alpha, so it is not part of the bake (and not of its cache key). A dock band scales it by its own opacity.
+     */
+    private void drawTint(Canvas c, float left, float top, int w, int h, float r) {
+        if (!spec.frost || GlassLook.tint <= 0) return;
+        float k = spec.frostAlpha * (spec.floating ? 1f : opacity());
+        int alpha = Math.round(GlassLook.tintAlpha(GlassLook.tint) * k);
+        if (alpha <= 0) return;
+        tintPaint.setAlpha(alpha);
+        c.drawRoundRect(left, top, left + w, top + h, r, r, tintPaint);
+    }
+
+    /** Points a shader on the frost at the screen: frost px to this canvas, magnified by (magX, magY) about the surface's centre. */
+    private void place(BitmapShader shader, float magX, float magY, float cx, float cy, float offX, float offY) {
         Refraction.mapping(Frost.scaleX(), Frost.scaleY(), magX, magY, cx, cy, offX, offY, mapped);
-        matrix.setScale(mapped[0], mapped[1]);
-        matrix.postTranslate(mapped[2], mapped[3]);
+        // The screen is un-scaled by the view's own scale, so the slice stays under the glass while the view zooms.
+        matrix.setScale(mapped[0] / viewScaleX, mapped[1] / viewScaleY);
+        matrix.postTranslate(mapped[2] / viewScaleX, mapped[3] / viewScaleY);
         shader.setLocalMatrix(matrix);
-        paint.setAlpha(Math.round(alpha * 0.85f));
-        paint.setStrokeWidth(width);
-        float half = width / 2f;
-        ring.set(left + half, top + half, left + w - half, top + h - half);
-        float rr = Math.max(0f, r - half);
-        c.drawRoundRect(ring, rr, rr, paint);
+    }
+
+    /**
+     * The frost behind the surface: the lens over the middle, and the bevel as {@link Refraction#STEPS} thin rings just inside
+     * the rim, each sampling the frost with its own pull so the picture bends smoothly towards the centre and joins the lens
+     * with no step. A surface whose frost is translucent gets the lens only inside the rings and the rings side by side, so
+     * no pixel is covered twice (a double cover is the lighter strip a translucent bevel used to leave along the edge).
+     */
+    private void drawSlice(Bitmap f, Canvas c, float left, float top, int w, int h, float r, float screenX, float screenY) {
+        if (f != frostFor || frostShader == null) {
+            frostShader = new BitmapShader(f, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            frostPaint.setShader(frostShader);
+            bevelShader = new BitmapShader(f, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            bevelPaint.setShader(bevelShader);
+            frostFor = f;
+        }
+        boolean bend = GlassLook.refraction;
+        // The screen position of the canvas origin and of the surface's centre (the canvas may be scaled with its view).
+        float offX = screenX - left * viewScaleX, offY = screenY - top * viewScaleY;
+        float cx = screenX + w * viewScaleX / 2f, cy = screenY + h * viewScaleY / 2f;
+        float lens = bend ? Refraction.LENS : 1f;
+        place(frostShader, lens, lens, cx, cy, offX, offY);
+        // The strength sets how much of the frost covers the picture, and the surface's own alpha (dock opacity) scales it
+        // more. A floating panel is the frost: it replaces what is behind, so it never lets the Home UI show through.
+        int alpha = spec.floating ? 255 : Frost.paintAlpha(spec.frostAlpha * opacity(), GlassLook.frost);
+        frostPaint.setAlpha(alpha);
+        float d = density();
+        float shortSide = Math.min(w, h);
+        int ringPx = Math.max(1, Math.round(Refraction.bandPx(d, shortSide) / Refraction.STEPS));
+        float band = ringPx * Refraction.STEPS;
+        boolean bevel = bend && band <= shortSide / 4f;
+        if (bevel && alpha < 255) {
+            float inner = Math.max(0f, r - band);
+            c.drawRoundRect(left + band, top + band, left + w - band, top + h - band, inner, inner, frostPaint);
+        } else {
+            c.drawRoundRect(left, top, left + w, top + h, r, r, frostPaint);
+        }
+        if (bevel) drawBevel(c, left, top, w, h, r, alpha, ringPx, band, cx, cy, offX, offY, d);
+    }
+
+    /** The rings of the bevel, outermost first: each {@code ringPx} wide, with the magnification that gives the pull at its depth. */
+    private void drawBevel(Canvas c, float left, float top, int w, int h, float r, int alpha, int ringPx, float band,
+                           float cx, float cy, float offX, float offY, float d) {
+        float bend = Math.min(Refraction.BEND_DP * d, Math.min(w, h) / 2f * 0.4f);
+        bevelPaint.setAlpha(alpha);
+        bevelPaint.setStrokeWidth(ringPx);
+        for (int k = 0; k < Refraction.STEPS; k++) {
+            float inset = k * ringPx;
+            float depth = inset + ringPx / 2f;
+            place(bevelShader, Refraction.ringMag(w / 2f, depth, band, bend), Refraction.ringMag(h / 2f, depth, band, bend),
+                    cx, cy, offX, offY);
+            ring.set(left + depth, top + depth, left + w - depth, top + h - depth);
+            float rr = Math.max(0f, r - depth);
+            c.drawRoundRect(ring, rr, rr, bevelPaint);
+        }
     }
 
     private Bitmap bitmap(int w, int h, float r, int grain, boolean edge, boolean frost) {

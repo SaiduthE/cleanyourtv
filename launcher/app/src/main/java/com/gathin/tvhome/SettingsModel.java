@@ -14,8 +14,8 @@ final class SettingsModel {
     enum Group { HOME_LAYOUT, LOOK, TOP_SHELF, BUTTONS, SYSTEM }
 
     enum Row {
-        COLUMNS, ROWS_BELOW_DOCK, DOCK_OPACITY, OPEN_ON_START,
-        STYLE, WALLPAPER, CLOCK, WIDGETS, ICONS, ANIMATIONS, ADVANCED, GLASS_FROST, GLASS_EDGE, GLASS_REFRACTION, GRAIN,
+        COLUMNS, ROWS_BELOW_DOCK, OPEN_ON_START,
+        STYLE, WALLPAPER, CLOCK, WIDGETS, ICONS, ANIMATIONS, ADVANCED, DOCK_OPACITY, GLASS_FROST, GLASS_TINT, GLASS_EDGE, GLASS_REFRACTION, GRAIN,
         TOP_SHELF, APP_ARTWORK, PHOTOS, PHOTO_THEMES, REFRESH_PHOTOS, CHANGE_EVERY, PHOTO_CREDIT,
         REMOTE_BUTTONS, TOP_BAR_BUTTONS, REORDER, EDIT_DOCK,
         DEFAULT_HOME, TV_SETTINGS, RESET_THEME
@@ -28,7 +28,7 @@ final class SettingsModel {
     static final int[] ROWS_BELOW_DOCK = {0, 1, 2, 3};
     static final String[] CLOCK_FORMATS = {"system", "12", "24"};
     /** Look > Glass frost and Grain: the slider ranges (config.xml's glass_frost and grain) and their steps. */
-    static final int FROST_MAX = 100, FROST_STEP = 10, GRAIN_MAX = 30, GRAIN_STEP = 2;
+    static final int FROST_MAX = 100, FROST_STEP = 10, TINT_MAX = 100, TINT_STEP = 5, GRAIN_MAX = 30, GRAIN_STEP = 2;
     /** The Icons row: Config.ICONS_ROUNDED (the launcher's look) or Config.ICONS_DEFAULT (the original icons). */
     static final String[] ICON_STYLES = {Config.ICONS_ROUNDED, Config.ICONS_DEFAULT};
 
@@ -76,7 +76,7 @@ final class SettingsModel {
     static final String[] RESET_KEYS = {
             "columns", Config.ROWS_BELOW_DOCK_KEY, "animations", "advanced_effects", Config.WALLPAPER_CHOICE_KEY,
             Config.DOCK_OPACITY_KEY, Config.CLOCK_FORMAT_KEY, Config.ICON_STYLE_KEY, OpenOnStart.KEY, WidgetStore.PLACEMENTS_KEY,
-            Config.FROST_KEY, Config.EDGE_LIGHT_KEY, Config.REFRACTION_KEY, Config.GRAIN_KEY,
+            Config.FROST_KEY, Config.TINT_KEY, Config.EDGE_LIGHT_KEY, Config.REFRACTION_KEY, Config.GRAIN_KEY,
     };
 
     private SettingsModel() { }
@@ -95,7 +95,6 @@ final class SettingsModel {
             case HOME_LAYOUT:
                 rows.add(Row.COLUMNS);
                 rows.add(Row.ROWS_BELOW_DOCK);
-                rows.add(Row.DOCK_OPACITY);
                 if (openOnStartChoice) rows.add(Row.OPEN_ON_START);
                 break;
             case LOOK:
@@ -106,7 +105,9 @@ final class SettingsModel {
                 rows.add(Row.ICONS);
                 rows.add(Row.ANIMATIONS);
                 rows.add(Row.ADVANCED);
+                rows.add(Row.DOCK_OPACITY);   // the "Glass" sub-header starts here (see startsGlass)
                 rows.add(Row.GLASS_FROST);
+                rows.add(Row.GLASS_TINT);
                 rows.add(Row.GLASS_EDGE);
                 rows.add(Row.GLASS_REFRACTION);
                 rows.add(Row.GRAIN);
@@ -133,6 +134,14 @@ final class SettingsModel {
                 break;
         }
         return rows;
+    }
+
+    /**
+     * Whether a "Glass" sub-header is drawn above this row: the first of Look's glass rows (Opacity, Frost, Tint, Edge light,
+     * Refraction, Grain), which run to the end of the group.
+     */
+    static boolean startsGlass(Row row) {
+        return row == Row.DOCK_OPACITY;
     }
 
     static Kind kind(Row row) {

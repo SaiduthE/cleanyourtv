@@ -24,8 +24,11 @@
     <string name="ls_apply" translatable="false">Apply</string>
 
     <string name="ls_animations_label" translatable="false">Animations</string>
-    <string name="ls_glass_frost_label" translatable="false">Glass frost</string>
-    <string name="ls_glass_edge_label" translatable="false">Glass edge</string>
+    <string name="ls_group_glass" translatable="false">Glass</string>
+    <string name="ls_glass_opacity_label" translatable="false">Opacity</string>
+    <string name="ls_glass_frost_label" translatable="false">Frost</string>
+    <string name="ls_glass_tint_label" translatable="false">Tint</string>
+    <string name="ls_glass_edge_label" translatable="false">Edge light</string>
     <string name="ls_glass_refraction_label" translatable="false">Refraction</string>
     <string name="ls_grain_label" translatable="false">Grain</string>
     <string name="ls_clock_label" translatable="false">Clock</string>
@@ -64,6 +67,7 @@
     <string name="ls_help_icons" translatable="false">Rounded or the original icons, in the top bar, menus and widgets.</string>
     <string name="ls_help_animations" translatable="false">Off makes every move instant, for slow TVs.</string>
     <string name="ls_help_glass_frost" translatable="false">How much of a frosted copy of the wallpaper shows behind glass panels. 0 turns it off.</string>
+    <string name="ls_help_glass_tint" translatable="false">How dark glass panels, pills and the dock are: a black layer over the frost. 0 adds none.</string>
     <string name="ls_help_glass_edge" translatable="false">A lit rim on glass panels, pills and the dock.</string>
     <string name="ls_help_glass_refraction" translatable="false">Glass bends what is behind it, like a lens, with a curved edge. Off keeps it flat.</string>
     <string name="ls_help_grain" translatable="false">Fine film grain that keeps gradients from banding. 0 turns it off.</string>

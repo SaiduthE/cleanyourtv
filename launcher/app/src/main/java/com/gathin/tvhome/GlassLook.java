@@ -20,6 +20,10 @@ final class GlassLook {
     static volatile int frost = 60;
     /** glass_refraction: the frost behind glass is magnified a little (a lens) and bends at the rim (a bevel). */
     static volatile boolean refraction = true;
+    /** glass_tint: a black layer over the frost, 0 to 100 (up to {@link #TINT_MAX} opaque at 100), under the edge light. */
+    static volatile int tint = 20;
+    /** The tint's alpha at 100 percent. */
+    static final float TINT_MAX = 0.7f;
 
     /**
      * The glass opacity in percent: the Dock band opacity setting (dock_opacity), launcher-wide. The dock band scales itself
@@ -48,13 +52,25 @@ final class GlassLook {
         if (live) Frost.lookChanged();
     }
 
+    /** The paint alpha (0..255) of the tint layer for a tint of 0 to 100: 0 at 0, 0.7 opaque (179) at 100. */
+    static int tintAlpha(int percent) {
+        return Math.round(255 * TINT_MAX * Math.max(0, Math.min(100, percent)) / 100f);
+    }
+
     static void set(int grain, boolean edge, int frost) {
-        set(grain, edge, frost, refraction);
+        set(grain, edge, frost, refraction, tint);
     }
 
     static void set(int grain, boolean edge, int frost, boolean refraction) {
+        set(grain, edge, frost, refraction, tint);
+    }
+
+    static void set(int grain, boolean edge, int frost, boolean refraction, int tint) {
         int oldFrost = GlassLook.frost;
-        boolean changed = GlassLook.grain != grain || GlassLook.edge != edge || GlassLook.refraction != refraction;
+        int newTint = Math.max(0, Math.min(100, tint));
+        boolean changed = GlassLook.grain != grain || GlassLook.edge != edge || GlassLook.refraction != refraction
+                || GlassLook.tint != newTint;
+        GlassLook.tint = newTint;
         GlassLook.refraction = refraction;
         GlassLook.grain = Math.max(0, Math.min(30, grain));
         GlassLook.edge = edge;
@@ -87,9 +103,12 @@ final class GlassLook {
         return v * ctx.getResources().getDisplayMetrics().density;
     }
 
-    /** glass_panel.xml: the dark card of Quick settings, the Inputs popup and the library. */
+    /**
+     * glass_panel.xml: the dark card of Quick settings, the Inputs popup and the library. It floats over Home's own views,
+     * so its frost is drawn fully opaque (see {@link GlassSurface.Spec#floating()}).
+     */
     static GlassSurface.Spec panel(Context ctx) {
-        return new GlassSurface.Spec(0xFF2A2A2E, 0xFF161618, 0x33FFFFFF, dp(ctx, 1), dp(ctx, 20));
+        return new GlassSurface.Spec(0xFF2A2A2E, 0xFF161618, 0x33FFFFFF, dp(ctx, 1), dp(ctx, 20)).floating();
     }
 
     /** pill_bg.xml's resting state: white glass fading from 18 to 8 percent. */

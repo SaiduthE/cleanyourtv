@@ -67,7 +67,7 @@ public final class LauncherSettingsActivity extends Activity {
     private TopShelfLogic.Mode topShelf;
     private boolean animations;
     private boolean advancedEffects;
-    private int grain, glassFrost;
+    private int grain, glassFrost, glassTint;
     private boolean glassEdge, glassRefraction;
     private boolean appArtwork;
     private boolean photoCredit;
@@ -159,6 +159,7 @@ public final class LauncherSettingsActivity extends Activity {
         glassEdge = config.glassEdge;
         glassRefraction = config.glassRefraction;
         glassFrost = config.glassFrost;
+        glassTint = config.glassTint;
         clockFormat = config.clockFormat;
         iconStyle = config.iconStyle;
         topShelf = TopShelfLogic.Mode.parse(choices.getString(Config.TOP_SHELF_KEY, null));
@@ -238,6 +239,7 @@ public final class LauncherSettingsActivity extends Activity {
             TextView header = PanelRows.header(this, groupLabel(group));
             rows.addView(header);
             for (Row row : inGroup) {
+                if (SettingsModel.startsGlass(row)) rows.addView(PanelRows.header(this, getString(R.string.ls_group_glass)));
                 SettingRowView view = new SettingRowView(this, label(row),
                         true, anim(MOVE_MS));
                 view.setTag(row);
@@ -303,7 +305,7 @@ public final class LauncherSettingsActivity extends Activity {
         switch (row) {
             case COLUMNS: return getString(R.string.columns_label);
             case ROWS_BELOW_DOCK: return getString(R.string.rows_below_dock_label);
-            case DOCK_OPACITY: return getString(R.string.dock_opacity_label);
+            case DOCK_OPACITY: return getString(R.string.ls_glass_opacity_label);
             case OPEN_ON_START: return getString(R.string.open_on_start_label);
             case STYLE: return getString(R.string.ls_style_label);
             case WALLPAPER: return getString(R.string.wallpaper_label);
@@ -320,6 +322,7 @@ public final class LauncherSettingsActivity extends Activity {
             case ANIMATIONS: return getString(R.string.ls_animations_label);
             case ADVANCED: return getString(R.string.advanced_effects);
             case GLASS_FROST: return getString(R.string.ls_glass_frost_label);
+            case GLASS_TINT: return getString(R.string.ls_glass_tint_label);
             case GLASS_EDGE: return getString(R.string.ls_glass_edge_label);
             case GLASS_REFRACTION: return getString(R.string.ls_glass_refraction_label);
             case GRAIN: return getString(R.string.ls_grain_label);
@@ -357,6 +360,7 @@ public final class LauncherSettingsActivity extends Activity {
             case ADVANCED:
                 return getString(animations ? R.string.ls_help_advanced : R.string.ls_help_advanced_off);
             case GLASS_FROST: return getString(R.string.ls_help_glass_frost);
+            case GLASS_TINT: return getString(R.string.ls_help_glass_tint);
             case GLASS_EDGE: return getString(R.string.ls_help_glass_edge);
             case GLASS_REFRACTION: return getString(R.string.ls_help_glass_refraction);
             case GRAIN: return getString(R.string.ls_help_grain);
@@ -393,6 +397,7 @@ public final class LauncherSettingsActivity extends Activity {
             case ANIMATIONS: return getString(animations ? R.string.on : R.string.off);
             case ADVANCED: return getString(advancedEffects ? R.string.on : R.string.off);
             case GLASS_FROST: return SettingsModel.percent(glassFrost);
+            case GLASS_TINT: return SettingsModel.percent(glassTint);
             case GLASS_EDGE: return getString(glassEdge ? R.string.on : R.string.off);
             case GLASS_REFRACTION: return getString(glassRefraction ? R.string.on : R.string.off);
             case GRAIN: return SettingsModel.percent(grain);
@@ -532,6 +537,10 @@ public final class LauncherSettingsActivity extends Activity {
             case GLASS_FROST:
                 percentSlider(row, view, getString(R.string.ls_glass_frost_label), SettingsModel.FROST_MAX,
                         SettingsModel.FROST_STEP, glassFrost, Config.FROST_KEY, v -> glassFrost = v);
+                break;
+            case GLASS_TINT:
+                percentSlider(row, view, getString(R.string.ls_glass_tint_label), SettingsModel.TINT_MAX,
+                        SettingsModel.TINT_STEP, glassTint, Config.TINT_KEY, v -> glassTint = v);
                 break;
             case GRAIN:
                 percentSlider(row, view, getString(R.string.ls_grain_label), SettingsModel.GRAIN_MAX,

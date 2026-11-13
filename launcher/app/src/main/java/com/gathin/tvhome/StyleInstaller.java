@@ -75,7 +75,7 @@ final class StyleInstaller {
             "background_color", "glow_style", "app_glow", "ambient_glow", "glass_style", "dock_glass", "dock_band",
             "dock_opacity", "dock_title", "dock_band_all", "dock_even_padding", "cinematic_home", "icon_only_buttons",
             "icon_only_inputs", "uniform_tiles", "focus_overshoot", "advanced_effects", "panel_accent",
-            "grain", "glass_edge", "glass_frost", "glass_refraction", KEY_STYLE, KEY_THEME,
+            "grain", "glass_edge", "glass_frost", "glass_refraction", "glass_tint", KEY_STYLE, KEY_THEME,
     };
     private static final String[] LOOK_PREFIXES = {"wallpaper", "sky_"};
 

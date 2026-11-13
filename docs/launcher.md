@@ -61,9 +61,11 @@ The launcher's own page has these rows, top to bottom:
   Follow theme, or push the theme again.
 - **Animations** on or off, and **Advanced effects** (tile lift, icon zoom and smooth ambient-colour
   transitions; they may use more memory) once animations are on.
-- **Glass frost** (0 to 100%), **Glass edge** (on or off) and **Grain** (0 to 30%): how much of a frosted copy of the
-  wallpaper shows behind the dock, the top-bar pills, Quick settings and the menus; a lit rim on them; and fine film
-  grain that keeps gradients from banding (`glass_frost`, `glass_edge` and `grain` in a theme).
+- **Glass** (a sub-header under Look): **Opacity**, **Frost** (0 to 100%), **Tint** (0 to 100%, a black layer over the
+  frost), **Edge light** (on or off), **Refraction** (on or off) and **Grain** (0 to 30%): how solid the dock band, pills,
+  cards and menus are; how much of a frosted copy of the wallpaper shows behind them; how dark it is; a lit rim; a bent
+  edge; and fine film grain that keeps gradients from banding (`dock_opacity`, `glass_frost`, `glass_tint`, `glass_edge`,
+  `glass_refraction` and `grain` in a theme). Panels and popups that float over Home always draw their frost fully opaque.
 - **Open on start**, only with `open_on_start_choice`: Off, or an app that opens instead of Home the first
   time Home comes up after the TV starts. Once per boot, so Home and Back still reach the launcher.
 - **Follow theme (reset on-TV choices)**, which clears every choice above. Pushing or resetting a theme

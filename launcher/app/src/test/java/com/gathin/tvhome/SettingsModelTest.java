@@ -162,6 +162,20 @@ public class SettingsModelTest {
         assertTrue(PhotoSettingsClient.pollGivenUp(10_000 + 30_000, 10_000));
     }
 
+    @Test public void lookEndsWithTheGlassRowsUnderOneSubHeader() {
+        List<Row> look = SettingsModel.rows(Group.LOOK, false, false);
+        assertEquals(Arrays.asList(Row.DOCK_OPACITY, Row.GLASS_FROST, Row.GLASS_TINT, Row.GLASS_EDGE, Row.GLASS_REFRACTION,
+                Row.GRAIN), look.subList(look.indexOf(Row.DOCK_OPACITY), look.size()));
+        assertTrue(SettingsModel.startsGlass(Row.DOCK_OPACITY));
+        int headers = 0;
+        for (Row row : look) if (SettingsModel.startsGlass(row)) headers++;
+        assertEquals(1, headers);
+        assertFalse("the opacity row left Home layout", SettingsModel.rows(Group.HOME_LAYOUT, true, true).contains(Row.DOCK_OPACITY));
+        for (Row row : Arrays.asList(Row.DOCK_OPACITY, Row.GLASS_FROST, Row.GLASS_TINT, Row.GLASS_EDGE, Row.GLASS_REFRACTION, Row.GRAIN)) {
+            assertEquals(SettingsModel.Kind.OPTIONS, SettingsModel.kind(row));
+        }
+    }
+
     @Test public void motionIsInstantWithoutAnimationsAndShortWithReducedMotion() {
         assertEquals(0, SettingsModel.duration(false, false, 200));
         assertEquals(200, SettingsModel.duration(true, false, 200));

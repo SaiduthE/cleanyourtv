@@ -11,8 +11,8 @@ public class GlassTintTest {
     @Test
     public void zeroAddsNoTintAndAHundredIsSeventyPercentBlack() {
         assertEquals(0, GlassLook.tintAlpha(0));
-        assertEquals(Math.round(255 * 0.7f), GlassLook.tintAlpha(100));
-        assertEquals(179, GlassLook.tintAlpha(100));
+        assertEquals(Math.round(255 * 0.85f), GlassLook.tintAlpha(100));
+        assertEquals(217, GlassLook.tintAlpha(100));
     }
 
     @Test
@@ -29,7 +29,7 @@ public class GlassTintTest {
 
     @Test
     public void theDefaultTwentyIsAboutFourteenPercentBlack() {
-        assertEquals(Math.round(255 * 0.7f * 0.2f), GlassLook.tintAlpha(20));
+        assertEquals(Math.round(255 * 0.85f * 0.2f), GlassLook.tintAlpha(20));
     }
 
     @Test

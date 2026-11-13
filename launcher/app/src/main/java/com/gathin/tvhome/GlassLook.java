@@ -23,7 +23,7 @@ final class GlassLook {
     /** glass_tint: a black layer over the frost, 0 to 100 (up to {@link #TINT_MAX} opaque at 100), under the edge light. */
     static volatile int tint = 20;
     /** The tint's alpha at 100 percent. */
-    static final float TINT_MAX = 0.7f;
+    static final float TINT_MAX = 0.85f;
 
     /**
      * The glass opacity in percent: the Dock band opacity setting (dock_opacity), launcher-wide. The dock band scales itself
@@ -52,7 +52,7 @@ final class GlassLook {
         if (live) Frost.lookChanged();
     }
 
-    /** The paint alpha (0..255) of the tint layer for a tint of 0 to 100: 0 at 0, 0.7 opaque (179) at 100. */
+    /** The paint alpha (0..255) of the tint layer for a tint of 0 to 100: 0 at 0, 0.85 opaque (217) at 100. */
     static int tintAlpha(int percent) {
         return Math.round(255 * TINT_MAX * Math.max(0, Math.min(100, percent)) / 100f);
     }

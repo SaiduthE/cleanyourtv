@@ -110,7 +110,7 @@ final class PanelTheme {
         int inset = px(PANEL_INSET_DP);
         // Frosted glass like the other panels (frost, refraction, edge light, grain), inset from the window's edges.
         return new InsetDrawable(new GlassDrawable(new GlassSurface.Spec(panelFill, panelFill, PANEL_STROKE,
-                px(PANEL_STROKE_DP), px(PANEL_RADIUS_DP)), null), 0, inset, inset, inset);
+                px(PANEL_STROKE_DP), px(PANEL_RADIUS_DP)).floating(), null), 0, inset, inset, inset);
     }
 
     /** A menu or dialog card: the panel colour a little lighter, same corners and edge, no inset. */

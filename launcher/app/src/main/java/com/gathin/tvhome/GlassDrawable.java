@@ -34,6 +34,7 @@ final class GlassDrawable extends Drawable implements Drawable.Callback, Frost.L
 
     private final int[] where = new int[2];
     private int seenX = Integer.MIN_VALUE, seenY = Integer.MIN_VALUE;
+    private float seenScaleX = 1f, seenScaleY = 1f;
     @Nullable private View watching;
     private final ViewTreeObserver.OnPreDrawListener watcher = () -> {
         // Cheap: two ints. A moved view needs the slice of frost that is now behind it.
@@ -41,7 +42,8 @@ final class GlassDrawable extends Drawable implements Drawable.Callback, Frost.L
             stopWatching();   // the view has another background now
         } else if (watching != null && watching.isAttachedToWindow()) {
             watching.getLocationOnScreen(where);
-            if (where[0] != seenX || where[1] != seenY) invalidateSelf();
+            if (where[0] != seenX || where[1] != seenY || watching.getScaleX() != seenScaleX
+                    || watching.getScaleY() != seenScaleY) invalidateSelf();
         }
         return true;
     };
@@ -105,15 +107,25 @@ final class GlassDrawable extends Drawable implements Drawable.Callback, Frost.L
             return;
         }
         float sx = Float.NaN, sy = Float.NaN;
+        float scaleX = 1f, scaleY = 1f;
         View v = hostView();
         if (v != null && v.isAttachedToWindow() && surface.frosted()) {
             v.getLocationOnScreen(where);
             seenX = where[0];
             seenY = where[1];
-            sx = where[0] + b.left;
-            sy = where[1] + b.top;
+            // getLocationOnScreen is where the view's top left really is, scaled views included (a focus zoom, a popup
+            // opening): the point (b.left, b.top) of the scaled canvas is scale * b.left further, not b.left.
+            scaleX = v.getScaleX();
+            scaleY = v.getScaleY();
+            if (!(scaleX > 0.01f)) scaleX = 1f;
+            if (!(scaleY > 0.01f)) scaleY = 1f;
+            seenScaleX = v.getScaleX();
+            seenScaleY = v.getScaleY();
+            sx = where[0] + b.left * scaleX;
+            sy = where[1] + b.top * scaleY;
             startWatching(v);
         }
+        surface.setViewScale(scaleX, scaleY);
         surface.draw(canvas, b.left, b.top, b.width(), b.height(), radiusFor(b.width(), b.height()), sx, sy);
     }
 

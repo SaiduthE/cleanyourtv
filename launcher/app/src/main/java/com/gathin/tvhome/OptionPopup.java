@@ -186,6 +186,9 @@ final class OptionPopup {
         if (n > MAX_VISIBLE) {
             scroll = new ScrollView(ctx);
             scroll.setVerticalScrollBarEnabled(false);
+            // Long lists feather out at the top and bottom edge instead of being cut off.
+            scroll.setVerticalFadingEdgeEnabled(true);
+            scroll.setFadingEdgeLength(PanelRows.dp(ctx, 32));
             scroll.addView(items, new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.WRAP_CONTENT));
             box.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,

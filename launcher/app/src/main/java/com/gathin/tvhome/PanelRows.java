@@ -99,7 +99,7 @@ final class PanelRows {
     /** The card behind a popup or a tooltip. */
     static Drawable popupBackground(Context ctx, int radiusDp) {
         int fill = PanelTheme.get(ctx).popupFill | 0xFF000000;
-        return new GlassDrawable(new GlassSurface.Spec(fill, fill, RIM_POPUP, dp(ctx, 1), dp(ctx, radiusDp)), null);
+        return new GlassDrawable(new GlassSurface.Spec(fill, fill, RIM_POPUP, dp(ctx, 1), dp(ctx, radiusDp)).floating(), null);
     }
 
     /** The settings card: a vertical gradient from the panel colour, rounded, with a hairline rim. */
@@ -107,7 +107,7 @@ final class PanelRows {
         int base = PanelTheme.get(ctx).panelFill;
         int top = PanelColors.lighten(base, 0.05f);
         int bottom = PanelColors.mix(base, base & 0xFF000000, 0.18f);
-        return new GlassDrawable(new GlassSurface.Spec(top, bottom, RIM_PANEL, dp(ctx, 1), dp(ctx, CARD_RADIUS_DP)), null);
+        return new GlassDrawable(new GlassSurface.Spec(top, bottom, RIM_PANEL, dp(ctx, 1), dp(ctx, CARD_RADIUS_DP)).floating(), null);
     }
 
     /** The style-coloured light in the card's top corner. */

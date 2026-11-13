@@ -246,7 +246,7 @@ final class TopShelf {
         resumeButton.setGravity(Gravity.CENTER_VERTICAL);
         resumeButton.setPadding(dp(20), 0, dp(24), 0);
         resumeButton.setCompoundDrawablePadding(dp(10));
-        resumeButton.setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_shelf_play, 0, 0, 0);
+        resumeButton.setCompoundDrawablesRelativeWithIntrinsicBounds(Icons.res(context, Icons.SHELF_PLAY), 0, 0, 0);
         resumeButton.setTextColor(new ColorStateList(new int[][] {{android.R.attr.state_focused}, {}},
                 new int[] {Color.BLACK, Color.WHITE}));
         resumeButton.setCompoundDrawableTintList(resumeButton.getTextColors());

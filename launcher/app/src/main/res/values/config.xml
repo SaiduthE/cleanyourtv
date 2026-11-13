@@ -553,6 +553,11 @@
          faint outer glow), rim (the crisp rim alone, no sheen, fill or glow, for a quiet focus over a wallpaper) or
          halo (the rim with a lighter outer glow). Can also be set with "glass_style": "rim" in a theme's config.json. -->
     <string name="glass_style" translatable="false">glass</string>
+    <!-- The look of the launcher's own icons (top bar, menus, Quick settings, widgets, weather): rounded, the default
+         (Material Symbols Rounded: softer corners, Wi-Fi bars that follow the signal, a Brightness sun that fills as
+         the level rises) or default (the original icons). Launcher settings' Icons row overrides it, and a theme can
+         set "icon_style": "default". -->
+    <string name="icon_style" translatable="false">rounded</string>
 
     <!-- Tiles drawn from the app's icon and name instead of its banner (for banners that crop badly). -->
     <string-array name="icon_tiles" translatable="false">

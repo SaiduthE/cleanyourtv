@@ -25,6 +25,9 @@
     <string name="ls_glass_edge_label" translatable="false">Glass edge</string>
     <string name="ls_grain_label" translatable="false">Grain</string>
     <string name="ls_clock_label" translatable="false">Clock</string>
+    <string name="ls_icons_label" translatable="false">Icons</string>
+    <string name="ls_icons_rounded" translatable="false">Rounded</string>
+    <string name="ls_icons_classic" translatable="false">Classic</string>
     <string name="ls_top_bar_buttons" translatable="false">Top bar buttons</string>
     <string name="ls_tbb_icons" translatable="false">Icons</string>
     <string name="ls_tbb_text" translatable="false">Text</string>
@@ -54,6 +57,7 @@
     <string name="ls_help_style" translatable="false">The look of Clean Look: wallpaper, dock, columns and colours.</string>
     <string name="ls_help_wallpaper" translatable="false">Pick one picture to keep, or let the theme change it.</string>
     <string name="ls_help_clock" translatable="false">System follows the TV\'s own 12 or 24 hour setting.</string>
+    <string name="ls_help_icons" translatable="false">Rounded or the original icons, in the top bar, menus and widgets.</string>
     <string name="ls_help_animations" translatable="false">Off makes every move instant, for slow TVs.</string>
     <string name="ls_help_glass_frost" translatable="false">How much of a frosted copy of the wallpaper shows behind glass panels. 0 turns it off.</string>
     <string name="ls_help_glass_edge" translatable="false">A lit rim on glass panels, pills and the dock.</string>

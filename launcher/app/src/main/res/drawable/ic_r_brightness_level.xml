@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- icon_style rounded: the Brightness sun outlined, with the filled sun clipped from the bottom by the drawable's
+     level (0 to 10000), so it fills as the brightness rises. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/ic_r_light_mode" />
+    <item>
+        <clip android:drawable="@drawable/ic_r_light_mode_fill"
+            android:clipOrientation="vertical"
+            android:gravity="bottom" />
+    </item>
+</layer-list>

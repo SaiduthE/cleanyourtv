@@ -32,7 +32,7 @@ final class TopButtonStyler {
     static void shape(TextView pill, int iconRes, boolean icon, boolean text) {
         Context ctx = pill.getContext();
         if (iconRes != KEEP_ICON) {
-            pill.setCompoundDrawablesRelativeWithIntrinsicBounds(icon ? iconRes : 0, 0, 0, 0);
+            pill.setCompoundDrawablesRelativeWithIntrinsicBounds(icon ? Icons.res(ctx, iconRes) : 0, 0, 0, 0);
         } else if (!icon) {
             pill.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0);
         }
@@ -81,16 +81,16 @@ final class TopButtonStyler {
     static void applyBar(Context ctx, Map<TopButtonStyle.Button, String> styles, boolean festive, boolean topMenu,
                          boolean launcherSettingsButton, TextView settings, TextView inputs, TextView discover,
                          TextView vpn) {
-        int settingsIcon = topMenu || !launcherSettingsButton ? R.drawable.ic_settings : R.drawable.ic_home_settings_pill;
+        int settingsIcon = topMenu || !launcherSettingsButton ? Icons.SETTINGS : Icons.HOME_SETTINGS_PILL;
         apply(settings, styles.get(TopButtonStyle.Button.SETTINGS), festive ? KEEP_ICON : settingsIcon,
                 ctx.getString(launcherSettingsButton && !topMenu ? R.string.launcher_settings : R.string.settings));
-        apply(inputs, styles.get(TopButtonStyle.Button.INPUTS), festive ? KEEP_ICON : R.drawable.ic_input,
+        apply(inputs, styles.get(TopButtonStyle.Button.INPUTS), festive ? KEEP_ICON : Icons.INPUT,
                 ctx.getString(R.string.inputs));
         if (discover != null) {
-            apply(discover, styles.get(TopButtonStyle.Button.DISCOVER), R.drawable.ic_discover,
+            apply(discover, styles.get(TopButtonStyle.Button.DISCOVER), Icons.DISCOVER,
                     ctx.getString(R.string.discover));
         }
-        apply(vpn, styles.get(TopButtonStyle.Button.VPN), R.drawable.ic_lock, ctx.getString(R.string.vpn));
+        apply(vpn, styles.get(TopButtonStyle.Button.VPN), Icons.LOCK, ctx.getString(R.string.vpn));
     }
 
     // ---- saved choices ------------------------------------------------------------------------------------------

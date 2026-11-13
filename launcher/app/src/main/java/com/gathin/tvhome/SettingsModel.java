@@ -15,7 +15,7 @@ final class SettingsModel {
 
     enum Row {
         COLUMNS, ROWS_BELOW_DOCK, DOCK_OPACITY, OPEN_ON_START,
-        STYLE, WALLPAPER, CLOCK, WIDGETS, ANIMATIONS, ADVANCED, GLASS_FROST, GLASS_EDGE, GRAIN,
+        STYLE, WALLPAPER, CLOCK, WIDGETS, ICONS, ANIMATIONS, ADVANCED, GLASS_FROST, GLASS_EDGE, GRAIN,
         TOP_SHELF, APP_ARTWORK, PHOTOS, PHOTO_THEMES, REFRESH_PHOTOS, CHANGE_EVERY, PHOTO_CREDIT,
         REMOTE_BUTTONS, TOP_BAR_BUTTONS, REORDER, EDIT_DOCK,
         DEFAULT_HOME, TV_SETTINGS, RESET_THEME
@@ -29,6 +29,8 @@ final class SettingsModel {
     static final String[] CLOCK_FORMATS = {"system", "12", "24"};
     /** Look > Glass frost and Grain: the slider ranges (config.xml's glass_frost and grain) and their steps. */
     static final int FROST_MAX = 100, FROST_STEP = 10, GRAIN_MAX = 30, GRAIN_STEP = 2;
+    /** The Icons row: Config.ICONS_ROUNDED (the launcher's look) or Config.ICONS_DEFAULT (the original icons). */
+    static final String[] ICON_STYLES = {Config.ICONS_ROUNDED, Config.ICONS_DEFAULT};
 
     // ---- Top Shelf > Change every ----------------------------------------------------------------------------------
 
@@ -73,7 +75,7 @@ final class SettingsModel {
      */
     static final String[] RESET_KEYS = {
             "columns", Config.ROWS_BELOW_DOCK_KEY, "animations", "advanced_effects", Config.WALLPAPER_CHOICE_KEY,
-            Config.DOCK_OPACITY_KEY, Config.CLOCK_FORMAT_KEY, OpenOnStart.KEY, WidgetStore.PLACEMENTS_KEY,
+            Config.DOCK_OPACITY_KEY, Config.CLOCK_FORMAT_KEY, Config.ICON_STYLE_KEY, OpenOnStart.KEY, WidgetStore.PLACEMENTS_KEY,
             Config.GLASS_FROST_KEY, Config.GLASS_EDGE_KEY, Config.GRAIN_KEY,
     };
 
@@ -101,6 +103,7 @@ final class SettingsModel {
                 rows.add(Row.WALLPAPER);
                 rows.add(Row.CLOCK);
                 rows.add(Row.WIDGETS);
+                rows.add(Row.ICONS);
                 rows.add(Row.ANIMATIONS);
                 rows.add(Row.ADVANCED);
                 rows.add(Row.GLASS_FROST);

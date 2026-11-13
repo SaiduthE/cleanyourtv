@@ -63,6 +63,7 @@ public final class LauncherSettingsActivity extends Activity {
     private int rowsBelowDock;
     private int dockOpacity;
     private String clockFormat;
+    private String iconStyle;
     private TopShelfLogic.Mode topShelf;
     private boolean animations;
     private boolean advancedEffects;
@@ -158,6 +159,7 @@ public final class LauncherSettingsActivity extends Activity {
         glassEdge = config.glassEdge;
         glassFrost = config.glassFrost;
         clockFormat = config.clockFormat;
+        iconStyle = config.iconStyle;
         topShelf = TopShelfLogic.Mode.parse(choices.getString(Config.TOP_SHELF_KEY, null));
         appArtwork = choices.getBoolean(Config.TOP_SHELF_ARTWORK_KEY, true);
         photoCredit = choices.getBoolean(Config.TOP_SHELF_CREDIT_KEY, true);
@@ -313,6 +315,7 @@ public final class LauncherSettingsActivity extends Activity {
             case PHOTO_CREDIT: return getString(R.string.ls_photo_credit_label);
             case CLOCK: return getString(R.string.ls_clock_label);
             case WIDGETS: return getString(R.string.ls_widgets);
+            case ICONS: return getString(R.string.ls_icons_label);
             case ANIMATIONS: return getString(R.string.ls_animations_label);
             case ADVANCED: return getString(R.string.advanced_effects);
             case GLASS_FROST: return getString(R.string.ls_glass_frost_label);
@@ -347,6 +350,7 @@ public final class LauncherSettingsActivity extends Activity {
             case PHOTO_CREDIT: return getString(R.string.ls_help_photo_credit);
             case CLOCK: return getString(R.string.ls_help_clock);
             case WIDGETS: return getString(R.string.ls_help_widgets);
+            case ICONS: return getString(R.string.ls_help_icons);
             case ANIMATIONS: return getString(R.string.ls_help_animations);
             case ADVANCED:
                 return getString(animations ? R.string.ls_help_advanced : R.string.ls_help_advanced_off);
@@ -382,6 +386,7 @@ public final class LauncherSettingsActivity extends Activity {
             case PHOTO_CREDIT: return getString(photoCredit ? R.string.on : R.string.off);
             case CLOCK: return clockLabel(clockFormat);
             case WIDGETS: return WidgetStore.summary(this);
+            case ICONS: return iconLabel(iconStyle);
             case ANIMATIONS: return getString(animations ? R.string.on : R.string.off);
             case ADVANCED: return getString(advancedEffects ? R.string.on : R.string.off);
             case GLASS_FROST: return SettingsModel.percent(glassFrost);
@@ -419,6 +424,10 @@ public final class LauncherSettingsActivity extends Activity {
 
     private Row rowOf(SettingRowView view) {
         return (Row) view.getTag();
+    }
+
+    private String iconLabel(String style) {
+        return getString(Config.ICONS_DEFAULT.equals(style) ? R.string.ls_icons_classic : R.string.ls_icons_rounded);
     }
 
     private String clockLabel(String format) {
@@ -477,6 +486,14 @@ public final class LauncherSettingsActivity extends Activity {
                         SettingsModel.indexOf(SettingsModel.CLOCK_FORMATS, clockFormat), i -> {
                             clockFormat = SettingsModel.CLOCK_FORMATS[i];
                             choices.edit().putString(Config.CLOCK_FORMAT_KEY, clockFormat).apply();
+                            committed(row);
+                        });
+                break;
+            case ICONS:
+                options(row, view, new String[] {iconLabel(Config.ICONS_ROUNDED), iconLabel(Config.ICONS_DEFAULT)},
+                        SettingsModel.indexOf(SettingsModel.ICON_STYLES, iconStyle), i -> {
+                            iconStyle = SettingsModel.ICON_STYLES[i];
+                            choices.edit().putString(Config.ICON_STYLE_KEY, iconStyle).apply();
                             committed(row);
                         });
                 break;

@@ -48,6 +48,9 @@ final class Config {
     static final String GRAIN_KEY = "grain";
     static final String GLASS_EDGE_KEY = "glass_edge";
     static final String GLASS_FROST_KEY = "glass_frost";
+    /** icon_style: the theme key, and the Launcher settings choice saved under it. */
+    static final String ICON_STYLE_KEY = "icon_style";
+    static final String ICONS_DEFAULT = "default", ICONS_ROUNDED = "rounded";
     /** The Top Shelf row of Launcher settings: "layered" (the default) or "off". Not a theme setting, so a theme never resets it. */
     static final String TOP_SHELF_KEY = "top_shelf";
     /** Top Shelf > App artwork: the focused app's own artwork behind its Resume text (default true), else photos/wallpapers. Not a theme setting. */
@@ -211,6 +214,8 @@ final class Config {
     final boolean inputsCecStateOnly;
     /** "12", "24" or "system" (theme clock_format, or Launcher settings' Clock row); see ClockFormat. */
     final String clockFormat;
+    /** {@link #ICONS_DEFAULT} or {@link #ICONS_ROUNDED} (theme icon_style, or Launcher settings' Icons row); see {@link Icons}. */
+    final String iconStyle;
     /** The Settings button opens the quick settings panel instead of the TV's Settings (settings_key_panel). */
     final boolean settingsKeyPanel;
     /** Home puts the remote's accessibility helpers back after a force stop (restore_key_services; ServiceRepair). */
@@ -310,7 +315,7 @@ final class Config {
                    boolean keyFilter, boolean dockGlass, String glowStyle, boolean wallpaperCaptions,
                    boolean handleViewInputs, boolean tileMenu, boolean dockEvenPadding, boolean dockBand, boolean cinematicDots, boolean cinematicWhiteFocus, boolean wifiStatusColor, int cinematicScrim, int cinematicArt,
                    Map<String, Set<String>> wallpaperMoods, boolean gamepadPassthrough, boolean consumeVolumeKeys, boolean powerOnHome, boolean homeLongPressHome, boolean wifiStatusWarnings, List<String> topBarApps, boolean showGreeting, boolean headerWhite, boolean clockWallpaper, int clockWallpaperDim, boolean clockGlow, String glassStyle, boolean singleRow, boolean dockBandAll, boolean lunarDate, int lunarUtcOffset, boolean dateBelowClock, boolean vpnPill, String locale, boolean powerOnHomeAlways, boolean inputsConnectedOnly, boolean inputsCecStateOnly,
-                   int openOnStartNetworkWait, boolean openOnStartOnWake, boolean iconOnlyVpn, String clockFormat, boolean backOpensClock, boolean glowSnap, int grain, boolean glassEdge, int glassFrost) {
+                   int openOnStartNetworkWait, boolean openOnStartOnWake, boolean iconOnlyVpn, String clockFormat, boolean backOpensClock, boolean glowSnap, int grain, boolean glassEdge, int glassFrost, String iconStyle) {
         this.handleViewInputs = handleViewInputs;
         this.tileMenu = tileMenu;
         this.inputKeycodes = inputKeycodes;
@@ -418,6 +423,7 @@ final class Config {
         this.openOnStartNetworkWait = openOnStartNetworkWait;
         this.openOnStartOnWake = openOnStartOnWake;
         this.clockFormat = clockFormat;
+        this.iconStyle = iconStyle(iconStyle);
         this.wifiStatusWarnings = wifiStatusWarnings;
         this.topBarApps = Collections.unmodifiableList(topBarApps);
         this.showGreeting = showGreeting;
@@ -435,6 +441,11 @@ final class Config {
     /** A known glow_style, or radial (the default) for anything else. */
     static String glowStyle(String value) {
         return value != null && GLOW_HORIZON.equalsIgnoreCase(value.trim()) ? GLOW_HORIZON : GLOW_RADIAL;
+    }
+
+    /** The original icons for "default"; rounded (the launcher's look) for anything else, including no value. */
+    static String iconStyle(String value) {
+        return value != null && ICONS_DEFAULT.equalsIgnoreCase(value.trim()) ? ICONS_DEFAULT : ICONS_ROUNDED;
     }
 
     /** A known glass_style, or glass (the default) for anything else. */
@@ -538,6 +549,7 @@ final class Config {
         boolean inputsConnectedOnly = res.getBoolean(R.bool.inputs_connected_only);
         boolean inputsCecStateOnly = res.getBoolean(R.bool.inputs_cec_state_only);
         String clockFormat = res.getString(R.string.clock_format);
+        String iconStyle = res.getString(R.string.icon_style);
         boolean dockGlass = res.getBoolean(R.bool.dock_glass);
         boolean dockEvenPadding = res.getBoolean(R.bool.dock_even_padding);
         boolean dockBand = res.getBoolean(R.bool.dock_band);
@@ -679,6 +691,7 @@ final class Config {
             dockBandAll = bool(json, "dock_band_all", dockBandAll);
             glowStyle = string(json, "glow_style", glowStyle);
             glassStyle = string(json, "glass_style", glassStyle);
+            iconStyle = string(json, ICON_STYLE_KEY, iconStyle);
         }
         // A top-bar app is moved there, not copied: it leaves the grid.
         for (String pkg : topBarApps) if (!hidden.contains(pkg)) hidden.add(pkg);
@@ -707,6 +720,7 @@ final class Config {
         int dockOpacity = json == null ? 100 : integer(json, "dock_opacity", 100, DockOpacity.MIN, DockOpacity.MAX);
         dockOpacity = chosenDockOpacity(choices.getInt(DOCK_OPACITY_KEY, -1), dockOpacity);
         clockFormat = choices.getString(CLOCK_FORMAT_KEY, clockFormat);
+        iconStyle = choices.getString(ICON_STYLE_KEY, iconStyle);
         String wallpaperOrder = json == null ? WallpaperRotation.ORDER_SHUFFLE
                 : string(json, "wallpaper_order", WallpaperRotation.ORDER_SHUFFLE);
         // An unknown order must not silently change how an existing collection rotates.
@@ -748,8 +762,9 @@ final class Config {
                 dateBelowClock, vpnPill, locale, powerOnHomeAlways, inputsConnectedOnly, inputsCecStateOnly,
                 Math.max(0, Math.min(600, openOnStartNetworkWait)), openOnStartOnWake, iconOnlyVpn, clockFormat, backOpensClock, glowSnap,
                 Math.max(0, Math.min(30, grain)), glassEdge,
-                Math.max(0, Math.min(100, glassFrost)));
+                Math.max(0, Math.min(100, glassFrost)), iconStyle);
         GlassLook.set(loaded.grain, loaded.glassEdge, loaded.glassFrost);   // the glass surfaces, which have no Config of their own, read it from here
+        Icons.remember(loaded.iconStyle);
         return loaded;
     }
 
@@ -795,12 +810,12 @@ final class Config {
             if (!"absent".equals(token)) editor.remove("columns").remove("animations")
                     .remove("advanced_effects").remove(ROWS_BELOW_DOCK_KEY).remove(WALLPAPER_CHOICE_KEY)
                     .remove(DOCK_OPACITY_KEY).remove(CLOCK_FORMAT_KEY).remove(GRAIN_KEY)
-                    .remove(GLASS_EDGE_KEY).remove(GLASS_FROST_KEY);
+                    .remove(GLASS_EDGE_KEY).remove(GLASS_FROST_KEY).remove(ICON_STYLE_KEY);
             editor.putString(THEME_SIGNATURE_KEY, signature).commit();
         } else if (!seen.equals(signature)) {
             choices.edit().remove("columns").remove("animations").remove("advanced_effects")
                     .remove(ROWS_BELOW_DOCK_KEY).remove(WALLPAPER_CHOICE_KEY).remove(DOCK_OPACITY_KEY)
-                    .remove(CLOCK_FORMAT_KEY).remove(GRAIN_KEY).remove(GLASS_EDGE_KEY).remove(GLASS_FROST_KEY)
+                    .remove(CLOCK_FORMAT_KEY).remove(GRAIN_KEY).remove(GLASS_EDGE_KEY).remove(GLASS_FROST_KEY).remove(ICON_STYLE_KEY)
                     .putString(THEME_SIGNATURE_KEY, signature).commit();
         }
     }

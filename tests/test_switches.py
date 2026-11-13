@@ -45,7 +45,7 @@ SCREENSHOT_WANTED = {
     "cinematic_scrim", "cinematic_white_focus", "coocaa_sources", "dock_apps", "dock_even_padding",
     "dock_glass", "dock_opacity", "dock_row", "dock_title", "fade_rows", "festival_until", "fill_dock",
     "focus_overshoot", "glow_style", "greeting", "greeting_name", "handle_view_inputs", "hidden_apps",
-    "icon_only_buttons", "icon_only_inputs", "input_action", "input_key_keycodes", "input_sources",
+    "icon_only_buttons", "icon_only_inputs", "icon_style", "input_action", "input_key_keycodes", "input_sources",
     "input_uri_scheme", "key_filter", "launch_actions", "launcher_settings_button", "library_apps",
     "library_button", "live_tv_action", "lunar_utc_offset", "live_tv_input_id", "live_tv_package", "module_cards",
     "race_calendar", "reduced_motion", "reorder_button", "restore_key_services", "rows_below_dock",

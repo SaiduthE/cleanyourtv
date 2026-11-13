@@ -1,6 +1,8 @@
 package com.gathin.tvhome;
 
+import android.animation.ValueAnimator;
 import android.app.Activity;
+import android.graphics.drawable.Drawable;
 import android.util.Log;
 import android.view.KeyEvent;
 import android.view.View;
@@ -20,6 +22,9 @@ final class BrightnessWidget implements HomeWidget {
     private boolean addOn;
     private boolean shown;
     private BrightnessSource.Level level;
+    /** icon_style rounded: the level the sun is filled to (0 to 10000), or -1 before the first reading, and its animation. */
+    private int fillLevel = -1;
+    private ValueAnimator fill;
 
     private BrightnessWidget(WidgetContext wc) {
         this.wc = wc;
@@ -108,6 +113,7 @@ final class BrightnessWidget implements HomeWidget {
 
     @Override
     public void detach() {
+        if (fill != null) fill.cancel();
         shown = false;
         wc.mount.remove();
     }
@@ -127,12 +133,35 @@ final class BrightnessWidget implements HomeWidget {
         chip.setText(text ? value : "");
         chip.setContentDescription(activity.getString(R.string.widget_brightness_description, value));
         // The same shape rules as the other top-bar buttons' icon / text / both styles.
-        TopButtonStyler.shape(chip, R.drawable.ic_widget_brightness, icon, text);
+        TopButtonStyler.shape(chip, Icons.brightness(activity), icon, text);
+        if (icon) showFill();
         if (!shown) {
             shown = true;
             wc.mount.setShown(true);
             chip.setVisibility(View.VISIBLE);
         }
+    }
+
+    /** The rounded sun fills from the bottom as the brightness rises; it eases to a new level instead of jumping. */
+    private void showFill() {
+        Drawable sun = chip.getCompoundDrawablesRelative()[0];
+        if (sun == null || !Icons.rounded(activity)) return;
+        int target = level == null ? 0 : Icons.fillLevel(level.level);
+        if (fill != null) fill.cancel();
+        if (fillLevel < 0 || fillLevel == target || !wc.animations) {
+            fillLevel = target;
+            sun.setLevel(target);
+            return;
+        }
+        sun.setLevel(fillLevel);   // the pill got a fresh drawable: start it where the old one was
+        fill = ValueAnimator.ofInt(fillLevel, target);
+        fill.setDuration(wc.reducedMotion ? Motion.REDUCED_MS : 250);
+        fill.addUpdateListener(a -> {
+            fillLevel = (int) a.getAnimatedValue();
+            Drawable current = chip.getCompoundDrawablesRelative()[0];
+            if (current != null) current.setLevel(fillLevel);
+        });
+        fill.start();
     }
 
     private void hide() {

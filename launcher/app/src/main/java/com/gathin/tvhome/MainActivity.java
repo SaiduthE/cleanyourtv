@@ -852,6 +852,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
         btnInputs = findViewById(R.id.btnInputs);
         View btnSettings = findViewById(R.id.btnSettings);
+        // The layouts name no icons: every pill gets its icon from Icons, in the current icon style.
+        Icons.pill((TextView) btnInputs, Icons.INPUT);
+        Icons.pill(btnWifi, Icons.WIFI);
+        Icons.pill((TextView) btnSettings, Icons.SETTINGS);
         btnInputs.setOnClickListener(v -> showInputs());
         btnWifi.setOnClickListener(v -> openNetworkPill());
         btnVpn.setOnClickListener(v -> openVpnPill());
@@ -862,17 +866,19 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         launcherSettingsButton = cfg.launcherSettingsButton;
         if (launcherSettingsButton) {
             ((TextView) btnSettings).setText(R.string.launcher_settings);
-            ((TextView) btnSettings).setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_home_settings_pill, 0, 0, 0);
+            ((TextView) btnSettings).setCompoundDrawablesRelativeWithIntrinsicBounds(Icons.res(this, Icons.HOME_SETTINGS_PILL), 0, 0, 0);
         }
         // Short press: the gear menu (Launcher settings, TV settings, ...). Holding it opens Android TV settings.
         btnSettings.setOnClickListener(v -> showSettingsMenu());
         btnReorder = findViewById(R.id.btnReorder);
+        Icons.pill((TextView) btnReorder, Icons.SWAP_VERT);
         btnReorder.setOnClickListener(v -> toggleReorder());
         btnReorder.setVisibility(cfg.reorderButton ? View.VISIBLE : View.GONE);
         if (!cfg.showNetworkPill) btnWifi.setVisibility(View.GONE);
         showInputsPill = cfg.showInputsPill;
         showInputsMenuRow = cfg.showInputsPill;
         btnLibraryTop = findViewById(R.id.btnLibraryTop);
+        Icons.pill((TextView) btnLibraryTop, Icons.APPS_PILL);
         btnLibraryTop.setOnClickListener(v -> {
             onLibraryRequested();
             libraryFromTopBar = true;   // closing it goes back to this button, not to the pill after the last row
@@ -909,7 +915,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             btnInputs.setVisibility(View.GONE);
             btnWifi.setVisibility(View.GONE);
             ((TextView) btnSettings).setText(R.string.settings);
-            ((TextView) btnSettings).setCompoundDrawablesRelativeWithIntrinsicBounds(R.drawable.ic_settings, 0, 0, 0);
+            ((TextView) btnSettings).setCompoundDrawablesRelativeWithIntrinsicBounds(Icons.res(this, Icons.SETTINGS), 0, 0, 0);
             if (!iconOnlyButtons) makeIconOnly((TextView) btnSettings);
             btnSettings.setOnClickListener(v -> showTopMenu());
             // The lone gear sits at the header's middle, not on its bottom line like the row of pills.
@@ -3124,7 +3130,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private void updateWifiLabel() {
         String text = getString(R.string.wifi);
         boolean vpn = false, online = false, validated = false;
-        int icon = R.drawable.ic_wifi;
+        Icons.Link link = Icons.Link.OFFLINE;
+        int bars = 4;
         // The festive light (diya flame or jack-o'-lantern candle): 0 is out (offline), 1 to 4 follow the Wi-Fi
         // signal, Ethernet burns steady at 4.
         int flame = 0;
@@ -3152,14 +3159,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 vpn = false;
             } else if (ethernet) {
                 text = getString(R.string.ethernet);
-                icon = R.drawable.ic_ethernet;
+                link = validated ? Icons.Link.ETHERNET : Icons.Link.ETHERNET_IDLE;
                 flame = 4;
                 steady = true;
             } else if (wifi) {
                 WifiManager wm = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
                 WifiInfo info = wm != null ? wm.getConnectionInfo() : null;
                 String ssid = info != null ? info.getSSID() : null;
-                flame = info != null ? Math.max(1, Math.min(4, WifiManager.calculateSignalLevel(info.getRssi(), 5))) : 3;
+                bars = info != null ? Icons.bars(WifiManager.calculateSignalLevel(info.getRssi(), 5)) : 3;
+                link = Icons.Link.WIFI;
+                flame = Math.max(1, bars);
                 if (ssid != null) {
                     ssid = ssid.replace("\"", "").trim();
                     if (!ssid.isEmpty() && !ssid.contains("unknown") && !ssid.equals("0x")) text = ssid;
@@ -3167,13 +3176,17 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
         } catch (Exception ignored) {
         }
+        // Online some other way (cellular, USB tethering): the full Wi-Fi icon, as before.
+        if (online && link == Icons.Link.OFFLINE) link = Icons.Link.WIFI;
+        int icon = Icons.network(this, link, bars);
+        boolean onEthernet = link == Icons.Link.ETHERNET || link == Icons.Link.ETHERNET_IDLE;
         // With a VPN app configured, a VPN that is down matters too: show a red "VPN off" capsule then.
         boolean vpnDown = !vpn && online && !vpnApp.isEmpty();
         if (vpnPill) updateVpnPill(vpn);
         if ((vpn || vpnDown) && !vpnPill) {
             // Network name, then the green lock-and-VPN (or red "VPN off") capsule drawn in place of the word.
             String badge = getString(vpn ? R.string.vpn : R.string.vpn_off);
-            VpnBadge span = new VpnBadge(vpn ? getDrawable(R.drawable.ic_lock) : null, density);
+            VpnBadge span = new VpnBadge(vpn ? Icons.get(this, Icons.LOCK) : null, density);
             // The pill has a maximum width and ellipsizes at the end, which would cut the badge off after
             // a long network name, so shorten the name to whatever room the badge leaves. The Wi-Fi icon and its
             // gap are counted by hand: until the pill has a resolved layout direction (the first call, from
@@ -3191,7 +3204,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             // so Ethernet always shows the icon and the badge alone.
             // The space stays even then: a line holding only the span gets no font metrics and collapses.
             boolean stub = name.length() < text.length() && name.length() < 5;
-            text = stub || icon == R.drawable.ic_ethernet ? "" : name;
+            text = stub || onEthernet ? "" : name;
             SpannableString label = new SpannableString(text + " " + badge);
             label.setSpan(span, text.length() + 1, label.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             if (!TextUtils.equals(btnWifi.getText(), label)) btnWifi.setText(label);
@@ -3382,7 +3395,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 // Both states are outlined in their colour, green closed lock or red open lock, so a dropped VPN reads
                 // at a glance (it used to fall back to the plain white button here).
                 btnVpn.setBackground(VpnBadge.pillBackground(up, density));
-                btnVpn.setCompoundDrawablesRelativeWithIntrinsicBounds(VpnBadge.iconOnlyLock(up), 0, 0, 0);
+                btnVpn.setCompoundDrawablesRelativeWithIntrinsicBounds(Icons.res(this, VpnBadge.iconOnlyLock(up)), 0, 0, 0);
                 btnVpn.setCompoundDrawableTintList(ink);
                 btnVpn.setVisibility(View.VISIBLE);
                 return;
@@ -3391,7 +3404,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             btnVpn.setTextColor(ink);
             btnVpn.setBackground(VpnBadge.pillBackground(up, density));
             btnVpn.setCompoundDrawablesRelativeWithIntrinsicBounds(
-                    TopButtonStyle.showsIcon(vpnStyle) ? VpnBadge.iconOnlyLock(up) : 0, 0, 0, 0);
+                    TopButtonStyle.showsIcon(vpnStyle) ? Icons.res(this, VpnBadge.iconOnlyLock(up)) : 0, 0, 0, 0);
             btnVpn.setCompoundDrawableTintList(ink);
         }
         btnVpn.setVisibility(View.VISIBLE);
@@ -3708,7 +3721,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                         String deviceLabel = name == null || name.length() == 0 ? label : name + " \u00B7 " + label;
                         final String deviceId = device.getId();
                         int state = hdmiStateBogus && !inputsCecStateOnly ? -1 : tim.getInputState(deviceId);
-                        View row = addInputRow(rows, popup, R.drawable.ic_input, deviceLabel, state, () -> openInput(deviceId));
+                        View row = addInputRow(rows, popup, Icons.INPUT, deviceLabel, state, () -> openInput(deviceId));
                         if (connectedOnly && InputFold.folds(true, state)) fold(row, folded);
                     }
                     continue;
@@ -3719,14 +3732,14 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 // Analog AV jacks have no hotplug detection, and some TVs report them as always connected
                 // (TCL Smart TV Pro G03 says "Connected" with nothing plugged in), so AV rows show no state.
                 int state = !hdmi || hdmiStateBogus ? -1 : tim.getInputState(id);
-                View row = addInputRow(rows, popup, hdmi ? R.drawable.ic_input : R.drawable.ic_av, label, state,
+                View row = addInputRow(rows, popup, hdmi ? Icons.INPUT : Icons.AV, label, state,
                         () -> openInput(id));
                 if (connectedOnly && InputFold.folds(hdmi, state)) fold(row, folded);
             }
         }
         if (!folded.isEmpty()) {
             View more = getLayoutInflater().inflate(R.layout.item_input, rows, false);
-            ((ImageView) more.findViewById(R.id.icon)).setImageResource(R.drawable.ic_input);
+            ((ImageView) more.findViewById(R.id.icon)).setImageResource(Icons.res(this, Icons.INPUT));
             ((TextView) more.findViewById(R.id.title)).setText(R.string.more_inputs);
             more.findViewById(R.id.status).setVisibility(View.GONE);
             more.findViewById(R.id.dot).setVisibility(View.GONE);
@@ -3742,8 +3755,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // Coocaa OS registers nothing with TvInputManager; com.skyworth.tv lists its sources instead.
         if (rows.getChildCount() == 0) {
             for (CoocaaSources.Source s : coocaa) {
-                int icon = "HDMI".equals(s.name) ? R.drawable.ic_input
-                        : "VOD".equals(s.name) ? R.drawable.ic_livetv : R.drawable.ic_av;
+                int icon = "HDMI".equals(s.name) ? Icons.INPUT
+                        : "VOD".equals(s.name) ? Icons.LIVE_TV : Icons.AV;
                 addInputRow(rows, popup, icon, s.label, -1, () -> {
                     if (!CoocaaSources.open(this, s)) {
                         Toast.makeText(this, R.string.not_available, Toast.LENGTH_SHORT).show();
@@ -3753,7 +3766,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         // Nothing to list where there is no TvInputManager: the TV's own source panel switches inputs.
         if (rows.getChildCount() == 0 && !sourcePanelService.isEmpty()) {
-            addInputRow(rows, popup, R.drawable.ic_input, getString(R.string.inputs), -1, this::openSourcePanel);
+            addInputRow(rows, popup, Icons.INPUT, getString(R.string.inputs), -1, this::openSourcePanel);
         }
         Intent liveTv = liveTvIntent();
         if (liveTv != null && tunerId != null) {
@@ -3783,7 +3796,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (liveTv != null) {
             if (rows.getChildCount() > 0) addSeparator(rows);
             final Intent liveTvIntent = liveTv;
-            addInputRow(rows, popup, R.drawable.ic_livetv, getString(R.string.live_tv), -1, () -> open(liveTvIntent));
+            addInputRow(rows, popup, Icons.LIVE_TV, getString(R.string.live_tv), -1, () -> open(liveTvIntent));
         }
         if (rows.getChildCount() == 0) {
             Toast.makeText(this, R.string.no_inputs, Toast.LENGTH_SHORT).show();
@@ -3843,7 +3856,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     private View addInputRow(LinearLayout rows, PopupWindow popup, int iconRes, String title, int state, Runnable action) {
         View row = getLayoutInflater().inflate(R.layout.item_input, rows, false);
-        ((ImageView) row.findViewById(R.id.icon)).setImageResource(iconRes);
+        ((ImageView) row.findViewById(R.id.icon)).setImageResource(Icons.res(this, iconRes));
         ((TextView) row.findViewById(R.id.title)).setText(title);
         TextView status = row.findViewById(R.id.status);
         View dot = row.findViewById(R.id.dot);
@@ -3877,25 +3890,25 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         LinearLayout rows = panel.findViewById(R.id.rows);
         PopupWindow popup = glassPopup(panel, (int) (220 * density));
         // Inputs opens its own list once this one has closed.
-        if (showInputsMenuRow) addInputRow(rows, popup, R.drawable.ic_input, getString(R.string.inputs), -1, () -> root.post(this::showInputs));
-        addInputRow(rows, popup, R.drawable.ic_wifi, getString(R.string.quick_network), -1, this::openNetworkPill);
+        if (showInputsMenuRow) addInputRow(rows, popup, Icons.INPUT, getString(R.string.inputs), -1, () -> root.post(this::showInputs));
+        addInputRow(rows, popup, Icons.WIFI, getString(R.string.quick_network), -1, this::openNetworkPill);
         CharSequence network = wifiIconOnly ? btnWifi.getContentDescription() : btnWifi.getText();
         if (!TextUtils.isEmpty(network)) {
             TextView status = rows.getChildAt(rows.getChildCount() - 1).findViewById(R.id.status);
             status.setText(network);
             status.setVisibility(View.VISIBLE);
         }
-        addInputRow(rows, popup, R.drawable.ic_swap_vert, getString(R.string.reorder), -1, this::toggleReorder);
+        addInputRow(rows, popup, Icons.SWAP_VERT, getString(R.string.reorder), -1, this::toggleReorder);
         if (launcherSettingsButton) {
-            addInputRow(rows, popup, R.drawable.ic_home_settings_pill, getString(R.string.launcher_settings), -1,
+            addInputRow(rows, popup, Icons.HOME_SETTINGS_PILL, getString(R.string.launcher_settings), -1,
                     () -> startActivityForResult(new Intent(this, LauncherSettingsActivity.class), LAUNCHER_SETTINGS_REQUEST));
         } else {
-            addInputRow(rows, popup, R.drawable.ic_settings, getString(R.string.settings), -1,
+            addInputRow(rows, popup, Icons.SETTINGS, getString(R.string.settings), -1,
                     () -> open(systemIntent(Settings.ACTION_SETTINGS)));
         }
         // Module cards, Edit dock, vendor settings and the power menu live in the gear menu; with one gear they
         // would otherwise be unreachable. Holding the gear still opens Android TV settings.
-        addInputRow(rows, popup, R.drawable.ic_apps, getString(R.string.menu_more), -1, () -> root.post(this::showSettingsMenu));
+        addInputRow(rows, popup, Icons.APPS, getString(R.string.menu_more), -1, () -> root.post(this::showSettingsMenu));
         panel.measure(View.MeasureSpec.UNSPECIFIED, View.MeasureSpec.UNSPECIFIED);
         popup.setWidth(Math.max((int) (220 * density), Math.min(panel.getMeasuredWidth(), (int) (360 * density))));
         dropIn(popup, panel, anchor, getResources().getBoolean(R.bool.rtl_menu_bar) ? Gravity.START : Gravity.END);

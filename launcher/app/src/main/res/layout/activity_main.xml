@@ -345,7 +345,6 @@
                     android:id="@+id/btnInputs"
                     style="@style/TopButton"
                     android:text="@string/inputs"
-                    android:drawableStart="@drawable/ic_input"
                     android:nextFocusDown="@+id/grid" />
 
                 <TextView
@@ -355,7 +354,6 @@
                     android:singleLine="true"
                     android:ellipsize="end"
                     android:text="@string/wifi"
-                    android:drawableStart="@drawable/ic_wifi"
                     android:nextFocusDown="@+id/grid" />
 
                 <TextView
@@ -370,7 +368,6 @@
                     android:id="@+id/btnReorder"
                     style="@style/TopButtonIcon"
                     android:contentDescription="@string/reorder"
-                    android:drawableStart="@drawable/ic_swap_vert"
                     android:nextFocusDown="@+id/grid" />
 
                 <TextView
@@ -378,14 +375,12 @@
                     style="@style/TopButtonIcon"
                     android:visibility="gone"
                     android:contentDescription="@string/app_library"
-                    android:drawableStart="@drawable/ic_apps_pill"
                     android:nextFocusDown="@+id/grid" />
 
                 <TextView
                     android:id="@+id/btnSettings"
                     style="@style/TopButton"
                     android:text="@string/settings"
-                    android:drawableStart="@drawable/ic_settings"
                     android:nextFocusDown="@+id/grid" />
             </LinearLayout>
         </RelativeLayout>

@@ -5,6 +5,7 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.drawable.Drawable;
 import android.os.SystemClock;
 import android.view.View;
 
@@ -57,9 +58,14 @@ final class WeatherArtView extends View {
     private float scale = 1f;
     private float offsetX, offsetY;
     private final Runnable frame = this::invalidate;
+    /** icon_style rounded: one Material Symbols Rounded weather symbol, tinted and still, instead of the Canvas scene. */
+    private final boolean rounded;
+    private Drawable symbol;
+    private int symbolRes;
 
     WeatherArtView(Context context) {
         super(context);
+        rounded = Icons.rounded(context);
         setWillNotDraw(false);
         setLayerType(LAYER_TYPE_NONE, null);
         setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -188,7 +194,7 @@ final class WeatherArtView extends View {
     // ---- running -------------------------------------------------------------------------------------------------
 
     private void updateRunning() {
-        boolean want = animationAllowed && isAttachedToWindow() && isShown()
+        boolean want = !rounded && animationAllowed && isAttachedToWindow() && isShown()
                 && (!requireWindowFocus || hasWindowFocus());
         if (want == running) return;
         running = want;
@@ -239,6 +245,10 @@ final class WeatherArtView extends View {
 
     @Override
     protected void onDraw(Canvas canvas) {
+        if (rounded) {
+            drawSymbol(canvas);
+            return;
+        }
         long start = SystemClock.uptimeMillis();
         // A still pose is drawn at a fixed time: -1 marks it, and each element picks its still value.
         long t = running ? start : -1L;
@@ -251,6 +261,19 @@ final class WeatherArtView extends View {
             long used = SystemClock.uptimeMillis() - start;
             postOnAnimationDelayed(frame, Math.max(0L, frameIntervalMs - used - 8L));
         }
+    }
+
+    private void drawSymbol(Canvas canvas) {
+        int res = Icons.weather(condition, day);
+        if (symbol == null || res != symbolRes) {
+            symbol = getContext().getDrawable(res).mutate();
+            symbolRes = res;
+        }
+        // Ink like the chip's text: white on the dark palette, near black on the light (focused) one.
+        symbol.setTint(paletteKind == PALETTE_LIGHT ? 0xFF0B0D12 : 0xFFFFFFFF);
+        symbol.setAlpha(Math.round(255f * artAlpha * (paletteKind == PALETTE_SCREENSAVER ? 0.85f : 1f)));
+        symbol.setBounds(0, 0, getWidth(), getHeight());
+        symbol.draw(canvas);
     }
 
     private void drawScene(Canvas canvas, long t) {

@@ -150,6 +150,8 @@ final class Config {
     final int grain;
     /** A gradient rim, an inner top highlight and a soft inner bottom shadow on glass (config.xml / theme glass_edge). */
     final boolean glassEdge;
+    /** The shared frost behind glass, how far it is darkened, 0 to 100; 0 builds none (config.xml / theme glass_frost). */
+    final int glassFrost;
     /** App library as a round button in the top bar (config.xml library_button); needs app_library. */
     final boolean libraryButton;
     /** The App library pill after the last Home row; false hides it while libraryButton is on (show_library_pill). */
@@ -304,7 +306,7 @@ final class Config {
                    boolean keyFilter, boolean dockGlass, String glowStyle, boolean wallpaperCaptions,
                    boolean handleViewInputs, boolean tileMenu, boolean dockEvenPadding, boolean dockBand, boolean cinematicDots, boolean cinematicWhiteFocus, boolean wifiStatusColor, int cinematicScrim, int cinematicArt,
                    Map<String, Set<String>> wallpaperMoods, boolean gamepadPassthrough, boolean consumeVolumeKeys, boolean powerOnHome, boolean homeLongPressHome, boolean wifiStatusWarnings, List<String> topBarApps, boolean showGreeting, boolean headerWhite, boolean clockWallpaper, int clockWallpaperDim, boolean clockGlow, String glassStyle, boolean singleRow, boolean dockBandAll, boolean lunarDate, int lunarUtcOffset, boolean dateBelowClock, boolean vpnPill, String locale, boolean powerOnHomeAlways, boolean inputsConnectedOnly, boolean inputsCecStateOnly,
-                   int openOnStartNetworkWait, boolean openOnStartOnWake, boolean iconOnlyVpn, String clockFormat, boolean backOpensClock, boolean glowSnap, int grain, boolean glassEdge) {
+                   int openOnStartNetworkWait, boolean openOnStartOnWake, boolean iconOnlyVpn, String clockFormat, boolean backOpensClock, boolean glowSnap, int grain, boolean glassEdge, int glassFrost) {
         this.handleViewInputs = handleViewInputs;
         this.tileMenu = tileMenu;
         this.inputKeycodes = inputKeycodes;
@@ -358,6 +360,7 @@ final class Config {
         this.glowSnap = glowSnap;
         this.grain = grain;
         this.glassEdge = glassEdge;
+        this.glassFrost = glassFrost;
         this.libraryButton = libraryButton;
         this.showLibraryPill = showLibraryPill;
         this.wifiLabelWidth = wifiLabelWidth;
@@ -491,6 +494,7 @@ final class Config {
         boolean glowSnap = res.getBoolean(R.bool.glow_snap);
         int grain = res.getInteger(R.integer.grain);
         boolean glassEdge = res.getBoolean(R.bool.glass_edge);
+        int glassFrost = res.getInteger(R.integer.glass_frost);
         boolean libraryButton = res.getBoolean(R.bool.library_button);
         boolean showLibraryPill = res.getBoolean(R.bool.show_library_pill);
         int wifiLabelWidth = res.getInteger(R.integer.wifi_label_width);
@@ -607,6 +611,7 @@ final class Config {
             glowSnap = bool(json, "glow_snap", glowSnap);
             grain = integer(json, "grain", grain, 0, 30);
             glassEdge = bool(json, "glass_edge", glassEdge);
+            glassFrost = integer(json, "glass_frost", glassFrost, 0, 100);
             libraryButton = bool(json, "library_button", libraryButton);
             showLibraryPill = bool(json, "show_library_pill", showLibraryPill);
             wifiLabelWidth = integer(json, "wifi_label_width", wifiLabelWidth, 0, 300);
@@ -734,8 +739,9 @@ final class Config {
                 Math.max(0, Math.min(90, clockWallpaperDim)), clockGlow, glassStyle, singleRow && dockRow, dockBandAll, lunar, lunarOffset,
                 dateBelowClock, vpnPill, locale, powerOnHomeAlways, inputsConnectedOnly, inputsCecStateOnly,
                 Math.max(0, Math.min(600, openOnStartNetworkWait)), openOnStartOnWake, iconOnlyVpn, clockFormat, backOpensClock, glowSnap,
-                Math.max(0, Math.min(30, grain)), glassEdge);
-        GlassLook.set(loaded.grain, loaded.glassEdge);   // the glass surfaces, which have no Config of their own, read it from here
+                Math.max(0, Math.min(30, grain)), glassEdge,
+                Math.max(0, Math.min(100, glassFrost)));
+        GlassLook.set(loaded.grain, loaded.glassEdge, loaded.glassFrost);   // the glass surfaces, which have no Config of their own, read it from here
         return loaded;
     }
 

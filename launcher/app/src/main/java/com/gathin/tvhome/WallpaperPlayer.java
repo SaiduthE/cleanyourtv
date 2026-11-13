@@ -46,6 +46,8 @@ final class WallpaperPlayer {
     private final int height;
     /** wallpaper_dim as an ARGB black, painted into each picture once instead of a full-screen shade view. */
     private final int dimColor;
+    /** glass_frost: the frost of the picture decode() just made, published by show() with the picture. Null without frost. */
+    private volatile Bitmap pendingFrost;
     /** The picture on screen, released once the next one has been drawn. */
     private Bitmap current;
     private boolean active;
@@ -266,6 +268,11 @@ final class WallpaperPlayer {
         // The wallpaper covers the whole root; avoid drawing the fallback colour under it.
         root.setBackground(null);
         image.setImageBitmap(bitmap);
+        // The frost behind the glass follows the picture: the new one replaces the old, or none when glass_frost is 0.
+        Bitmap frost = pendingFrost;
+        pendingFrost = null;
+        if (frost != null) Frost.set(frost, width, height);
+        else Frost.release();
         if (old != null && old != bitmap) image.postDelayed(old::recycle, 500);
     }
 
@@ -291,6 +298,8 @@ final class WallpaperPlayer {
             Bitmap decoded = BitmapFactory.decodeFile(file.getPath(), options);
             if (decoded == null) return null;
             if (dimColor != 0) new Canvas(decoded).drawColor(dimColor);
+            // The picture's frost (glass_frost) is made from the readable copy here, before it becomes a GPU texture.
+            pendingFrost = GlassLook.frost > 0 ? Frost.build(decoded, width, height, GlassLook.frost, 0, 1f) : null;
             // One copy in GPU memory instead of a software bitmap plus its texture; the decode stays off the UI
             // thread for rotations, and Home's return no longer uploads 4-8 MB to the GPU.
             Bitmap gpu = decoded.copy(Bitmap.Config.HARDWARE, false);

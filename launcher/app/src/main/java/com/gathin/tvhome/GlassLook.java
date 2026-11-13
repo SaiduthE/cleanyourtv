@@ -16,12 +16,16 @@ final class GlassLook {
     static volatile int grain = 6;
     /** glass_edge: a gradient rim, an inner top highlight and a soft inner bottom shadow on every glass surface. */
     static volatile boolean edge = true;
+    /** glass_frost: how much the shared frost behind glass is darkened, 0 to 100; 0 builds and draws none. */
+    static volatile int frost = 60;
 
     private GlassLook() { }
 
-    static void set(int grain, boolean edge) {
+    static void set(int grain, boolean edge, int frost) {
         GlassLook.grain = Math.max(0, Math.min(30, grain));
         GlassLook.edge = edge;
+        GlassLook.frost = Math.max(0, Math.min(100, frost));
+        if (GlassLook.frost == 0) Frost.release();
     }
 
     /** Glass takes a light share of the grain, 3 to 5 percent. */
@@ -47,7 +51,7 @@ final class GlassLook {
 
     /** tile_bg.xml: the dark card behind an icon tile; its radius follows the tile (AppAdapter.cornerRadius). */
     static GlassSurface.Spec tile(Context ctx) {
-        return new GlassSurface.Spec(0xFF1C1C1E, 0xFF1C1C1E, 0, 0, dp(ctx, 16));
+        return new GlassSurface.Spec(0xFF1C1C1E, 0xFF1C1C1E, 0, 0, dp(ctx, 16), 1f, false);
     }
 
     /**

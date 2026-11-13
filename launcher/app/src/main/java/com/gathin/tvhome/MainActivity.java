@@ -524,6 +524,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         getWindow().setBackgroundDrawable(null);
         wallpaperPlayer = new WallpaperPlayer(this, root, cfg);
         sky = findViewById(R.id.sky);
+        sky.setFrostSource(!(cfg.wallpaperEnabled && !cfg.wallpapers.isEmpty()), cfg.backgroundColor);
         sky.setIntensity(cfg.skyIntensity);
         glass = findViewById(R.id.glass);
         glass.setStyle(cfg.glassStyle);
@@ -1429,6 +1430,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         heroArtCache.clear();
         heroArtKey = null;
         wallpaperPlayer.releaseForMemoryPressure();
+        // The shared glass frost (about 0.25 MB), the baked glass bitmaps and the grain tile: all remade on return.
+        Frost.release();
+        GlassSurface.release();
+        Grain.release();
         tileRefresh.invalidate();
     }
 

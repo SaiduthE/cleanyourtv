@@ -9,13 +9,16 @@ import androidx.annotation.NonNull;
 import androidx.recyclerview.widget.RecyclerView;
 
 /** Draws the tvOS style lighter band behind the first (dock) row and adds a gap below it. */
-public class DockDecoration extends RecyclerView.ItemDecoration {
+public class DockDecoration extends RecyclerView.ItemDecoration implements Frost.Listener {
 
     private final int dockSize;
     private final float density;
     private final RectF rect = new RectF();
     /** The band, drawn by the shared glass library (grain, rim light, frost): its fill and hairline, baked once for its size. */
     private final GlassSurface glass;
+    private final int[] where = new int[2];
+    /** The grid the band was last drawn in, redrawn when a new frost arrives. */
+    private java.lang.ref.WeakReference<RecyclerView> grid;
 
     /** Extra band below the tiles for their names (always_show_names), in px. */
     private final float namesRoom;
@@ -57,6 +60,13 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
         int bottom = lightGlass ? glassBottom(this.opacity) : top;
         glass = new GlassSurface(new GlassSurface.Spec(top, bottom, edgeColor(translucent, lightGlass, this.opacity),
                 density, 0f, this.opacity / 100f));
+        Frost.listen(this);
+    }
+
+    @Override
+    public void onFrostChanged() {
+        RecyclerView g = grid == null ? null : grid.get();
+        if (g != null) g.invalidate();
     }
 
     // The band of each style as designed (at 100%). The opacity setting scales every one of them, so it works in the
@@ -161,6 +171,14 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
         }
         rect.bottom += namesRoom;
         int left = Math.round(rect.left), top = Math.round(rect.top);
-        glass.draw(c, left, top, Math.round(rect.right) - left, Math.round(rect.bottom) - top, radius);
+        float sx = Float.NaN, sy = Float.NaN;
+        if (glass.frosted()) {
+            // Where the band is on the screen picks the slice of the shared frost behind it.
+            parent.getLocationOnScreen(where);
+            sx = where[0] + left;
+            sy = where[1] + top;
+            if (grid == null || grid.get() != parent) grid = new java.lang.ref.WeakReference<>(parent);
+        }
+        glass.draw(c, left, top, Math.round(rect.right) - left, Math.round(rect.bottom) - top, radius, sx, sy);
     }
 }

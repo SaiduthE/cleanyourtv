@@ -6,6 +6,8 @@ import android.graphics.Outline;
 import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
+import android.view.View;
+import android.view.ViewTreeObserver;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -14,8 +16,11 @@ import androidx.annotation.Nullable;
  * A view background drawn by a {@link GlassSurface}: the stock glass (a card, a pill, a menu) with the grain, rim light
  * and frost of the glass switches. A pill passes its original selector as {@code states}: focused, pressed and activated
  * keep that drawable's look, and only the resting state is glass.
+ *
+ * The frost slice behind the view depends on where the view is on the screen, so the drawable redraws itself when the
+ * view moves (a layout change, a popup sliding in) and when a new frost is built.
  */
-final class GlassDrawable extends Drawable implements Drawable.Callback {
+final class GlassDrawable extends Drawable implements Drawable.Callback, Frost.Listener {
 
     /** A radius that depends on the size drawn (tiles scale theirs with the tile). */
     interface Radius {
@@ -27,6 +32,29 @@ final class GlassDrawable extends Drawable implements Drawable.Callback {
     @Nullable private final Radius radius;
     private boolean resting = true;
 
+    private final int[] where = new int[2];
+    private int seenX = Integer.MIN_VALUE, seenY = Integer.MIN_VALUE;
+    @Nullable private View watching;
+    private final ViewTreeObserver.OnPreDrawListener watcher = () -> {
+        // Cheap: two ints. A moved view needs the slice of frost that is now behind it.
+        if (watching != null && hostView() != watching) {
+            stopWatching();   // the view has another background now
+        } else if (watching != null && watching.isAttachedToWindow()) {
+            watching.getLocationOnScreen(where);
+            if (where[0] != seenX || where[1] != seenY) invalidateSelf();
+        }
+        return true;
+    };
+    private final View.OnAttachStateChangeListener attach = new View.OnAttachStateChangeListener() {
+        @Override
+        public void onViewAttachedToWindow(@NonNull View v) { }
+
+        @Override
+        public void onViewDetachedFromWindow(@NonNull View v) {
+            stopWatching();
+        }
+    };
+
     GlassDrawable(GlassSurface.Spec spec, @Nullable Drawable states) {
         this(spec, states, null);
     }
@@ -36,10 +64,36 @@ final class GlassDrawable extends Drawable implements Drawable.Callback {
         this.states = states;
         this.radius = radius;
         if (states != null) states.setCallback(this);
+        if (spec.frost) Frost.listen(this);
     }
 
     private float radiusFor(int w, int h) {
         return radius != null ? radius.of(w, h) : surface.spec().radiusPx;
+    }
+
+    /** The view this drawable is the background of, found through any layer drawables around it. */
+    @Nullable
+    private View hostView() {
+        Callback cb = getCallback();
+        while (cb instanceof Drawable) cb = ((Drawable) cb).getCallback();
+        return cb instanceof View ? (View) cb : null;
+    }
+
+    private void startWatching(View v) {
+        if (watching == v) return;
+        stopWatching();
+        watching = v;
+        v.addOnAttachStateChangeListener(attach);
+        v.getViewTreeObserver().addOnPreDrawListener(watcher);
+    }
+
+    private void stopWatching() {
+        View v = watching;
+        watching = null;
+        if (v == null) return;
+        v.removeOnAttachStateChangeListener(attach);
+        ViewTreeObserver o = v.getViewTreeObserver();
+        if (o.isAlive()) o.removeOnPreDrawListener(watcher);
     }
 
     @Override
@@ -50,7 +104,22 @@ final class GlassDrawable extends Drawable implements Drawable.Callback {
             states.draw(canvas);
             return;
         }
-        surface.draw(canvas, b.left, b.top, b.width(), b.height(), radiusFor(b.width(), b.height()));
+        float sx = Float.NaN, sy = Float.NaN;
+        View v = hostView();
+        if (v != null && v.isAttachedToWindow() && surface.frosted()) {
+            v.getLocationOnScreen(where);
+            seenX = where[0];
+            seenY = where[1];
+            sx = where[0] + b.left;
+            sy = where[1] + b.top;
+            startWatching(v);
+        }
+        surface.draw(canvas, b.left, b.top, b.width(), b.height(), radiusFor(b.width(), b.height()), sx, sy);
+    }
+
+    @Override
+    public void onFrostChanged() {
+        invalidateSelf();
     }
 
     @Override

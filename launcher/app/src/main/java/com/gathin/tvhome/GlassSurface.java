@@ -1,8 +1,10 @@
 package com.gathin.tvhome;
 
 import android.graphics.Bitmap;
+import android.graphics.BitmapShader;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.graphics.Shader;
@@ -25,12 +27,19 @@ final class GlassSurface {
         final float strokePx, radiusPx;
         /** 0 to 1: how much edge light the surface takes (a faint dock band takes less). */
         final float light;
+        /** Whether the surface shows the shared frost behind it (glass_frost); false for a card that sits on the tile art. */
+        final boolean frost;
 
         Spec(int fillTop, int fillBottom, int strokeColor, float strokePx, float radiusPx) {
-            this(fillTop, fillBottom, strokeColor, strokePx, radiusPx, 1f);
+            this(fillTop, fillBottom, strokeColor, strokePx, radiusPx, 1f, true);
         }
 
         Spec(int fillTop, int fillBottom, int strokeColor, float strokePx, float radiusPx, float light) {
+            this(fillTop, fillBottom, strokeColor, strokePx, radiusPx, light, true);
+        }
+
+        Spec(int fillTop, int fillBottom, int strokeColor, float strokePx, float radiusPx, float light, boolean frost) {
+            this.frost = frost;
             this.fillTop = fillTop;
             this.fillBottom = fillBottom;
             this.strokeColor = strokeColor;
@@ -55,11 +64,19 @@ final class GlassSurface {
     private static final LinkedHashMap<String, Bitmap> CACHE = new LinkedHashMap<>(16, 0.75f, true);
     private static long cached;
 
+    /** A frost-backed opaque card keeps this much of its fill over the frost, so text stays readable on a bright picture. */
+    private static final float FILL_OVER_FROST = 0.69f;
+
     private final Spec spec;
     private Bitmap baked;
     private int bakedW, bakedH, bakedGrain;
-    private boolean bakedEdge;
+    private boolean bakedEdge, bakedFrost;
     private float bakedRadius;
+    /** This surface's own shader on the shared frost (its matrix is its screen position), made once per frost bitmap. */
+    private BitmapShader frostShader;
+    private Bitmap frostFor;
+    private final Paint frostPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+    private final Matrix matrix = new Matrix();
 
     GlassSurface(Spec spec) {
         this.spec = spec;
@@ -69,16 +86,27 @@ final class GlassSurface {
         return spec;
     }
 
-    /** Draws the surface into (left, top, left + w, top + h) of the canvas, with a corner radius no bigger than half the short side. */
-    void draw(Canvas c, float left, float top, int w, int h, float radius) {
+    /** Whether this surface would show the frost now: the switch is on, the spec allows it and a frost is built. */
+    boolean frosted() {
+        return spec.frost && GlassLook.frost > 0 && Frost.get() != null;
+    }
+
+    /**
+     * Draws the surface into (left, top, left + w, top + h) of the canvas, with a corner radius no bigger than half the
+     * short side. {@code screenX} and {@code screenY} are where (left, top) is on the screen, which picks the slice of the
+     * shared frost behind it; NaN draws no frost.
+     */
+    void draw(Canvas c, float left, float top, int w, int h, float radius, float screenX, float screenY) {
         if (w <= 0 || h <= 0) return;
         float r = Math.min(radius, Math.min(w, h) / 2f);
+        boolean frost = drawFrost(c, left, top, w, h, r, screenX, screenY);
         int grain = GlassLook.glassGrain();
         boolean edge = GlassLook.edge && spec.hasRim();
         if (baked == null || baked.isRecycled() || w != bakedW || h != bakedH || grain != bakedGrain || r != bakedRadius
-                || edge != bakedEdge) {
-            baked = bitmap(w, h, r, grain, edge);
+                || edge != bakedEdge || frost != bakedFrost) {
+            baked = bitmap(w, h, r, grain, edge, frost);
             bakedEdge = edge;
+            bakedFrost = frost;
             bakedW = w;
             bakedH = h;
             bakedGrain = grain;
@@ -87,14 +115,32 @@ final class GlassSurface {
         if (baked != null) c.drawBitmap(baked, left, top, null);
     }
 
-    private Bitmap bitmap(int w, int h, float r, int grain, boolean edge) {
+    /** The slice of the shared frost behind this surface, clipped to its rounded rectangle; false when there is none to draw. */
+    private boolean drawFrost(Canvas c, float left, float top, int w, int h, float r, float screenX, float screenY) {
+        if (!frosted() || Float.isNaN(screenX) || Float.isNaN(screenY)) return false;
+        Bitmap f = Frost.get();
+        if (f == null) return false;
+        if (f != frostFor || frostShader == null) {
+            frostShader = new BitmapShader(f, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            frostPaint.setShader(frostShader);
+            frostFor = f;
+        }
+        // Frost pixel -> this canvas: scale it up to the screen, then move the screen's origin to where the canvas starts.
+        matrix.setScale(Frost.scaleX(), Frost.scaleY());
+        matrix.postTranslate(-(screenX - left), -(screenY - top));
+        frostShader.setLocalMatrix(matrix);
+        c.drawRoundRect(left, top, left + w, top + h, r, r, frostPaint);
+        return true;
+    }
+
+    private Bitmap bitmap(int w, int h, float r, int grain, boolean edge, boolean frost) {
         String key = spec.fillTop + ":" + spec.fillBottom + ":" + spec.strokeColor + ":" + spec.strokePx + ":" + spec.light + ":" + w + "x" + h
-                + ":" + r + ":" + grain + ":" + edge;
+                + ":" + r + ":" + grain + ":" + edge + ":" + frost;
         synchronized (CACHE) {
             Bitmap hit = CACHE.get(key);
             if (hit != null && !hit.isRecycled()) return hit;
         }
-        Bitmap made = bake(w, h, r, grain, edge);
+        Bitmap made = bake(w, h, r, grain, edge, frost);
         if (made == null) return null;
         synchronized (CACHE) {
             Bitmap old = CACHE.put(key, made);
@@ -122,7 +168,7 @@ final class GlassSurface {
         }
     }
 
-    private Bitmap bake(int w, int h, float r, int grain, boolean edge) {
+    private Bitmap bake(int w, int h, float r, int grain, boolean edge, boolean frost) {
         Bitmap b;
         try {
             b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
@@ -132,7 +178,10 @@ final class GlassSurface {
         Canvas c = new Canvas(b);   // bitmap-backed, so software: OVERLAY and every other blend mode work
         RectF shape = new RectF(0, 0, w, h);
         Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
-        p.setShader(new LinearGradient(0, 0, 0, h, spec.fillTop, spec.fillBottom, Shader.TileMode.CLAMP));
+        // Over frost a card lets some of it through; white glass (already translucent) is drawn as designed.
+        float keep = frost && spec.opaque() ? FILL_OVER_FROST : 1f;
+        p.setShader(new LinearGradient(0, 0, 0, h, GlassEdge.scaleAlpha(spec.fillTop, keep),
+                GlassEdge.scaleAlpha(spec.fillBottom, keep), Shader.TileMode.CLAMP));
         c.drawRoundRect(shape, r, r, p);
         Grain.bakeGrain(b, grain, shape, r);
         if (edge && spec.hasRim()) {

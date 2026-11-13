@@ -44,6 +44,9 @@ public class SkyView extends View {
     private int lastMinute = -1;
     private Bitmap texture;
     private BitmapDrawable drawable;
+    /** No wallpaper: the sky is what the glass frosts (glass_frost), seen through its own opacity over this colour. */
+    private boolean frostSource;
+    private int frostUnder;
 
     public SkyView(Context context, @Nullable AttributeSet attrs) {
         super(context, attrs);
@@ -57,10 +60,17 @@ public class SkyView extends View {
         if (intensity > 0) render(true);
     }
 
+    /** True when there is no wallpaper, so the glass frosts this gradient over {@code under} (the background colour). */
+    void setFrostSource(boolean source, int under) {
+        frostSource = source;
+        frostUnder = under;
+    }
+
     /** Picks up a new time of day; cheap and safe to call every minute. */
     public void update() {
         if (intensity == 0 || getVisibility() != VISIBLE) return;
-        render(false);
+        // The frost was freed (onTrimMemory): make it again now, not at the next minute.
+        render(frostSource && GlassLook.frost > 0 && Frost.get() == null);
     }
 
     @Override
@@ -113,6 +123,13 @@ public class SkyView extends View {
 
         // Film grain (config.xml grain), baked into the one bitmap: it dithers the gradient so it does not band.
         Grain.bakeGrain(texture, GlassLook.grain);
+
+        if (frostSource && GlassLook.frost > 0) {
+            // A few milliseconds once a minute: the sky changes slowly and the glass follows it.
+            android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+            Frost.set(Frost.build(texture, dm.widthPixels, dm.heightPixels, GlassLook.frost, frostUnder,
+                    intensity / 100f), dm.widthPixels, dm.heightPixels);
+        }
 
         if (drawable == null) {
             drawable = new BitmapDrawable(getResources(), texture);

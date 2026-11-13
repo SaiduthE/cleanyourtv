@@ -639,6 +639,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             TextView dateView = findViewById(R.id.date);
             dateView.setTextSize(Math.max(12f, dateView.getTextSize() / getResources().getDisplayMetrics().scaledDensity * 0.6f));
         }
+        // Soft shadows (tvOS style), sized from each text, so the header stays readable on whatever the picture is.
+        for (int id : new int[] {R.id.greeting, R.id.clock, R.id.ampm, R.id.date, R.id.shamsiDate, R.id.lunarDate, R.id.stats}) {
+            Legibility.shadow((TextView) findViewById(id));
+        }
+        Legibility.shadow(heroName);
         // scene_clock draws the time and date itself: the header's texts stay in the layout, unseen, so nothing moves and
         // the D-pad order is what it was (none of them takes focus).
         applySceneClockHeader();
@@ -2111,7 +2116,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 }
                 return bottom;
             }
-        }, animations, reducedMotion, PanelTheme.get(this).accent, wallpapers, dockOpacity, dockBand);
+
+            @Override
+            public void onBackdropCover(boolean covers) { }
+        }, animations, reducedMotion, PanelTheme.get(this).accent, wallpapers, dockOpacity, dockBand, true);
     }
 
     /** Focus rests on the dock app at position: the shelf waits out its dwell, then shows what that app has. */

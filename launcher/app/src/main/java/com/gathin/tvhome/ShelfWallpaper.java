@@ -43,6 +43,11 @@ final class ShelfWallpaper {
     private static final int W = TopShelfLogic.MAX_W, H = TopShelfLogic.MAX_H;
 
     private final ContentResolver resolver;
+    /**
+     * False when something else is the background (a Horizon scene): no views, no photo listing, no advancing the
+     * add-on's photos, nothing runs.
+     */
+    private final boolean enabled;
     private final List<String> files = new ArrayList<>();
     private final boolean animations, reducedMotion;
     private final ImageView back, front;
@@ -81,9 +86,11 @@ final class ShelfWallpaper {
     /**
      * Adds the two picture views at the bottom of {@code container}. {@code wallpapers} may be empty.
      * {@code interval} answers how long a picture stays (ms); it is asked each time a change is scheduled.
+     * {@code enabled} false makes the whole layer inert (see the field).
      */
     ShelfWallpaper(Context context, FrameLayout container, List<File> wallpapers, boolean animations,
-                   boolean reducedMotion, LongSupplier interval, Listener listener) {
+                   boolean reducedMotion, LongSupplier interval, Listener listener, boolean enabled) {
+        this.enabled = enabled;
         this.listener = listener;
         this.interval = interval;
         android.util.DisplayMetrics dm = context.getResources().getDisplayMetrics();
@@ -96,8 +103,10 @@ final class ShelfWallpaper {
         back = layer(context);
         front = layer(context);
         front.setAlpha(0f);
-        container.addView(back, 0, new FrameLayout.LayoutParams(-1, -1));
-        container.addView(front, 1, new FrameLayout.LayoutParams(-1, -1));
+        if (enabled) {
+            container.addView(back, 0, new FrameLayout.LayoutParams(-1, -1));
+            container.addView(front, 1, new FrameLayout.LayoutParams(-1, -1));
+        }
     }
 
     private static ImageView layer(Context context) {
@@ -112,7 +121,7 @@ final class ShelfWallpaper {
      * changed meanwhile) it only starts the wait for the next change over, with the interval chosen now.
      */
     void start() {
-        if (closed) return;
+        if (closed || !enabled) return;
         if (running) {
             rearm();
             return;

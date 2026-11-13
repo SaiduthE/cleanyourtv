@@ -220,8 +220,8 @@ final class WeatherWidget implements HomeWidget {
 
             LinearLayout column = new LinearLayout(c);
             column.setOrientation(VERTICAL);
-            line1 = text(c, R.string.font_medium, 13, 0xDBFFFFFF);
-            line2 = text(c, R.string.font_regular, 12, 0x8CFFFFFF);
+            line1 = text(c, R.string.font_medium, 13, 0xF0FFFFFF);
+            line2 = text(c, R.string.font_regular, 12, 0xBFFFFFFF);
             line2.setMaxWidth(dp(180));
             column.addView(line1);
             column.addView(line2);
@@ -237,6 +237,7 @@ final class WeatherWidget implements HomeWidget {
             t.setTextColor(color);
             t.setSingleLine(true);
             t.setEllipsize(TextUtils.TruncateAt.END);
+            Legibility.shadow(t, sp);   // borderless at rest, so the text sits straight on the picture
             return t;
         }
 
@@ -279,8 +280,13 @@ final class WeatherWidget implements HomeWidget {
             super.onFocusChanged(gainFocus, direction, previouslyFocusedRect);
             art.setPalette(gainFocus ? WeatherArtView.PALETTE_LIGHT : WeatherArtView.PALETTE_DARK);
             temp.setTextColor(gainFocus ? 0xFF0B0D12 : 0xFFFFFFFF);
-            line1.setTextColor(gainFocus ? 0xDB000000 : 0xDBFFFFFF);
-            line2.setTextColor(gainFocus ? 0x8C000000 : 0x8CFFFFFF);
+            line1.setTextColor(gainFocus ? 0xDB000000 : 0xF0FFFFFF);
+            line2.setTextColor(gainFocus ? 0x8C000000 : 0xBFFFFFFF);
+            // Dark text on the white focus pill needs no shadow; the white text on the picture does.
+            for (TextView t : new TextView[] {temp, line1, line2}) {
+                if (gainFocus) Legibility.clearShadow(t);
+                else Legibility.shadow(t);
+            }
             setElevation(gainFocus ? dp(6) : 0f);
             float s = gainFocus ? 1.05f : 1f;
             if (!animations) {

@@ -10,7 +10,6 @@ import android.graphics.LinearGradient;
 import android.graphics.Shader;
 import android.graphics.drawable.Drawable;
 import android.graphics.drawable.GradientDrawable;
-import android.graphics.drawable.LayerDrawable;
 import android.graphics.drawable.ShapeDrawable;
 import android.graphics.drawable.shapes.RectShape;
 import android.graphics.drawable.StateListDrawable;
@@ -60,6 +59,9 @@ final class TopShelf {
 
         /** Bottom edge of the clock row and the top bar, in the shelf's coordinates. */
         int headerBottom();
+
+        /** A show's backdrop now covers the screen (true), or no longer does (false). */
+        void onBackdropCover(boolean covers);
     }
 
     private static final int ICON_DP = 56;
@@ -83,10 +85,14 @@ final class TopShelf {
     private final ShelfWallpaper wall;
     /** The feathered bottom veil over the wallpaper (full-bleed, fading into the dock band). */
     private final View light;
-    /** The two shades behind the type, built once: over the wallpaper, and over a real backdrop (which also gets the bottom veil). */
-    private final Drawable scrimWallpaper, scrimBackdrop;
-    /** The left text shade at rest (lighter than behind a shelf's own type); gone while shelf content is up. */
-    private final View restScrim;
+    /** The bottom veil a real backdrop also gets (the left text shade is the adaptive {@link Legibility.Scrim}). */
+    private final Drawable scrimBackdrop;
+    /**
+     * The one text shade behind the type above the dock, in two places so it can crossfade with the content: at rest
+     * (under the content, behind the dock's big app name) and over the picture in the content (behind the shelf's own
+     * type, above a real backdrop). Same maths, same strength: it follows the brightness of the picture on screen.
+     */
+    private final Legibility.Scrim restScrim, contentScrim;
     /** The photo's author and licence: tiny and faint at the bottom right, only while a photo shows on the idle shelf. */
     private final TextView credit;
     private String photoCredit = "";
@@ -97,8 +103,13 @@ final class TopShelf {
     private final View scrim;
     /** A poster (not landscape) as a small card at the right, never stretched over the shelf. */
     private final ImageView card;
-    /** Darkens the top (clock, date, weather) so no picture competes with them. */
-    private final View topScrim;
+    /** Behind the clock, greeting, date and weather at the top left: soft, and as strong as the picture there needs. */
+    private final Legibility.Scrim topScrim;
+    /** The header's own texts are on screen (the Horizon scene clock hides them, and its text has its own shadow). */
+    private boolean headerText = true;
+    /** A real backdrop covers the screen (the Horizon scene clock steps aside for it). */
+    private boolean covering;
+
     private final LinearLayout nameRow;
     private final ImageView nameIcon;
     private final TextView nameText;
@@ -131,7 +142,7 @@ final class TopShelf {
 
     /** @param wallpapers the launcher's wallpaper pictures (empty when the wallpaper is off); the feed's are added */
     TopShelf(Context context, FrameLayout container, Host host, boolean animations, boolean reducedMotion, int accent,
-             List<File> wallpapers, int dockOpacity, boolean dockBand) {
+             List<File> wallpapers, int dockOpacity, boolean dockBand, boolean restPictures) {
         this.context = context;
         this.container = container;
         this.host = host;
@@ -143,21 +154,17 @@ final class TopShelf {
         this.showCredit = choices.getBoolean(Config.TOP_SHELF_CREDIT_KEY, true);
         this.density = context.getResources().getDisplayMetrics().density;
         this.accent = accent;
+        int scrimFade = SettingsModel.duration(animations, reducedMotion, Legibility.FADE_MS);
 
         // The interval is read at every change of picture, so Launcher settings > Change every applies without a restart.
-        wall = new ShelfWallpaper(context, container, wallpapers, animations, reducedMotion,
-                () -> SettingsModel.shelfInterval(choices::getLong), this::onCredit);
+        wall = new ShelfWallpaper(context, container, restPictures ? wallpapers : Collections.<File>emptyList(),
+                animations, reducedMotion, () -> SettingsModel.shelfInterval(choices::getLong), this::onCredit, restPictures);
         float bottomPeak = ShelfGradients.bottomPeak(dockOpacity, dockBand);
-        scrimWallpaper = edgeFade(Edge.LEFT, ShelfGradients.LEFT_SPAN, ShelfGradients.LEFT_SHELF_PEAK);
-        scrimBackdrop = new LayerDrawable(new Drawable[] {
-                edgeFade(Edge.LEFT, ShelfGradients.LEFT_SPAN, ShelfGradients.LEFT_SHELF_PEAK),
-                edgeFade(Edge.BOTTOM, ShelfGradients.BOTTOM_SPAN, bottomPeak)});
+        scrimBackdrop = edgeFade(Edge.BOTTOM, ShelfGradients.BOTTOM_SPAN, bottomPeak);
         light = new View(context);
         light.setBackground(edgeFade(Edge.BOTTOM, ShelfGradients.BOTTOM_SPAN, bottomPeak));
         container.addView(light, new FrameLayout.LayoutParams(-1, -1));
-        restScrim = new View(context);
-        restScrim.setBackground(edgeFade(Edge.LEFT, ShelfGradients.LEFT_SPAN, ShelfGradients.LEFT_REST_PEAK));
-        restScrim.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        restScrim = new Legibility.Scrim(context, scrimFade);
         container.addView(restScrim, new FrameLayout.LayoutParams(-1, -1));
         credit = new TextView(context);
         credit.setTextSize(TypedValue.COMPLEX_UNIT_SP, 10);
@@ -180,12 +187,10 @@ final class TopShelf {
         content.forceHasOverlappingRendering(false);
         content.setClipChildren(false);
         container.addView(content, new FrameLayout.LayoutParams(-1, -1));
-        topScrim = new View(context);
-        topScrim.setBackground(topVeil());
-        topScrim.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        container.addView(topScrim, new FrameLayout.LayoutParams(-1, dp(190)));
+        topScrim = new Legibility.Scrim(context, scrimFade);
+        container.addView(topScrim, new FrameLayout.LayoutParams(-1, -1));
         container.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
-            sizeTopScrim();
+            placeScrims();
             placeCredit();
         });
 
@@ -194,9 +199,10 @@ final class TopShelf {
         // Full-bleed: the picture and its shade run the whole screen, behind the clock and the dock band, so no
         // rectangle edge shows. It crossfades straight over the wallpaper (no black stage that would dip the frame).
         content.addView(art, new FrameLayout.LayoutParams(-1, -1));
+        contentScrim = new Legibility.Scrim(context, scrimFade);
+        content.addView(contentScrim, new FrameLayout.LayoutParams(-1, -1));
         scrim = new View(context);
         content.addView(scrim, new FrameLayout.LayoutParams(-1, -1));
-        scrim.setBackground(scrimWallpaper);
 
         card = new ImageView(context);
         card.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -218,7 +224,7 @@ final class TopShelf {
         nameText = text(48, R.string.font_light, Color.WHITE);
         nameText.setLetterSpacing(-0.01f);
         nameText.setMaxWidth(dp(620));
-        nameText.setShadowLayer(dp(14), 0, dp(2), 0x80000000);
+        Legibility.shadow(nameText, 48);
         nameRow.addView(nameText);
         FrameLayout.LayoutParams nameLp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.START);
         nameLp.setMarginStart(dp(TopShelfLogic.SAFE_MARGIN_DP));
@@ -228,11 +234,11 @@ final class TopShelf {
         block = new LinearLayout(context);
         block.setOrientation(LinearLayout.VERTICAL);
         block.setClipChildren(false);
-        source = text(13, R.string.font_medium, 0x9EFFFFFF);
+        source = text(13, R.string.font_medium, 0xD1FFFFFF);
         title = text(38, R.string.font_light, Color.WHITE);
         title.setLetterSpacing(-0.01f);
         title.setMaxWidth(dp(460));
-        meta = text(15, R.string.font_regular, 0xC7FFFFFF);
+        meta = text(15, R.string.font_regular, 0xE0FFFFFF);
         block.addView(source);
         block.addView(title, margins(0, 4, 0, 0));
         block.addView(meta, margins(0, 4, 0, 0));
@@ -260,7 +266,7 @@ final class TopShelf {
         upNext = new LinearLayout(context);
         upNext.setOrientation(LinearLayout.VERTICAL);
         upNext.setClipChildren(false);
-        TextView upLabel = text(13, R.string.font_medium, 0x99FFFFFF);
+        TextView upLabel = text(13, R.string.font_medium, 0xD1FFFFFF);
         upLabel.setText(R.string.shelf_up_next);
         upNext.addView(upLabel, margins(0, 0, 0, 8));
         LinearLayout row = new LinearLayout(context);
@@ -484,8 +490,9 @@ final class TopShelf {
         shown = what;
         updateCredit();
         boolean backdropShown = what == TopShelfLogic.Content.RESUME && backdrop != null;
-        if (scrim.getBackground() != (backdropShown ? scrimBackdrop : scrimWallpaper)) {
-            scrim.setBackground(backdropShown ? scrimBackdrop : scrimWallpaper);
+        // Over a real backdrop the bottom also fades into the dock band; over the wallpaper the text shade is enough.
+        if (scrim.getBackground() != (backdropShown ? scrimBackdrop : null)) {
+            scrim.setBackground(backdropShown ? scrimBackdrop : null);
         }
         if (what == TopShelfLogic.Content.RESUME) {
             nameRow.setVisibility(View.GONE);
@@ -501,7 +508,7 @@ final class TopShelf {
         }
         // The shelf's own large type takes the place of the app name above the dock.
         host.setTitleHidden(true);
-        sizeTopScrim();
+        placeScrims();
         reveal(backdropShown);
     }
 
@@ -638,14 +645,27 @@ final class TopShelf {
         }
     }
 
-    /** The top scrim covers the clock row and a little below it. */
-    private void sizeTopScrim() {
-        int h = host.headerBottom() + dp(72);
-        FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) topScrim.getLayoutParams();
-        if (h > dp(40) && lp.height != h) {
-            lp.height = h;
-            topScrim.setLayoutParams(lp);
-        }
+    /**
+     * Puts the two soft shades where the type is: one over the clock row at the top left (and a little below it), one
+     * behind the block above the dock at the bottom left. Their strength is the picture's business ({@link Legibility}).
+     */
+    private void placeScrims() {
+        int w = container.getWidth(), h = container.getHeight();
+        if (w <= 0 || h <= 0) return;
+        int header = host.headerBottom();
+        if (header > dp(40)) topScrim.setEllipse(0.16f * w, header * 0.45f, 0.42f * w, header * 0.55f + dp(72));
+        int bottom = (lastDockTop > 0 ? lastDockTop : Math.round(h * 0.62f)) - dp(GAP_DP);
+        float cx = dp(TopShelfLogic.SAFE_MARGIN_DP + 220), cy = bottom - dp(120);
+        restScrim.setEllipse(cx, cy, dp(560), dp(220));
+        contentScrim.setEllipse(cx, cy, dp(560), dp(220));
+    }
+
+    /** The header's clock, greeting and date are drawn (true) or hidden by a scene clock (false): the shade behind them follows. */
+    void setHeaderText(boolean shown) {
+        if (headerText == shown) return;
+        headerText = shown;
+        topScrim.animate().cancel();
+        topScrim.animate().alpha(shown ? 1f : 0f).setDuration(SettingsModel.duration(animations, reducedMotion, 250)).start();
     }
 
     private void launch(TopShelfLogic.Entry e) {
@@ -659,6 +679,7 @@ final class TopShelf {
         content.animate().cancel();
         content.setVisibility(View.VISIBLE);
         wall.setRotating(!coversWallpaper);
+        setCovering(coversWallpaper);
         restScrim.animate().cancel();
         restScrim.animate().alpha(0f).setDuration(ms).start();
         if (ms == 0) {
@@ -682,6 +703,7 @@ final class TopShelf {
         int ms = fade ? SettingsModel.duration(animations, reducedMotion, 320) : 0;
         content.animate().cancel();
         wall.setRotating(true);
+        setCovering(false);
         restScrim.animate().cancel();
         restScrim.animate().alpha(1f).setDuration(ms).start();
         if (ms == 0) {
@@ -691,6 +713,12 @@ final class TopShelf {
         content.animate().alpha(0f).setDuration(ms).withEndAction(() -> {
             if (shown == TopShelfLogic.Content.REST) clearContent();
         }).start();
+    }
+
+    private void setCovering(boolean on) {
+        if (covering == on) return;
+        covering = on;
+        host.onBackdropCover(on);
     }
 
     private void clearContent() {
@@ -743,11 +771,6 @@ final class TopShelf {
 
     // ---- views ---------------------------------------------------------------------------------------------------
 
-    /** Over everything on the shelf, under the clock row: a feathered shade so no picture competes with the clock text. */
-    private Drawable topVeil() {
-        return edgeFade(Edge.TOP, 1f, ShelfGradients.TOP_PEAK);
-    }
-
     private enum Edge { LEFT, TOP, BOTTOM }
 
     /**
@@ -782,6 +805,7 @@ final class TopShelf {
         t.setMaxLines(1);
         t.setEllipsize(TextUtils.TruncateAt.END);
         t.setIncludeFontPadding(false);
+        Legibility.shadow(t, sp);
         return t;
     }
 

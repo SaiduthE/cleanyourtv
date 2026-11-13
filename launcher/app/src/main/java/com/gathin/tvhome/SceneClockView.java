@@ -333,7 +333,7 @@ final class SceneClockView extends View {
         dateInk.setTextAlign(align);
         dateInk.setColor(l.dateColor != 0 ? l.dateColor : l.dark ? 0xFF16201D : 0xEBFFFFFF);
         if (l.dark) dateInk.clearShadowLayer();
-        else dateInk.setShadowLayer(9f * scale, 0f, 1f * scale, 0x40000000);
+        else Legibility.shadow(dateInk, 34f, scale);   // the date and weather line: the same soft shadow as the header's text
         Paint.FontMetrics fm = dateInk.getFontMetrics();
         dateBaseline = l.dateY * h + 20f * scale - (fm.ascent + fm.descent) / 2f;
     }

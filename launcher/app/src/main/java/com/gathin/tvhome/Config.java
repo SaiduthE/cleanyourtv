@@ -44,6 +44,10 @@ final class Config {
     static final String WALLPAPER_CHOICE_KEY = "wallpaper_choice";
     static final String DOCK_OPACITY_KEY = "dock_opacity";
     static final String CLOCK_FORMAT_KEY = "clock_format";
+    /** Launcher settings > Look: grain, glass edge and glass frost, saved under the theme keys they override. */
+    static final String GRAIN_KEY = "grain";
+    static final String GLASS_EDGE_KEY = "glass_edge";
+    static final String GLASS_FROST_KEY = "glass_frost";
     /** The Top Shelf row of Launcher settings: "layered" (the default) or "off". Not a theme setting, so a theme never resets it. */
     static final String TOP_SHELF_KEY = "top_shelf";
     /** Top Shelf > App artwork: the focused app's own artwork behind its Resume text (default true), else photos/wallpapers. Not a theme setting. */
@@ -689,6 +693,10 @@ final class Config {
         if (chosenRows >= 0 && chosenRows <= 3) rowsBelow = chosenRows;
         animations = choices.getBoolean("animations", animations);
         advancedEffects = choices.getBoolean("advanced_effects", advancedEffects);
+        // Look rows of Launcher settings: an on-TV choice beats the theme, until the theme changes or is reset.
+        grain = Math.max(0, Math.min(30, choices.getInt(GRAIN_KEY, grain)));
+        glassEdge = choices.getBoolean(GLASS_EDGE_KEY, glassEdge);
+        glassFrost = Math.max(0, Math.min(100, choices.getInt(GLASS_FROST_KEY, glassFrost)));
         File wallpaper = dir != null ? new File(dir, WALLPAPER_NAME) : null;
         if (wallpaper != null && !(wallpaper.isFile() && wallpaper.length() > 0)) wallpaper = null;
         // A theme can also switch the wallpaper off while the file is still there.
@@ -786,12 +794,14 @@ final class Config {
             SharedPreferences.Editor editor = choices.edit();
             if (!"absent".equals(token)) editor.remove("columns").remove("animations")
                     .remove("advanced_effects").remove(ROWS_BELOW_DOCK_KEY).remove(WALLPAPER_CHOICE_KEY)
-                    .remove(DOCK_OPACITY_KEY).remove(CLOCK_FORMAT_KEY);
+                    .remove(DOCK_OPACITY_KEY).remove(CLOCK_FORMAT_KEY).remove(GRAIN_KEY)
+                    .remove(GLASS_EDGE_KEY).remove(GLASS_FROST_KEY);
             editor.putString(THEME_SIGNATURE_KEY, signature).commit();
         } else if (!seen.equals(signature)) {
             choices.edit().remove("columns").remove("animations").remove("advanced_effects")
                     .remove(ROWS_BELOW_DOCK_KEY).remove(WALLPAPER_CHOICE_KEY).remove(DOCK_OPACITY_KEY)
-                    .remove(CLOCK_FORMAT_KEY).putString(THEME_SIGNATURE_KEY, signature).commit();
+                    .remove(CLOCK_FORMAT_KEY).remove(GRAIN_KEY).remove(GLASS_EDGE_KEY).remove(GLASS_FROST_KEY)
+                    .putString(THEME_SIGNATURE_KEY, signature).commit();
         }
     }
 

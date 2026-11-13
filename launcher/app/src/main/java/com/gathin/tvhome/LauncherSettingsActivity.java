@@ -66,6 +66,8 @@ public final class LauncherSettingsActivity extends Activity {
     private TopShelfLogic.Mode topShelf;
     private boolean animations;
     private boolean advancedEffects;
+    private int grain, glassFrost;
+    private boolean glassEdge;
     private boolean appArtwork;
     private boolean photoCredit;
     /** Top Shelf > Change every, in ms (one of SettingsModel.SHELF_INTERVALS_MS). */
@@ -152,6 +154,9 @@ public final class LauncherSettingsActivity extends Activity {
         columns = config.columns;
         rowsBelowDock = config.rowsBelowDock;
         dockOpacity = config.dockOpacity;
+        grain = config.grain;
+        glassEdge = config.glassEdge;
+        glassFrost = config.glassFrost;
         clockFormat = config.clockFormat;
         topShelf = TopShelfLogic.Mode.parse(choices.getString(Config.TOP_SHELF_KEY, null));
         appArtwork = choices.getBoolean(Config.TOP_SHELF_ARTWORK_KEY, true);
@@ -310,6 +315,9 @@ public final class LauncherSettingsActivity extends Activity {
             case WIDGETS: return getString(R.string.ls_widgets);
             case ANIMATIONS: return getString(R.string.ls_animations_label);
             case ADVANCED: return getString(R.string.advanced_effects);
+            case GLASS_FROST: return getString(R.string.ls_glass_frost_label);
+            case GLASS_EDGE: return getString(R.string.ls_glass_edge_label);
+            case GRAIN: return getString(R.string.ls_grain_label);
             case REMOTE_BUTTONS: return getString(R.string.remote_buttons);
             case TOP_BAR_BUTTONS: return getString(R.string.ls_top_bar_buttons);
             case REORDER: return getString(R.string.ls_reorder);
@@ -342,6 +350,9 @@ public final class LauncherSettingsActivity extends Activity {
             case ANIMATIONS: return getString(R.string.ls_help_animations);
             case ADVANCED:
                 return getString(animations ? R.string.ls_help_advanced : R.string.ls_help_advanced_off);
+            case GLASS_FROST: return getString(R.string.ls_help_glass_frost);
+            case GLASS_EDGE: return getString(R.string.ls_help_glass_edge);
+            case GRAIN: return getString(R.string.ls_help_grain);
             case REMOTE_BUTTONS: return getString(R.string.ls_help_remote_buttons);
             case TOP_BAR_BUTTONS: return getString(R.string.ls_help_top_bar_buttons);
             case REORDER: return getString(R.string.ls_help_reorder);
@@ -373,6 +384,9 @@ public final class LauncherSettingsActivity extends Activity {
             case WIDGETS: return WidgetStore.summary(this);
             case ANIMATIONS: return getString(animations ? R.string.on : R.string.off);
             case ADVANCED: return getString(advancedEffects ? R.string.on : R.string.off);
+            case GLASS_FROST: return SettingsModel.percent(glassFrost);
+            case GLASS_EDGE: return getString(glassEdge ? R.string.on : R.string.off);
+            case GRAIN: return SettingsModel.percent(grain);
             case TOP_BAR_BUTTONS: return TopBarButtonsActivity.styleLabel(this,
                     TopButtonStyle.common(TopButtonStyler.load(this, config)));
             case REMOTE_BUTTONS: {
@@ -493,6 +507,22 @@ public final class LauncherSettingsActivity extends Activity {
                 break;
             case WALLPAPER:
                 showWallpaperPicker(view);
+                break;
+            case GLASS_FROST:
+                percentSlider(row, view, getString(R.string.ls_glass_frost_label), SettingsModel.FROST_MAX,
+                        SettingsModel.FROST_STEP, glassFrost, Config.GLASS_FROST_KEY, v -> glassFrost = v);
+                break;
+            case GRAIN:
+                percentSlider(row, view, getString(R.string.ls_grain_label), SettingsModel.GRAIN_MAX,
+                        SettingsModel.GRAIN_STEP, grain, Config.GRAIN_KEY, v -> grain = v);
+                break;
+            case GLASS_EDGE:
+                options(row, view, new String[] {getString(R.string.on), getString(R.string.off)},
+                        glassEdge ? 0 : 1, i -> {
+                            glassEdge = i == 0;
+                            choices.edit().putBoolean(Config.GLASS_EDGE_KEY, glassEdge).apply();
+                            committed(row);
+                        });
                 break;
             case TOP_SHELF: {
                 TopShelfLogic.Mode[] modes = TopShelfLogic.Mode.values();
@@ -656,6 +686,19 @@ public final class LauncherSettingsActivity extends Activity {
         slider.show(list, percent -> {
             dockOpacity = percent;
             choices.edit().putInt(Config.DOCK_OPACITY_KEY, dockOpacity).apply();
+            committed(row);
+        }, null);
+    }
+
+    /** A 0 to max percent slider saved under {@code key}: OK saves, Back keeps the old value. Home redraws when the panel closes. */
+    private void percentSlider(Row row, SettingRowView view, String title, int max, int step, int current,
+                               String key, java.util.function.IntConsumer remember) {
+        cancelHold();
+        slider = new SliderPopup(this, root, card, view, title, 0, max, step, current, rtl, anim(140),
+                SettingsModel::percent).hint(getString(R.string.ls_slider_hint));
+        slider.show(list, percent -> {
+            remember.accept(percent);
+            choices.edit().putInt(key, percent).apply();
             committed(row);
         }, null);
     }

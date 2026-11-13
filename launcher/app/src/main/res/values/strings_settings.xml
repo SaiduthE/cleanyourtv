@@ -21,6 +21,9 @@
     <string name="ls_apply" translatable="false">Apply</string>
 
     <string name="ls_animations_label" translatable="false">Animations</string>
+    <string name="ls_glass_frost_label" translatable="false">Glass frost</string>
+    <string name="ls_glass_edge_label" translatable="false">Glass edge</string>
+    <string name="ls_grain_label" translatable="false">Grain</string>
     <string name="ls_clock_label" translatable="false">Clock</string>
     <string name="ls_top_bar_buttons" translatable="false">Top bar buttons</string>
     <string name="ls_tbb_icons" translatable="false">Icons</string>
@@ -52,6 +55,9 @@
     <string name="ls_help_wallpaper" translatable="false">Pick one picture to keep, or let the theme change it.</string>
     <string name="ls_help_clock" translatable="false">System follows the TV\'s own 12 or 24 hour setting.</string>
     <string name="ls_help_animations" translatable="false">Off makes every move instant, for slow TVs.</string>
+    <string name="ls_help_glass_frost" translatable="false">How much of a frosted copy of the wallpaper shows behind glass panels. 0 turns it off.</string>
+    <string name="ls_help_glass_edge" translatable="false">A lit rim on glass panels, pills and the dock.</string>
+    <string name="ls_help_grain" translatable="false">Fine film grain that keeps gradients from banding. 0 turns it off.</string>
     <string name="ls_help_advanced" translatable="false">Lifted tile, icon zoom and smooth colours. May use more memory.</string>
     <string name="ls_help_advanced_off" translatable="false">Turn Animations on first. Advanced effects need them.</string>
     <string name="ls_help_remote_buttons" translatable="false">Map a remote button to an app or action: press, hold or double press.</string>

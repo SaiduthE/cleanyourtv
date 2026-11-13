@@ -15,7 +15,7 @@ final class SettingsModel {
 
     enum Row {
         COLUMNS, ROWS_BELOW_DOCK, DOCK_OPACITY, OPEN_ON_START,
-        STYLE, WALLPAPER, CLOCK, WIDGETS, ANIMATIONS, ADVANCED,
+        STYLE, WALLPAPER, CLOCK, WIDGETS, ANIMATIONS, ADVANCED, GLASS_FROST, GLASS_EDGE, GRAIN,
         TOP_SHELF, APP_ARTWORK, PHOTOS, PHOTO_THEMES, REFRESH_PHOTOS, CHANGE_EVERY, PHOTO_CREDIT,
         REMOTE_BUTTONS, TOP_BAR_BUTTONS, REORDER, EDIT_DOCK,
         DEFAULT_HOME, TV_SETTINGS, RESET_THEME
@@ -27,6 +27,8 @@ final class SettingsModel {
     static final int[] COLUMNS = {4, 5, 6, 7};
     static final int[] ROWS_BELOW_DOCK = {0, 1, 2, 3};
     static final String[] CLOCK_FORMATS = {"system", "12", "24"};
+    /** Look > Glass frost and Grain: the slider ranges (config.xml's glass_frost and grain) and their steps. */
+    static final int FROST_MAX = 100, FROST_STEP = 10, GRAIN_MAX = 30, GRAIN_STEP = 2;
 
     // ---- Top Shelf > Change every ----------------------------------------------------------------------------------
 
@@ -72,6 +74,7 @@ final class SettingsModel {
     static final String[] RESET_KEYS = {
             "columns", Config.ROWS_BELOW_DOCK_KEY, "animations", "advanced_effects", Config.WALLPAPER_CHOICE_KEY,
             Config.DOCK_OPACITY_KEY, Config.CLOCK_FORMAT_KEY, OpenOnStart.KEY, WidgetStore.PLACEMENTS_KEY,
+            Config.GLASS_FROST_KEY, Config.GLASS_EDGE_KEY, Config.GRAIN_KEY,
     };
 
     private SettingsModel() { }
@@ -100,6 +103,9 @@ final class SettingsModel {
                 rows.add(Row.WIDGETS);
                 rows.add(Row.ANIMATIONS);
                 rows.add(Row.ADVANCED);
+                rows.add(Row.GLASS_FROST);
+                rows.add(Row.GLASS_EDGE);
+                rows.add(Row.GRAIN);
                 break;
             case TOP_SHELF:
                 rows.add(Row.TOP_SHELF);

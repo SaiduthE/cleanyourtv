@@ -20,6 +20,14 @@ public class TopFadeTest {
     }
 
     @Test
+    public void theBottomFadeIsFullWhileRowsFollowAndGoneAtTheEnd() {
+        assertEquals(36f, TopFade.bottomHeight(5000, 36f), 0f);
+        assertEquals(12f, TopFade.bottomHeight(12, 36f), 0f);   // shrinks out as the last row comes up
+        assertEquals(0f, TopFade.bottomHeight(0, 36f), 0f);
+        assertEquals(0f, TopFade.bottomHeight(-3, 36f), 0f);   // nothing below: no fade
+    }
+
+    @Test
     public void thenItStaysAtItsFullLength() {
         assertEquals(72f, TopFade.height(72, 72f), 0f);
         assertEquals(72f, TopFade.height(5000, 72f), 0f);

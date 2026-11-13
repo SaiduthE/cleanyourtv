@@ -705,8 +705,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 // rows_below_dock leaves visible ends there; nudging it up was the bug). A row that has to scroll
                 // in still stops at the padding line, clear of the screen edge, as before.
                 int limitBottom = getHeight() - getPaddingBottom();
+                // A focused row stays below the feathered top edge (fade_rows): it is as tall as the grid has scrolled,
+                // so at rest, and with no fade, this is the old rule (a row above the top edge scrolls to it).
+                int clear = cfg.fadeRows ? (int) TopFade.height(parent.computeVerticalScrollOffset(), TopFade.TOP_DP * density) : 0;
                 int dy;
-                if (top < 0) dy = top;
+                if (top < clear) dy = top - clear;
                 else if (bottom <= getHeight()) dy = 0;
                 else dy = Math.min(top, bottom - limitBottom);
                 if (dy == 0) return false;
@@ -735,7 +738,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         });
         if (dockRow) grid.addItemDecoration(new DockDecoration(COLUMNS, density, cinematic, cfg.alwaysShowNames, cfg.dockOpacity, cfg.dockGlass, cfg.dockEvenPadding, cfg.dockBand,
                 singleRow, cfg.dockBandAll));
-        if (cfg.fadeRows) TopFade.attach(grid, 48 * density);
+        // A sideways row has no top or bottom edge to fade.
+        if (cfg.fadeRows && !singleRow) TopFade.attach(grid, TopFade.TOP_DP * density, TopFade.BOTTOM_DP * density);
         // Reduced motion: the tiles are simply there, with no entrance (reloadApps skips it there too).
         if (animations && !reducedMotion) {
             grid.setLayoutAnimation(new LayoutAnimationController(

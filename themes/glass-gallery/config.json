@@ -25,7 +25,6 @@
   "animations": true,
   "advanced_effects": false,
   "focus_overshoot": true,
-  "fade_rows": false,
   "app_library": true,
   "library_button": true,
   "show_library_pill": false,

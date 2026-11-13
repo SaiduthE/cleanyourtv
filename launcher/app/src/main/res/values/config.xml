@@ -551,10 +551,10 @@
     <!-- The focus highlight glows in the focused app's colour on every tile, as the cinematic shelf does for the
          dock, without cinematic_home. Can also be set with "app_glow": true in a theme's config.json. -->
     <bool name="app_glow">false</bool>
-    <!-- The rows fade out as they scroll up under the clock, instead of being cut off at a hard line (TopFade).
-         The grid then draws into a hardware layer, about 6 MB of graphics memory at 1080p, so it is off by default.
-         Can also be set with "fade_rows": true in a theme's config.json. -->
-    <bool name="fade_rows">false</bool>
+    <!-- The rows fade out softly as they scroll away under the top edge, and gently at the bottom edge while more rows
+         follow, instead of being cut off at a hard line (TopFade). On for every theme. The grid draws into a hardware
+         layer, about 6 MB of graphics memory at 1080p; "fade_rows": false in a theme's config.json turns it off. -->
+    <bool name="fade_rows">true</bool>
     <!-- Minutes Home may sit untouched before it shows the clock screensaver (ClockActivity); 0 turns it off.
          Unlike the system screensaver this never starts over live TV or an app, which matters on TVs whose
          Live TV window does not keep the screen on (CVTE): there the system screensaver would start in the

@@ -23,13 +23,25 @@ final class GlassSurface {
     static final class Spec {
         final int fillTop, fillBottom, strokeColor;
         final float strokePx, radiusPx;
+        /** 0 to 1: how much edge light the surface takes (a faint dock band takes less). */
+        final float light;
 
         Spec(int fillTop, int fillBottom, int strokeColor, float strokePx, float radiusPx) {
+            this(fillTop, fillBottom, strokeColor, strokePx, radiusPx, 1f);
+        }
+
+        Spec(int fillTop, int fillBottom, int strokeColor, float strokePx, float radiusPx, float light) {
             this.fillTop = fillTop;
             this.fillBottom = fillBottom;
             this.strokeColor = strokeColor;
             this.strokePx = strokePx;
             this.radiusPx = radiusPx;
+            this.light = light;
+        }
+
+        /** A surface with a hairline has a rim to light; one without (a borderless tile) keeps none. */
+        boolean hasRim() {
+            return strokePx > 0;
         }
 
         /** A fill that hides what is behind it (cards), as opposed to white glass. */
@@ -46,6 +58,7 @@ final class GlassSurface {
     private final Spec spec;
     private Bitmap baked;
     private int bakedW, bakedH, bakedGrain;
+    private boolean bakedEdge;
     private float bakedRadius;
 
     GlassSurface(Spec spec) {
@@ -61,8 +74,11 @@ final class GlassSurface {
         if (w <= 0 || h <= 0) return;
         float r = Math.min(radius, Math.min(w, h) / 2f);
         int grain = GlassLook.glassGrain();
-        if (baked == null || baked.isRecycled() || w != bakedW || h != bakedH || grain != bakedGrain || r != bakedRadius) {
-            baked = bitmap(w, h, r, grain);
+        boolean edge = GlassLook.edge && spec.hasRim();
+        if (baked == null || baked.isRecycled() || w != bakedW || h != bakedH || grain != bakedGrain || r != bakedRadius
+                || edge != bakedEdge) {
+            baked = bitmap(w, h, r, grain, edge);
+            bakedEdge = edge;
             bakedW = w;
             bakedH = h;
             bakedGrain = grain;
@@ -71,14 +87,14 @@ final class GlassSurface {
         if (baked != null) c.drawBitmap(baked, left, top, null);
     }
 
-    private Bitmap bitmap(int w, int h, float r, int grain) {
-        String key = spec.fillTop + ":" + spec.fillBottom + ":" + spec.strokeColor + ":" + spec.strokePx + ":" + w + "x" + h
-                + ":" + r + ":" + grain;
+    private Bitmap bitmap(int w, int h, float r, int grain, boolean edge) {
+        String key = spec.fillTop + ":" + spec.fillBottom + ":" + spec.strokeColor + ":" + spec.strokePx + ":" + spec.light + ":" + w + "x" + h
+                + ":" + r + ":" + grain + ":" + edge;
         synchronized (CACHE) {
             Bitmap hit = CACHE.get(key);
             if (hit != null && !hit.isRecycled()) return hit;
         }
-        Bitmap made = bake(w, h, r, grain);
+        Bitmap made = bake(w, h, r, grain, edge);
         if (made == null) return null;
         synchronized (CACHE) {
             Bitmap old = CACHE.put(key, made);
@@ -106,7 +122,7 @@ final class GlassSurface {
         }
     }
 
-    private Bitmap bake(int w, int h, float r, int grain) {
+    private Bitmap bake(int w, int h, float r, int grain, boolean edge) {
         Bitmap b;
         try {
             b = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
@@ -119,7 +135,9 @@ final class GlassSurface {
         p.setShader(new LinearGradient(0, 0, 0, h, spec.fillTop, spec.fillBottom, Shader.TileMode.CLAMP));
         c.drawRoundRect(shape, r, r, p);
         Grain.bakeGrain(b, grain, shape, r);
-        if (spec.strokePx > 0) {
+        if (edge && spec.hasRim()) {
+            GlassEdge.draw(c, shape, r, spec.strokePx, spec.light, GlassEdge.RIM_START, GlassEdge.RIM_END);
+        } else if (spec.strokePx > 0) {
             // As a GradientDrawable strokes: centred on the edge, so inset by half its width.
             float half = spec.strokePx / 2f;
             p.setShader(null);

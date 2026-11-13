@@ -99,10 +99,7 @@ final class PanelRows {
     /** The card behind a popup or a tooltip. */
     static Drawable popupBackground(Context ctx, int radiusDp) {
         int fill = PanelTheme.get(ctx).popupFill | 0xFF000000;
-        if (GlassLook.active()) {
-            return new GlassDrawable(new GlassSurface.Spec(fill, fill, RIM_POPUP, dp(ctx, 1), dp(ctx, radiusDp)), null);
-        }
-        return shape(fill, dp(ctx, radiusDp), dp(ctx, 1), RIM_POPUP);
+        return new GlassDrawable(new GlassSurface.Spec(fill, fill, RIM_POPUP, dp(ctx, 1), dp(ctx, radiusDp)), null);
     }
 
     /** The settings card: a vertical gradient from the panel colour, rounded, with a hairline rim. */
@@ -110,13 +107,7 @@ final class PanelRows {
         int base = PanelTheme.get(ctx).panelFill;
         int top = PanelColors.lighten(base, 0.05f);
         int bottom = PanelColors.mix(base, base & 0xFF000000, 0.18f);
-        if (GlassLook.active()) {
-            return new GlassDrawable(new GlassSurface.Spec(top, bottom, RIM_PANEL, dp(ctx, 1), dp(ctx, CARD_RADIUS_DP)), null);
-        }
-        GradientDrawable d = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[] {top, bottom});
-        d.setCornerRadius(dp(ctx, CARD_RADIUS_DP));
-        d.setStroke(dp(ctx, 1), RIM_PANEL);
-        return d;
+        return new GlassDrawable(new GlassSurface.Spec(top, bottom, RIM_PANEL, dp(ctx, 1), dp(ctx, CARD_RADIUS_DP)), null);
     }
 
     /** The style-coloured light in the card's top corner. */

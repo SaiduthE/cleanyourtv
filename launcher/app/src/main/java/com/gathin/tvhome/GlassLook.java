@@ -14,16 +14,14 @@ final class GlassLook {
 
     /** Film grain, 0 to 30 percent. */
     static volatile int grain = 6;
+    /** glass_edge: a gradient rim, an inner top highlight and a soft inner bottom shadow on every glass surface. */
+    static volatile boolean edge = true;
 
     private GlassLook() { }
 
-    static void set(int grain) {
+    static void set(int grain, boolean edge) {
         GlassLook.grain = Math.max(0, Math.min(30, grain));
-    }
-
-    /** Whether a glass surface needs anything of its own beyond the plain gradient and stroke. */
-    static boolean active() {
-        return grain > 0;
+        GlassLook.edge = edge;
     }
 
     /** Glass takes a light share of the grain, 3 to 5 percent. */
@@ -58,7 +56,7 @@ final class GlassLook {
      * another background is left alone. Call it after inflating a layout that has glass in it.
      */
     static void decorate(View root) {
-        if (!active() || root == null) return;
+        if (root == null) return;
         Context ctx = root.getContext();
         Drawable.ConstantState panel = state(ctx, R.drawable.glass_panel);
         Drawable.ConstantState pill = state(ctx, R.drawable.pill_bg);

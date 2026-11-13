@@ -250,7 +250,7 @@ final class TopShelf {
         resumeButton.setTextColor(new ColorStateList(new int[][] {{android.R.attr.state_focused}, {}},
                 new int[] {Color.BLACK, Color.WHITE}));
         resumeButton.setCompoundDrawableTintList(resumeButton.getTextColors());
-        resumeButton.setBackground(stateBackground(0xF5FFFFFF, 0x2EFFFFFF, 0x45FFFFFF, dp(20)));
+        resumeButton.setBackground(glassButton(0xF5FFFFFF, 0x2EFFFFFF, 0x45FFFFFF, dp(20)));
         focusable(resumeButton, 1.05f);
         block.addView(resumeButton, margins(0, 16, 0, 0, -2, 40));
         FrameLayout.LayoutParams blockLp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.START);
@@ -790,8 +790,11 @@ final class TopShelf {
     }
 
     /** Focused: a solid face (or, with a rim colour, only a rim); otherwise a faint face with a hairline. */
-    private StateListDrawable stateBackground(int focusedFill, int fill, int hairline, int radius) {
-        return stateBackground(focusedFill, fill, hairline, radius, 0);
+    private Drawable glassButton(int focusedFill, int fill, int hairline, int radius) {
+        // The resting face is glass (the shared library: grain, rim light, frost); only the focused face is a plain fill.
+        StateListDrawable focused = new StateListDrawable();
+        focused.addState(new int[] {android.R.attr.state_focused}, round(focusedFill, 0, 0, radius));
+        return new GlassDrawable(new GlassSurface.Spec(fill, fill, hairline, dp(1), radius), focused);
     }
 
     private StateListDrawable stateBackground(int focusedFill, int fill, int hairline, int radius, int focusedRim) {

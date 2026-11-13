@@ -1,6 +1,7 @@
 package com.gathin.tvhome;
 
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
 import android.graphics.Paint;
@@ -33,6 +34,10 @@ public class GlassView extends View {
     private boolean carrying;
     private int plainRim = 0xCCFFFFFF;
     private float baseRimDp = 1.5f;
+    /** Film grain over the slab, baked for the size it was drawn at (grain above 0, glass styles only). */
+    private Bitmap grainLayer;
+    private int grainW, grainH, grainPercent;
+    private float grainRadius;
 
     public GlassView(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -77,6 +82,15 @@ public class GlassView extends View {
         invalidate();
     }
 
+    /**
+     * glass_edge on a glass slab (GlassEdge, shared with every other glass surface): the rim runs from the full rim colour
+     * at the top left to about a third of it at the bottom right. A carried tile, and the rim and halo styles, keep their
+     * plain rim.
+     */
+    private boolean edgeLight() {
+        return GlassLook.edge && !flat && !carrying;
+    }
+
     /** One of Config's GLASS_* styles. */
     void setStyle(String style) {
         flat = Config.GLASS_RIM.equals(style) || Config.GLASS_HALO.equals(style);
@@ -95,6 +109,21 @@ public class GlassView extends View {
         super.onSizeChanged(w, h, oldw, oldh);
         fill.setShader(new LinearGradient(0, 0, 0, h, 0x3DFFFFFF, 0x12FFFFFF, Shader.TileMode.CLAMP));
         specular.setShader(new LinearGradient(0, 0, 0, h * 0.45f, 0x66FFFFFF, 0x00FFFFFF, Shader.TileMode.CLAMP));
+    }
+
+    /** The grain for the slab's current size, baked once and kept until the size, the radius or the grain changes. */
+    private Bitmap grainFor(int w, int h, float inset) {
+        int percent = GlassLook.glassGrain();
+        if (percent <= 0 || flat) return null;
+        if (grainLayer == null || w != grainW || h != grainH || percent != grainPercent || radius != grainRadius) {
+            grainLayer = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+            Grain.bakeGrain(grainLayer, percent, new RectF(inset, inset, w - inset, h - inset), radius);
+            grainW = w;
+            grainH = h;
+            grainPercent = percent;
+            grainRadius = radius;
+        }
+        return grainLayer;
     }
 
     @Override
@@ -123,6 +152,8 @@ public class GlassView extends View {
         }
 
         canvas.drawRoundRect(rect, radius, radius, fill);
+        Bitmap grain = grainFor(getWidth(), getHeight(), inset);
+        if (grain != null) canvas.drawBitmap(grain, 0, 0, null);
 
         // Sheen across the top 45%: clipRect stays on the GPU (clipPath did not on the MT5895) and
         // the round rect under it keeps the top corners rounded with a flat bottom edge.
@@ -131,6 +162,12 @@ public class GlassView extends View {
         canvas.drawRoundRect(rect, radius, radius, specular);
         canvas.restore();
 
+        if (edgeLight()) {
+            int a = plainRim >>> 24;
+            GlassEdge.draw(canvas, rect, radius, rim.getStrokeWidth(), 1f, plainRim,
+                    ((a * 35 / 100) << 24) | (plainRim & 0xFFFFFF));
+            return;
+        }
         canvas.drawRoundRect(rect, radius, radius, rim);
     }
 }

@@ -1,11 +1,8 @@
 package com.gathin.tvhome;
 
 import android.graphics.Canvas;
-import android.graphics.LinearGradient;
-import android.graphics.Paint;
 import android.graphics.Rect;
 import android.graphics.RectF;
-import android.graphics.Shader;
 import android.view.View;
 
 import androidx.annotation.NonNull;
@@ -16,10 +13,8 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
 
     private final int dockSize;
     private final float density;
-    private final Paint band = new Paint(Paint.ANTI_ALIAS_FLAG);
-    private final Paint edge = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF rect = new RectF();
-    /** The band as glass (grain, rim, frost): the same fill and stroke as above, baked once for the band's size. */
+    /** The band, drawn by the shared glass library (grain, rim light, frost): its fill and hairline, baked once for its size. */
     private final GlassSurface glass;
 
     /** Extra band below the tiles for their names (always_show_names), in px. */
@@ -30,8 +25,6 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
     private final int opacity;
     /** Padding all round the tiles equal to the gap between them (config.xml dock_even_padding). */
     private final boolean evenPadding;
-    /** The band's top and bottom the glass gradient was made for; it is remade when they move. */
-    private float shaderTop = Float.NaN, shaderBottom = Float.NaN;
     /** Draw the band and its edge (config.xml dock_band); false leaves the tiles floating on the wallpaper. */
     private final boolean bandVisible;
     /** single_row: the tiles after the dock share its row, so they take the same offsets to stay level with it. */
@@ -60,14 +53,10 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
         this.evenPadding = evenPadding;
         this.bandVisible = bandVisible;
         this.opacity = DockOpacity.forDraw(opacity);
-        band.setColor(bandColor(translucent, this.opacity));
-        edge.setStyle(Paint.Style.STROKE);
-        edge.setStrokeWidth(density);
-        edge.setColor(edgeColor(translucent, lightGlass, this.opacity));
         int top = lightGlass ? glassTop(this.opacity) : bandColor(translucent, this.opacity);
         int bottom = lightGlass ? glassBottom(this.opacity) : top;
         glass = new GlassSurface(new GlassSurface.Spec(top, bottom, edgeColor(translucent, lightGlass, this.opacity),
-                density, 0f));
+                density, 0f, this.opacity / 100f));
     }
 
     // The band of each style as designed (at 100%). The opacity setting scales every one of them, so it works in the
@@ -171,19 +160,7 @@ public class DockDecoration extends RecyclerView.ItemDecoration {
             rect.right = Math.min(rect.right, parent.getWidth() - density);
         }
         rect.bottom += namesRoom;
-        if (lightGlass && (rect.top != shaderTop || rect.bottom != shaderBottom)) {
-            // The pills' glass (pill_bg: white, 18% fading to 8%), a little fainter over this much larger area.
-            band.setShader(new LinearGradient(0, rect.top, 0, rect.bottom, glassTop(opacity), glassBottom(opacity),
-                    Shader.TileMode.CLAMP));
-            shaderTop = rect.top;
-            shaderBottom = rect.bottom;
-        }
-        if (GlassLook.active()) {
-            int left = Math.round(rect.left), top = Math.round(rect.top);
-            glass.draw(c, left, top, Math.round(rect.right) - left, Math.round(rect.bottom) - top, radius);
-            return;
-        }
-        c.drawRoundRect(rect, radius, radius, band);
-        c.drawRoundRect(rect, radius, radius, edge);
+        int left = Math.round(rect.left), top = Math.round(rect.top);
+        glass.draw(c, left, top, Math.round(rect.right) - left, Math.round(rect.bottom) - top, radius);
     }
 }

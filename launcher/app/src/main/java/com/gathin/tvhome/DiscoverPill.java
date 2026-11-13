@@ -48,6 +48,7 @@ final class DiscoverPill {
                                Consumer<Intent> opener) {
         TextView button = (TextView) activity.getLayoutInflater().inflate(R.layout.top_app_button, bar, false);
         button.setId(View.generateViewId());   // pillKeys finds the bar's ends by id
+        GlassLook.decorate(button);   // inflated after Home's own decorate pass
         button.setCompoundDrawablesRelativeWithIntrinsicBounds(Icons.res(activity, Icons.DISCOVER), 0, 0, 0);
         button.setContentDescription(activity.getString(R.string.discover));
         button.setVisibility(View.GONE);

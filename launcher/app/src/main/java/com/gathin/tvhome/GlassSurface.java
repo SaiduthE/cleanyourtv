@@ -92,6 +92,28 @@ final class GlassSurface {
     private BitmapShader frostShader;
     private Bitmap frostFor;
     private final Paint frostPaint = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+    /**
+     * glass_refraction: the bevel, two thin rings just inside the rim that sample the frost with a stronger pull towards
+     * the centre (the outer ring the strongest), so the picture bends at the edge. Their shaders are made once per frost
+     * bitmap, like the lens's, and only their matrices change per draw.
+     */
+    private BitmapShader bevelOuter, bevelInner;
+    private final Paint bevelOuterPaint = bevelPaint(), bevelInnerPaint = bevelPaint();
+    private final float[] mapped = new float[4];
+    private final RectF ring = new RectF();
+    /** The screen's density, for the bevel's width in dp (read once: a surface has no Context). */
+    private static float density;
+
+    private static Paint bevelPaint() {
+        Paint p = new Paint(Paint.ANTI_ALIAS_FLAG | Paint.FILTER_BITMAP_FLAG);
+        p.setStyle(Paint.Style.STROKE);
+        return p;
+    }
+
+    private static float density() {
+        if (density == 0f) density = android.content.res.Resources.getSystem().getDisplayMetrics().density;
+        return density;
+    }
     private final Matrix matrix = new Matrix();
     /** Stretches a stable-size bake onto the live rect (drawSnapped); made once, so a frame allocates nothing. */
     private final Paint scalePaint = new Paint(Paint.FILTER_BITMAP_FLAG);
@@ -177,9 +199,16 @@ final class GlassSurface {
 
     private void drop() {
         baked = null;
+        forgetFrost();
+    }
+
+    private void forgetFrost() {
         frostShader = null;
+        bevelOuter = bevelInner = null;
         frostFor = null;
         frostPaint.setShader(null);
+        bevelOuterPaint.setShader(null);
+        bevelInnerPaint.setShader(null);
     }
 
     /** The slice of the shared frost behind this surface, clipped to its rounded rectangle; false when there is none to draw. */
@@ -188,27 +217,65 @@ final class GlassSurface {
         Bitmap f = Frost.get();
         if (f == null) {
             // The frost was released: do not keep a shader that holds the old bitmap alive.
-            if (frostShader != null) {
-                frostShader = null;
-                frostFor = null;
-                frostPaint.setShader(null);
-            }
+            if (frostShader != null) forgetFrost();
             return false;
         }
         if (!frosted() || Float.isNaN(screenX) || Float.isNaN(screenY)) return false;
         if (f != frostFor || frostShader == null) {
             frostShader = new BitmapShader(f, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
             frostPaint.setShader(frostShader);
+            bevelOuter = new BitmapShader(f, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            bevelOuterPaint.setShader(bevelOuter);
+            bevelInner = new BitmapShader(f, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP);
+            bevelInnerPaint.setShader(bevelInner);
             frostFor = f;
         }
-        // Frost pixel -> this canvas: scale it up to the screen, then move the screen's origin to where the canvas starts.
-        matrix.setScale(Frost.scaleX(), Frost.scaleY());
-        matrix.postTranslate(-(screenX - left), -(screenY - top));
+        boolean bend = GlassLook.refraction;
+        float offX = screenX - left, offY = screenY - top;
+        float cx = screenX + w / 2f, cy = screenY + h / 2f;
+        // Frost pixel -> this canvas: scale it up to the screen (magnified a little about the centre when the glass is a
+        // lens), then move the screen's origin to where the canvas starts.
+        float lens = bend ? Refraction.LENS : 1f;
+        Refraction.mapping(Frost.scaleX(), Frost.scaleY(), lens, lens, cx, cy, offX, offY, mapped);
+        matrix.setScale(mapped[0], mapped[1]);
+        matrix.postTranslate(mapped[2], mapped[3]);
         frostShader.setLocalMatrix(matrix);
         // The strength sets how much of the frost covers the picture; the surface's own alpha (dock opacity) scales it more.
-        frostPaint.setAlpha(Frost.paintAlpha(spec.frostAlpha, GlassLook.frost));
+        int alpha = Frost.paintAlpha(spec.frostAlpha, GlassLook.frost);
+        frostPaint.setAlpha(alpha);
         c.drawRoundRect(left, top, left + w, top + h, r, r, frostPaint);
+        if (bend) drawBevel(c, left, top, w, h, r, alpha, cx, cy, offX, offY);
         return true;
+    }
+
+    /**
+     * The liquid-glass bevel: two rings inside the rim (clipped to the rounded rectangle by being strokes of it), drawn from
+     * the frost at a stronger magnification than the lens, so what is behind the glass visibly bends at the edge.
+     */
+    private void drawBevel(Canvas c, float left, float top, int w, int h, float r, int alpha, float cx, float cy,
+                           float offX, float offY) {
+        float d = density();
+        float band = Refraction.bandPx(d, Math.min(w, h));
+        float bend = Math.min(Refraction.BEND_DP * d, Math.min(w, h) / 2f * 0.4f);
+        drawRing(c, bevelOuter, bevelOuterPaint, left, top, w, h, r, band, bend, alpha, cx, cy, offX, offY);
+        drawRing(c, bevelInner, bevelInnerPaint, left, top, w, h, r, band / 2f, bend * Refraction.INNER_SHARE, alpha, cx, cy,
+                offX, offY);
+    }
+
+    private void drawRing(Canvas c, BitmapShader shader, Paint paint, float left, float top, int w, int h, float r,
+                          float width, float bendPx, int alpha, float cx, float cy, float offX, float offY) {
+        float magX = Refraction.magFor(w / 2f, bendPx) * Refraction.LENS;
+        float magY = Refraction.magFor(h / 2f, bendPx) * Refraction.LENS;
+        Refraction.mapping(Frost.scaleX(), Frost.scaleY(), magX, magY, cx, cy, offX, offY, mapped);
+        matrix.setScale(mapped[0], mapped[1]);
+        matrix.postTranslate(mapped[2], mapped[3]);
+        shader.setLocalMatrix(matrix);
+        paint.setAlpha(Math.round(alpha * 0.85f));
+        paint.setStrokeWidth(width);
+        float half = width / 2f;
+        ring.set(left + half, top + half, left + w - half, top + h - half);
+        float rr = Math.max(0f, r - half);
+        c.drawRoundRect(ring, rr, rr, paint);
     }
 
     private Bitmap bitmap(int w, int h, float r, int grain, boolean edge, boolean frost) {

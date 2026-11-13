@@ -542,6 +542,12 @@
          wallpaper without a live blur. Nothing is drawn per frame; the bitmap is freed on a wallpaper change and when
          Android trims memory. 0 builds and draws none. Can also be set with "glass_frost": 0 in a theme config.json. -->
     <integer name="glass_frost">60</integer>
+    <!-- Glass bends what is behind it. The frost slice each glass surface draws is magnified about 4.5 percent about its
+         centre (a lens), and a thin band just inside its rim samples the frost with a stronger inward pull (a bevel),
+         so the picture visibly bends at the edge, under the highlight, rim light and grain. Only the frost shaders'
+         matrices change per draw: no shader, no blur, nothing allocated per frame. Needs glass_frost above 0. false keeps
+         the flat frost. Can also be set with "glass_refraction": false in a theme's config.json. -->
+    <bool name="glass_refraction">true</bool>
     <!-- The focus highlight glows in the focused app's colour on every tile, as the cinematic shelf does for the
          dock, without cinematic_home. Can also be set with "app_glow": true in a theme's config.json. -->
     <bool name="app_glow">false</bool>

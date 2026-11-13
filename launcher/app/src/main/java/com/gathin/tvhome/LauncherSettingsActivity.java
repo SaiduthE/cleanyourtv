@@ -68,7 +68,7 @@ public final class LauncherSettingsActivity extends Activity {
     private boolean animations;
     private boolean advancedEffects;
     private int grain, glassFrost;
-    private boolean glassEdge;
+    private boolean glassEdge, glassRefraction;
     private boolean appArtwork;
     private boolean photoCredit;
     /** Top Shelf > Change every, in ms (one of SettingsModel.SHELF_INTERVALS_MS). */
@@ -157,6 +157,7 @@ public final class LauncherSettingsActivity extends Activity {
         dockOpacity = config.dockOpacity;
         grain = config.grain;
         glassEdge = config.glassEdge;
+        glassRefraction = config.glassRefraction;
         glassFrost = config.glassFrost;
         clockFormat = config.clockFormat;
         iconStyle = config.iconStyle;
@@ -320,6 +321,7 @@ public final class LauncherSettingsActivity extends Activity {
             case ADVANCED: return getString(R.string.advanced_effects);
             case GLASS_FROST: return getString(R.string.ls_glass_frost_label);
             case GLASS_EDGE: return getString(R.string.ls_glass_edge_label);
+            case GLASS_REFRACTION: return getString(R.string.ls_glass_refraction_label);
             case GRAIN: return getString(R.string.ls_grain_label);
             case REMOTE_BUTTONS: return getString(R.string.remote_buttons);
             case TOP_BAR_BUTTONS: return getString(R.string.ls_top_bar_buttons);
@@ -356,6 +358,7 @@ public final class LauncherSettingsActivity extends Activity {
                 return getString(animations ? R.string.ls_help_advanced : R.string.ls_help_advanced_off);
             case GLASS_FROST: return getString(R.string.ls_help_glass_frost);
             case GLASS_EDGE: return getString(R.string.ls_help_glass_edge);
+            case GLASS_REFRACTION: return getString(R.string.ls_help_glass_refraction);
             case GRAIN: return getString(R.string.ls_help_grain);
             case REMOTE_BUTTONS: return getString(R.string.ls_help_remote_buttons);
             case TOP_BAR_BUTTONS: return getString(R.string.ls_help_top_bar_buttons);
@@ -391,6 +394,7 @@ public final class LauncherSettingsActivity extends Activity {
             case ADVANCED: return getString(advancedEffects ? R.string.on : R.string.off);
             case GLASS_FROST: return SettingsModel.percent(glassFrost);
             case GLASS_EDGE: return getString(glassEdge ? R.string.on : R.string.off);
+            case GLASS_REFRACTION: return getString(glassRefraction ? R.string.on : R.string.off);
             case GRAIN: return SettingsModel.percent(grain);
             case TOP_BAR_BUTTONS: return TopBarButtonsActivity.styleLabel(this,
                     TopButtonStyle.common(TopButtonStyler.load(this, config)));
@@ -538,6 +542,14 @@ public final class LauncherSettingsActivity extends Activity {
                         glassEdge ? 0 : 1, i -> {
                             glassEdge = i == 0;
                             choices.edit().putBoolean(Config.GLASS_EDGE_KEY, glassEdge).apply();
+                            committed(row);
+                        });
+                break;
+            case GLASS_REFRACTION:
+                options(row, view, new String[] {getString(R.string.on), getString(R.string.off)},
+                        glassRefraction ? 0 : 1, i -> {
+                            glassRefraction = i == 0;
+                            choices.edit().putBoolean(Config.GLASS_REFRACTION_KEY, glassRefraction).apply();
                             committed(row);
                         });
                 break;

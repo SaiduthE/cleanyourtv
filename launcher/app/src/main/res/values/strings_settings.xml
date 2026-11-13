@@ -26,6 +26,7 @@
     <string name="ls_animations_label" translatable="false">Animations</string>
     <string name="ls_glass_frost_label" translatable="false">Glass frost</string>
     <string name="ls_glass_edge_label" translatable="false">Glass edge</string>
+    <string name="ls_glass_refraction_label" translatable="false">Refraction</string>
     <string name="ls_grain_label" translatable="false">Grain</string>
     <string name="ls_clock_label" translatable="false">Clock</string>
     <string name="ls_icons_label" translatable="false">Icons</string>
@@ -64,6 +65,7 @@
     <string name="ls_help_animations" translatable="false">Off makes every move instant, for slow TVs.</string>
     <string name="ls_help_glass_frost" translatable="false">How much of a frosted copy of the wallpaper shows behind glass panels. 0 turns it off.</string>
     <string name="ls_help_glass_edge" translatable="false">A lit rim on glass panels, pills and the dock.</string>
+    <string name="ls_help_glass_refraction" translatable="false">Glass bends what is behind it, like a lens, with a curved edge. Off keeps it flat.</string>
     <string name="ls_help_grain" translatable="false">Fine film grain that keeps gradients from banding. 0 turns it off.</string>
     <string name="ls_help_advanced" translatable="false">Lifted tile, icon zoom and smooth colours. May use more memory.</string>
     <string name="ls_help_advanced_off" translatable="false">Turn Animations on first. Advanced effects need them.</string>

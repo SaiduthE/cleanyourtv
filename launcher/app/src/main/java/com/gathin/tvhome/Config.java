@@ -48,6 +48,7 @@ final class Config {
     static final String GRAIN_KEY = "grain";
     static final String GLASS_EDGE_KEY = "glass_edge";
     static final String GLASS_FROST_KEY = "glass_frost";
+    static final String GLASS_REFRACTION_KEY = "glass_refraction";
     /** icon_style: the theme key, and the Launcher settings choice saved under it. */
     static final String ICON_STYLE_KEY = "icon_style";
     static final String ICONS_DEFAULT = "default", ICONS_ROUNDED = "rounded";
@@ -159,6 +160,8 @@ final class Config {
     final boolean glassEdge;
     /** The shared frost behind glass, how far it is darkened, 0 to 100; 0 builds none (config.xml / theme glass_frost). */
     final int glassFrost;
+    /** The frost behind glass is magnified like a lens and bends at the rim (config.xml / theme glass_refraction). */
+    final boolean glassRefraction;
     /** The remote's Settings button clears the TV Settings task before opening it (config.xml / theme settings_key_clear_task). */
     final boolean settingsKeyClearTask;
     /** App library as a round button in the top bar (config.xml library_button); needs app_library. */
@@ -322,7 +325,7 @@ final class Config {
                    boolean handleViewInputs, boolean tileMenu, boolean dockEvenPadding, boolean dockBand, boolean cinematicDots, boolean cinematicWhiteFocus, boolean wifiStatusColor, int cinematicScrim, int cinematicArt,
                    Map<String, Set<String>> wallpaperMoods, boolean gamepadPassthrough, boolean consumeVolumeKeys, boolean homeIgnoreChannelKeys, boolean powerOnHome, boolean homeLongPressHome, boolean wifiStatusWarnings, List<String> topBarApps, boolean showGreeting, boolean headerWhite, boolean clockWallpaper, int clockWallpaperDim, boolean clockGlow, String glassStyle, boolean singleRow, boolean dockBandAll, boolean lunarDate, int lunarUtcOffset, boolean dateBelowClock, boolean vpnPill, String locale, boolean powerOnHomeAlways, boolean inputsConnectedOnly, boolean inputsCecStateOnly,
                    int openOnStartNetworkWait, boolean openOnStartOnWake, boolean iconOnlyVpn, String clockFormat, boolean backOpensClock, boolean glowSnap,
-                   boolean settingsKeyClearTask, int grain, boolean glassEdge, int glassFrost, String iconStyle, SceneClockSettings sceneClock) {
+                   boolean settingsKeyClearTask, int grain, boolean glassEdge, int glassFrost, boolean glassRefraction, String iconStyle, SceneClockSettings sceneClock) {
         this.sceneClock = sceneClock;
         this.handleViewInputs = handleViewInputs;
         this.tileMenu = tileMenu;
@@ -378,6 +381,7 @@ final class Config {
         this.grain = grain;
         this.glassEdge = glassEdge;
         this.glassFrost = glassFrost;
+        this.glassRefraction = glassRefraction;
         this.settingsKeyClearTask = settingsKeyClearTask;
         this.libraryButton = libraryButton;
         this.showLibraryPill = showLibraryPill;
@@ -520,6 +524,7 @@ final class Config {
         int grain = res.getInteger(R.integer.grain);
         boolean glassEdge = res.getBoolean(R.bool.glass_edge);
         int glassFrost = res.getInteger(R.integer.glass_frost);
+        boolean glassRefraction = res.getBoolean(R.bool.glass_refraction);
         boolean settingsKeyClearTask = res.getBoolean(R.bool.settings_key_clear_task);
         boolean libraryButton = res.getBoolean(R.bool.library_button);
         boolean showLibraryPill = res.getBoolean(R.bool.show_library_pill);
@@ -643,6 +648,7 @@ final class Config {
             grain = integer(json, "grain", grain, 0, 30);
             glassEdge = bool(json, "glass_edge", glassEdge);
             glassFrost = integer(json, "glass_frost", glassFrost, 0, 100);
+            glassRefraction = bool(json, GLASS_REFRACTION_KEY, glassRefraction);
             settingsKeyClearTask = bool(json, "settings_key_clear_task", settingsKeyClearTask);
             libraryButton = bool(json, "library_button", libraryButton);
             showLibraryPill = bool(json, "show_library_pill", showLibraryPill);
@@ -731,6 +737,7 @@ final class Config {
         grain = Math.max(0, Math.min(30, choices.getInt(GRAIN_KEY, grain)));
         glassEdge = choices.getBoolean(GLASS_EDGE_KEY, glassEdge);
         glassFrost = Math.max(0, Math.min(100, choices.getInt(GLASS_FROST_KEY, glassFrost)));
+        glassRefraction = choices.getBoolean(GLASS_REFRACTION_KEY, glassRefraction);
         File wallpaper = dir != null ? new File(dir, WALLPAPER_NAME) : null;
         if (wallpaper != null && !(wallpaper.isFile() && wallpaper.length() > 0)) wallpaper = null;
         // A theme can also switch the wallpaper off while the file is still there.
@@ -785,9 +792,9 @@ final class Config {
                 settingsKeyClearTask,
 
                 Math.max(0, Math.min(30, grain)), glassEdge,
-                Math.max(0, Math.min(100, glassFrost)), iconStyle,
+                Math.max(0, Math.min(100, glassFrost)), glassRefraction, iconStyle,
                 sceneClockOn ? new SceneClockSettings(true, wallpaperDepth, sceneLayouts) : SceneClockSettings.OFF);
-        GlassLook.set(loaded.grain, loaded.glassEdge, loaded.glassFrost);   // the glass surfaces, which have no Config of their own, read it from here
+        GlassLook.set(loaded.grain, loaded.glassEdge, loaded.glassFrost, loaded.glassRefraction);   // the glass surfaces, which have no Config of their own, read it from here
         GlassLook.markLive();
         Icons.remember(loaded.iconStyle);
         return loaded;
@@ -853,12 +860,12 @@ final class Config {
             if (!"absent".equals(token)) editor.remove("columns").remove("animations")
                     .remove("advanced_effects").remove(ROWS_BELOW_DOCK_KEY).remove(WALLPAPER_CHOICE_KEY)
                     .remove(DOCK_OPACITY_KEY).remove(CLOCK_FORMAT_KEY).remove(GRAIN_KEY)
-                    .remove(GLASS_EDGE_KEY).remove(GLASS_FROST_KEY).remove(ICON_STYLE_KEY);
+                    .remove(GLASS_EDGE_KEY).remove(GLASS_FROST_KEY).remove(GLASS_REFRACTION_KEY).remove(ICON_STYLE_KEY);
             editor.putString(THEME_SIGNATURE_KEY, signature).commit();
         } else if (!seen.equals(signature)) {
             choices.edit().remove("columns").remove("animations").remove("advanced_effects")
                     .remove(ROWS_BELOW_DOCK_KEY).remove(WALLPAPER_CHOICE_KEY).remove(DOCK_OPACITY_KEY)
-                    .remove(CLOCK_FORMAT_KEY).remove(GRAIN_KEY).remove(GLASS_EDGE_KEY).remove(GLASS_FROST_KEY).remove(ICON_STYLE_KEY)
+                    .remove(CLOCK_FORMAT_KEY).remove(GRAIN_KEY).remove(GLASS_EDGE_KEY).remove(GLASS_FROST_KEY).remove(GLASS_REFRACTION_KEY).remove(ICON_STYLE_KEY)
                     .putString(THEME_SIGNATURE_KEY, signature).commit();
         }
     }

@@ -18,12 +18,19 @@ final class GlassLook {
     static volatile boolean edge = true;
     /** glass_frost: how much the shared frost behind glass is darkened, 0 to 100; 0 builds and draws none. */
     static volatile int frost = 60;
+    /** glass_refraction: the frost behind glass is magnified a little (a lens) and bends at the rim (a bevel). */
+    static volatile boolean refraction = true;
 
     private GlassLook() { }
 
     static void set(int grain, boolean edge, int frost) {
+        set(grain, edge, frost, refraction);
+    }
+
+    static void set(int grain, boolean edge, int frost, boolean refraction) {
         int oldFrost = GlassLook.frost;
-        boolean changed = GlassLook.grain != grain || GlassLook.edge != edge;
+        boolean changed = GlassLook.grain != grain || GlassLook.edge != edge || GlassLook.refraction != refraction;
+        GlassLook.refraction = refraction;
         GlassLook.grain = Math.max(0, Math.min(30, grain));
         GlassLook.edge = edge;
         GlassLook.frost = Math.max(0, Math.min(100, frost));

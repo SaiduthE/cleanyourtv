@@ -56,7 +56,7 @@ SCREENSHOT_WANTED = {
     "wallpaper_moods", "wallpaper_order", "wallpaper_true_color", "wifi_label_width",
     "wifi_status_color",
     # The glass look (grain, glass_edge, glass_frost): screenshots need a TV.
-    "glass_edge", "glass_frost", "grain",
+    "glass_edge", "glass_frost", "glass_refraction", "grain",
 }
 
 

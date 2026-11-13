@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- icon_style rounded: the Brightness sun outlined, with the filled sun clipped from the bottom by the drawable's
-     level (0 to 10000), so it fills as the brightness rises. -->
+<!-- icon_style rounded: the Brightness sun (rays and a large ring), whose centre disc fills from the bottom with the
+     drawable's level (0 to 10000), so the brightness reads at a glance. The disc item is the 8.71dp circle in the
+     middle of the 22dp icon, and the clip cuts exactly that, so the level is the share of the disc that is filled. -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:drawable="@drawable/ic_r_light_mode" />
-    <item>
-        <clip android:drawable="@drawable/ic_r_light_mode_fill"
+    <item android:drawable="@drawable/ic_r_brightness_sun" />
+    <item
+        android:left="6.645dp" android:top="6.645dp" android:right="6.645dp" android:bottom="6.645dp">
+        <clip android:drawable="@drawable/ic_r_brightness_disc"
             android:clipOrientation="vertical"
             android:gravity="bottom" />
     </item>

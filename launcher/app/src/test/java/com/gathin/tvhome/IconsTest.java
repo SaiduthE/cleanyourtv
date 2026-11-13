@@ -81,4 +81,9 @@ public class IconsTest {
         assertEquals(0, Icons.fillLevel(-5));
         assertEquals(10000, Icons.fillLevel(140));
     }
+
+    @Test
+    public void fillLevelRisesWithEveryPercent() {
+        for (int p = 1; p <= 100; p++) assertEquals(Icons.fillLevel(p - 1) + 100, Icons.fillLevel(p));
+    }
 }

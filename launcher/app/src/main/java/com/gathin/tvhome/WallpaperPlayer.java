@@ -2,9 +2,13 @@ package com.gathin.tvhome;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.content.res.Resources;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
+import android.graphics.drawable.TransitionDrawable;
 import android.text.TextUtils;
 import android.util.DisplayMetrics;
 import android.util.Log;
@@ -63,6 +67,9 @@ final class WallpaperPlayer {
     private final String latitude, longitude;
     private LocalDate sunDay;
     private int[] sun;
+    /** scene_clock: the glass clock (and, with wallpaper_depth, the cut-out) over the picture; null when the switch is off. */
+    private final SceneClockView sceneClock;
+    private final SceneClockSettings sceneSettings;
 
     WallpaperPlayer(Context context, FrameLayout root, Config config) {
         this.root = root;
@@ -93,11 +100,31 @@ final class WallpaperPlayer {
         names = config.wallpaperCaptions && config.wallpaperEnabled && !files.isEmpty()
                 ? WallpaperCaptions.read(files.get(0).getParentFile()) : Collections.emptyMap();
         caption = names.isEmpty() ? null : makeCaption(context, root);
+        sceneSettings = config.sceneClock;
+        boolean scene = config.wallpaperEnabled && !files.isEmpty() && sceneSettings.enabled;
+        sceneClock = scene ? new SceneClockView(context, ClockFormat.is24(context, config.clockFormat),
+                config.animations && !config.reducedMotion) : null;
         if (config.wallpaperEnabled && !files.isEmpty()) {
             root.addView(image, 0, new FrameLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            if (sceneClock != null) {
+                // Over the Top Shelf's own picture (it would hide the clock), under the header, the glow and the dock.
+                View shelf = root.findViewById(R.id.topShelf);
+                root.addView(sceneClock, shelf == null ? 1 : root.indexOfChild(shelf) + 1,
+                        new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+            }
             showFirst();
         }
+    }
+
+    /** True when Home draws the clock itself, so the top bar's clock, greeting and date step aside. */
+    boolean sceneClockShown() {
+        return sceneClock != null;
+    }
+
+    /** The wall clock was set (ACTION_TIME_CHANGED). */
+    void timeChanged() {
+        if (sceneClock != null) sceneClock.timeChanged();
     }
 
     /**
@@ -113,7 +140,8 @@ final class WallpaperPlayer {
         while (first != null) {
             Bitmap bitmap = decode(first);
             if (bitmap != null) {
-                show(bitmap);
+                show(bitmap, false);
+                showScene(first, bitmap);
                 // The picture covers the whole screen: the root's plain colour under it is overdraw.
                 root.setBackground(null);
                 displayed = first.getName();
@@ -132,17 +160,20 @@ final class WallpaperPlayer {
 
     void start() {
         active = true;
+        if (sceneClock != null) sceneClock.start();
         update();
     }
 
     void stop() {
         active = false;
+        if (sceneClock != null) sceneClock.stop();
     }
 
     /** Drops the wallpaper texture when Home is hidden and Android asks the process to free memory. */
     void releaseForMemoryPressure() {
         if (current == null) return;
         image.setImageDrawable(null);
+        if (sceneClock != null) sceneClock.release();
         // The renderer may still have a queued frame that references this hardware bitmap. Drop our references and
         // let Android reclaim its native buffer after rendering releases it instead of recycling it mid-frame.
         current = null;
@@ -164,6 +195,7 @@ final class WallpaperPlayer {
     void close() {
         active = false;
         closed = true;
+        if (sceneClock != null) sceneClock.release();
         decoder.shutdownNow();
     }
 
@@ -182,10 +214,12 @@ final class WallpaperPlayer {
         loading = true;
         decoder.execute(() -> {
             Bitmap bitmap = decode(next);
+            SceneClockView.Scene scene = bitmap == null ? null : loadScene(next, bitmap);
             root.post(() -> {
                 loading = false;
                 if (closed || !active) {
                     if (bitmap != null) bitmap.recycle();
+                    if (scene != null) scene.recycle();
                     return;
                 }
                 if (bitmap == null) {
@@ -194,7 +228,8 @@ final class WallpaperPlayer {
                     update();
                     return;
                 }
-                show(bitmap);
+                show(bitmap, true);
+                if (sceneClock != null) sceneClock.setScene(scene);
                 displayed = next.getName();
                 showCaption(true);
                 if (!displayed.equals(previous) || changed == 0) {
@@ -261,19 +296,57 @@ final class WallpaperPlayer {
         return key.toString();
     }
 
-    /** Puts a picture on screen and releases the previous one after a frame has drawn the new one. */
-    private void show(Bitmap bitmap) {
+    /** The scene clock's companions for a picture, decoded off the UI thread; null when the clock is off. */
+    private SceneClockView.Scene loadScene(File wallpaper, Bitmap bitmap) {
+        return sceneClock == null ? null : SceneClockView.load(sceneSettings, wallpaper, bitmap, width, height);
+    }
+
+    /** The first picture is on screen already; its clock decodes in the background and fades in. */
+    private void showScene(File wallpaper, Bitmap bitmap) {
+        if (sceneClock == null) return;
+        decoder.execute(() -> {
+            SceneClockView.Scene scene = loadScene(wallpaper, bitmap);
+            root.post(() -> {
+                if (closed || current != bitmap) {
+                    if (scene != null) scene.recycle();
+                    return;
+                }
+                sceneClock.setScene(scene);
+            });
+        });
+    }
+
+    /**
+     * Puts a picture on screen and releases the previous one after a frame has drawn the new one. With the scene clock on,
+     * a change crossfades, in step with the clock fading out and in.
+     */
+    private void show(Bitmap bitmap, boolean crossfade) {
         Bitmap old = current;
         current = bitmap;
         // The wallpaper covers the whole root; avoid drawing the fallback colour under it.
         root.setBackground(null);
-        image.setImageBitmap(bitmap);
+        long keep = 500;
+        if (sceneClock != null && crossfade && old != null && old != bitmap) {
+            Resources res = root.getResources();
+            TransitionDrawable fade = new TransitionDrawable(new Drawable[] {
+                    new BitmapDrawable(res, old), new BitmapDrawable(res, bitmap)});
+            fade.setCrossFadeEnabled(true);
+            image.setImageDrawable(fade);
+            fade.startTransition(700);
+            // Back to the plain bitmap once the fade is over, so no drawable keeps the old picture alive.
+            image.postDelayed(() -> {
+                if (current == bitmap) image.setImageBitmap(bitmap);
+            }, 750);
+            keep = 1000;
+        } else {
+            image.setImageBitmap(bitmap);
+        }
         // The frost behind the glass follows the picture: the new one replaces the old, or none when glass_frost is 0.
         Bitmap frost = pendingFrost;
         pendingFrost = null;
         if (frost != null) Frost.set(frost, width, height);
         else Frost.release();
-        if (old != null && old != bitmap) image.postDelayed(old::recycle, 500);
+        if (old != null && old != bitmap) image.postDelayed(old::recycle, keep);
     }
 
     private Bitmap decode(File file) {

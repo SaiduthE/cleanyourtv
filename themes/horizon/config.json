@@ -1,0 +1,59 @@
+{
+  "columns": 6,
+  "background_color": "#090C14",
+  "wallpaper": true,
+  "wallpaper_rotation_minutes": 10,
+  "wallpaper_order": "sequential",
+  "wallpaper_dim": 0,
+  "wallpaper_true_color": true,
+  "scene_clock": true,
+  "wallpaper_depth": true,
+  "scene_clock_layouts": {
+    "01-night": {
+      "x": "centre",
+      "y": 0.139,
+      "size": 0.37,
+      "tint": "light",
+      "date_y": 0.089,
+      "rim": "#FFD7E1",
+      "date_color": "#EBFFE8EE"
+    },
+    "02-golden": {
+      "x": "centre",
+      "y": 0.141,
+      "size": 0.361,
+      "tint": "light",
+      "date_y": 0.098
+    },
+    "03-water": {
+      "x": "centre",
+      "y": 0.248,
+      "size": 0.389,
+      "tint": "light",
+      "date_y": 0.2
+    },
+    "04-fog": {
+      "x": "left",
+      "inset": 0.05,
+      "y": 0.159,
+      "size": 0.435,
+      "tint": "dark",
+      "date_y": 0.107
+    },
+    "05-dawn": {
+      "x": "centre",
+      "y": 0.213,
+      "size": 0.37,
+      "tint": "light",
+      "date_y": 0.163
+    }
+  },
+  "dock_title": false,
+  "dock_glass": true,
+  "dock_opacity": 65,
+  "icon_only_buttons": true,
+  "ambient_glow": false,
+  "app_glow": false,
+  "focus_overshoot": false,
+  "advanced_effects": true
+}

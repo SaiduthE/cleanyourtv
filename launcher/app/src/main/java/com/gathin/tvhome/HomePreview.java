@@ -87,7 +87,7 @@ final class HomePreview extends FrameLayout {
             if (cfg.greetingName != null && !cfg.greetingName.isEmpty()) {
                 hello = ctx.getString(R.string.greeting_with_name, hello, cfg.greetingName);
             }
-            TextView greeting = text(ctx, hello.toUpperCase(), 12, 0x8CFFFFFF, R.string.font_medium);
+            TextView greeting = text(ctx, hello.toUpperCase(), 12, 0xBFFFFFFF, R.string.font_medium);
             greeting.setLetterSpacing(0.22f);
             greeting.setSingleLine(true);
             greeting.setEllipsize(TextUtils.TruncateAt.END);
@@ -114,7 +114,7 @@ final class HomePreview extends FrameLayout {
         TextClock ampm = new TextClock(ctx);
         ampm.setFormat12Hour("a");
         ampm.setFormat24Hour("");
-        style(ampm, 15, 0xB3FFFFFF, R.string.font_medium);
+        style(ampm, 15, 0xD9FFFFFF, R.string.font_medium);
         ampm.setLetterSpacing(0.08f);
         ampm.setAllCaps(true);
         LinearLayout.LayoutParams ap = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -139,7 +139,7 @@ final class HomePreview extends FrameLayout {
         TextClock date = new TextClock(ctx);
         date.setFormat12Hour(ctx.getString(R.string.date_format_home));
         date.setFormat24Hour(ctx.getString(R.string.date_format_home));
-        style(date, 14, 0xA6FFFFFF, R.string.font_regular);
+        style(date, 14, 0xD1FFFFFF, R.string.font_regular);
         date.setLetterSpacing(0.14f);
         date.setAllCaps(true);
         date.setSingleLine(true);
@@ -212,30 +212,36 @@ final class HomePreview extends FrameLayout {
 
         if (available.test(WidgetSlot.TOP_BAR_START)
                 && (open.contains(WidgetSlot.TOP_BAR_START) || placements.widgetIn(WidgetSlot.TOP_BAR_START) != null)) {
-            addBarSlot(ctx, buttons, WidgetSlot.TOP_BAR_START, placements, 0);
+            addBarSlot(ctx, buttons, WidgetSlot.TOP_BAR_START, placements, 0, 0);
         }
-        addButtons(ctx, cfg, buttons);
+        int networkAt = addButtons(ctx, cfg, buttons);
+        if (available.test(WidgetSlot.BESIDE_NETWORK)
+                && (open.contains(WidgetSlot.BESIDE_NETWORK) || placements.widgetIn(WidgetSlot.BESIDE_NETWORK) != null)) {
+            addBarSlot(ctx, buttons, WidgetSlot.BESIDE_NETWORK, placements, 10, networkAt);
+        }
         if (available.test(WidgetSlot.TOP_BAR_END)
                 && (open.contains(WidgetSlot.TOP_BAR_END) || placements.widgetIn(WidgetSlot.TOP_BAR_END) != null)) {
-            addBarSlot(ctx, buttons, WidgetSlot.TOP_BAR_END, placements, 10);
+            addBarSlot(ctx, buttons, WidgetSlot.TOP_BAR_END, placements, 10, -1);
         }
         ClockFormat.apply(this, cfg.clockFormat);
     }
 
     /**
      * The buttons Home's bar has with these choices, in its order, each in the style the owner picked (icon, text or
-     * both; TopButtonStyler gives the shape): Inputs, Wi-Fi, Reorder, App library, Settings, or the one gear.
+     * both; TopButtonStyler gives the shape): Inputs, Wi-Fi, Reorder, App library, Settings, or the one gear. Returns
+     * where the Wi-Fi pill is (or would be): the index a chip "beside the network pill" is put at.
      */
-    private static void addButtons(Context ctx, Config cfg, LinearLayout buttons) {
+    private static int addButtons(Context ctx, Config cfg, LinearLayout buttons) {
         Map<TopButtonStyle.Button, String> styles = TopButtonStyler.load(ctx, cfg);
         if (cfg.topMenu) {
             buttons.addView(pill(ctx, TopButtonStyle.ICON, Icons.SETTINGS, ctx.getString(R.string.settings)));
-            return;
+            return buttons.getChildCount();
         }
         if (cfg.showInputsPill) {
             buttons.addView(pill(ctx, styles.get(TopButtonStyle.Button.INPUTS), Icons.INPUT,
                     ctx.getString(R.string.inputs)));
         }
+        int networkAt = buttons.getChildCount();
         if (cfg.showNetworkPill) {
             buttons.addView(pill(ctx, cfg.iconOnlyButtons ? TopButtonStyle.ICON : TopButtonStyle.BOTH,
                     Icons.WIFI, ctx.getString(R.string.wifi)));
@@ -249,6 +255,7 @@ final class HomePreview extends FrameLayout {
         buttons.addView(pill(ctx, styles.get(TopButtonStyle.Button.SETTINGS),
                 cfg.launcherSettingsButton ? Icons.HOME_SETTINGS_PILL : Icons.SETTINGS,
                 ctx.getString(cfg.launcherSettingsButton ? R.string.launcher_settings : R.string.settings)));
+        return networkAt;
     }
 
     // ---- fitting the boxes ---------------------------------------------------------------------------------------
@@ -317,17 +324,17 @@ final class HomePreview extends FrameLayout {
         return slotViews.get(slot);
     }
 
+    /** @param at the index in the bar to put the box at, or -1 for the end */
     private void addBarSlot(Context ctx, LinearLayout buttons, WidgetSlot slot, WidgetPlacements placements,
-                            int marginStartDp) {
+                            int marginStartDp, int at) {
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(ctx, BAR_SLOT_W_DP), dp(ctx, BAR_SLOT_H_DP));
         lp.gravity = Gravity.CENTER_VERTICAL;
         lp.setMarginStart(dp(ctx, marginStartDp));
         View box = slotBox(ctx, placements.widgetIn(slot));
         showName(box, false);   // 72 dp holds the icon; the caption under it names the slot
         slotViews.put(slot, box);
-        if (slot == WidgetSlot.TOP_BAR_START) {
-            lp.setMarginEnd(dp(ctx, 0));
-            buttons.addView(box, 0, lp);
+        if (at >= 0) {
+            buttons.addView(box, Math.min(at, buttons.getChildCount()), lp);
         } else {
             buttons.addView(box, lp);
         }

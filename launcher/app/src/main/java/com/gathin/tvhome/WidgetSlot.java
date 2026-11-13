@@ -12,6 +12,8 @@ enum WidgetSlot {
     BESIDE_WEATHER("beside_weather"),
     /** The top bar, before the Inputs pill. */
     TOP_BAR_START("top_bar_start"),
+    /** The top bar, right before the network (Wi-Fi / Ethernet) pill, after the Inputs pill. */
+    BESIDE_NETWORK("beside_network"),
     /** The top bar, after the Settings gear. */
     TOP_BAR_END("top_bar_end");
 
@@ -22,7 +24,7 @@ enum WidgetSlot {
     }
 
     private static final WidgetSlot[] CLOCK_ROW = {CLOCK_SIDE, BESIDE_WEATHER};
-    private static final WidgetSlot[] BAR = {TOP_BAR_START, TOP_BAR_END};
+    private static final WidgetSlot[] BAR = {TOP_BAR_START, BESIDE_NETWORK, TOP_BAR_END};
     private static final WidgetSlot[] BEFORE_BAR = {CLOCK_SIDE, BESIDE_WEATHER, TOP_BAR_START};
 
     /** The slots in the clock row, left to right. */
@@ -35,7 +37,7 @@ enum WidgetSlot {
         return BEFORE_BAR.clone();
     }
 
-    /** The slots in the top bar, left to right: before the buttons, then after them. */
+    /** The slots in the top bar, left to right: before the buttons, before the network pill, then after the buttons. */
     static WidgetSlot[] bar() {
         return BAR.clone();
     }

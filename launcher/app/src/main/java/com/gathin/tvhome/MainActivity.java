@@ -566,8 +566,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         // dock_title false: the name above the dock (and the cinematic lines under it) never shows; the glow
         // still follows the dock.
         if (!cfg.dockTitle) hero.setVisibility(View.GONE);
-        // scene_clock: the shelf's own resting picture would cover the glass clock, so the wallpaper alone shows at rest.
-        if (layeredShelf) setUpTopShelf(cfg.dockTitle, cfg.wallpaperEnabled && !wallpaperPlayer.sceneClockShown() ? cfg.wallpapers : java.util.Collections.<java.io.File>emptyList(), cfg.dockOpacity, cfg.dockBand);
+        // scene_clock (Horizon): the scene is the background, so the shelf's resting pictures (the add-on's photos and
+        // the other wallpapers) are not drawn at all, and neither fetched nor rotated: only a show's own backdrop covers it.
+        sceneBackground = cfg.sceneClock.enabled && wallpaperPlayer.sceneClockShown();
+        if (layeredShelf) setUpTopShelf(cfg.dockTitle, cfg.wallpaperEnabled && !sceneBackground ? cfg.wallpapers : java.util.Collections.<java.io.File>emptyList(), cfg.dockOpacity, cfg.dockBand, !sceneBackground);
         reorderIndicator.attach(root, animations, reducedMotion);
         greeting = findViewById(R.id.greeting);
         clockBlock = findViewById(R.id.leftBlock);
@@ -639,6 +641,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             TextView dateView = findViewById(R.id.date);
             dateView.setTextSize(Math.max(12f, dateView.getTextSize() / getResources().getDisplayMetrics().scaledDensity * 0.6f));
         }
+        // Soft shadows (tvOS style), sized from each text, so the header stays readable on whatever the picture is.
+        for (int id : new int[] {R.id.greeting, R.id.clock, R.id.ampm, R.id.date, R.id.shamsiDate, R.id.lunarDate, R.id.stats}) {
+            Legibility.shadow((TextView) findViewById(id));
+        }
+        Legibility.shadow(heroName);
         // scene_clock draws the time and date itself: the header's texts stay in the layout, unseen, so nothing moves and
         // the D-pad order is what it was (none of them takes focus).
         applySceneClockHeader();
@@ -1440,22 +1447,38 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             R.id.shamsiDate, R.id.lunarDate};
     /** The header texts' visibility before the scene clock hid them; null while they are as the layout left them. */
     private int[] headerVisibility;
+    /** Horizon: the scene is Home's background (the Top Shelf draws no pictures of its own at rest). */
+    private boolean sceneBackground;
+    /** A show's Resume backdrop covers the screen, so the scene clock steps aside for it. */
+    private boolean shelfCovers;
 
     /**
      * The header's clock, greeting and date step aside only while the scene clock really is on screen, and come back
      * when it is not (no wallpaper could be shown).
      */
     private void applySceneClockHeader() {
-        boolean scene = wallpaperPlayer != null && wallpaperPlayer.sceneClockShown();
+        boolean scene = wallpaperPlayer != null && wallpaperPlayer.sceneClockShown() && !shelfCovers;
+        if (topShelf != null) topShelf.setHeaderText(!scene);
         if (scene && headerVisibility == null) {
             headerVisibility = new int[HEADER_TEXT_IDS.length];
             for (int i = 0; i < HEADER_TEXT_IDS.length; i++) {
                 View v = findViewById(HEADER_TEXT_IDS[i]);
                 headerVisibility[i] = v.getVisibility();
+                v.animate().cancel();
+                v.setAlpha(1f);
                 v.setVisibility(View.INVISIBLE);
             }
         } else if (!scene && headerVisibility != null) {
-            for (int i = 0; i < HEADER_TEXT_IDS.length; i++) findViewById(HEADER_TEXT_IDS[i]).setVisibility(headerVisibility[i]);
+            // Back with a short fade (the scene clock fades out as it comes), not a pop.
+            int ms = SettingsModel.duration(animations, reducedMotion, 250);
+            for (int i = 0; i < HEADER_TEXT_IDS.length; i++) {
+                View v = findViewById(HEADER_TEXT_IDS[i]);
+                v.setVisibility(headerVisibility[i]);
+                if (ms > 0 && headerVisibility[i] == View.VISIBLE) {
+                    v.setAlpha(0f);
+                    v.animate().alpha(1f).setDuration(ms).start();
+                }
+            }
             headerVisibility = null;
         }
     }
@@ -2081,7 +2104,8 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     // ---- top shelf -------------------------------------------------------------------------------
 
     /** The layered Top Shelf (Launcher settings, Top Shelf): its view, and what it asks of Home. */
-    private void setUpTopShelf(boolean dockTitle, java.util.List<java.io.File> wallpapers, int dockOpacity, boolean dockBand) {
+    private void setUpTopShelf(boolean dockTitle, java.util.List<java.io.File> wallpapers, int dockOpacity, boolean dockBand,
+                               boolean restPictures) {
         FrameLayout view = findViewById(R.id.topShelf);
         view.setVisibility(View.VISIBLE);
         topShelf = new TopShelf(this, view, new TopShelf.Host() {
@@ -2111,7 +2135,16 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                 }
                 return bottom;
             }
-        }, animations, reducedMotion, PanelTheme.get(this).accent, wallpapers, dockOpacity, dockBand);
+
+            @Override
+            public void onBackdropCover(boolean covers) {
+                // The scene clock is drawn above the shelf, so a backdrop would sit under it: it fades out and the
+                // normal header comes back while the backdrop is up, and the other way round when it goes.
+                shelfCovers = covers;
+                applySceneClockHeader();
+                wallpaperPlayer.setSceneSuppressed(covers);
+            }
+        }, animations, reducedMotion, PanelTheme.get(this).accent, wallpapers, dockOpacity, dockBand, restPictures, dockTitle);
     }
 
     /** Focus rests on the dock app at position: the shelf waits out its dwell, then shows what that app has. */

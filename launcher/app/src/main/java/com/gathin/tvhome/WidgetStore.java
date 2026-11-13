@@ -12,6 +12,11 @@ import android.content.SharedPreferences;
 final class WidgetStore implements WidgetOption.Values {
 
     static final String PLACEMENTS_KEY = "widget_placements";
+    /**
+     * The owner's placements as they were when a scene-clock style (Horizon) was applied, set aside while that style is
+     * on ("" for none saved), and put back when another look is applied.
+     */
+    static final String BEFORE_SCENE_KEY = "widget_placements_before_scene";
     /** Before the Widgets manager, "Weather on Home" was this on/off preference. */
     private static final String LEGACY_WEATHER_KEY = "weather_widget";
 
@@ -34,7 +39,33 @@ final class WidgetStore implements WidgetOption.Values {
             if (text != null) edit.putString(PLACEMENTS_KEY, text);
             edit.apply();
         }
-        return WidgetPlacements.parse(text, WidgetRegistry.defaults(), WidgetRegistry.RULES);
+        return WidgetPlacements.parse(text, WidgetRegistry.defaults(sceneClockOn()), WidgetRegistry.RULES);
+    }
+
+    /** Whether the look in use draws the scene clock (Horizon), which shows the weather itself. */
+    private boolean sceneClockOn() {
+        boolean fallback = ctx.getResources().getBoolean(R.bool.scene_clock);
+        org.json.JSONObject overlay = ThemeOverlay.read(ctx);
+        return overlay == null ? fallback : overlay.optBoolean("scene_clock", fallback);
+    }
+
+    /**
+     * A scene-clock style is being applied over another look: the owner's placements are kept aside and the style's own
+     * defaults show (no weather, brightness before the network pill) until it is left.
+     */
+    void setAsideForScene() {
+        String text = prefs.getString(PLACEMENTS_KEY, null);
+        prefs.edit().putString(BEFORE_SCENE_KEY, text == null ? "" : text).remove(PLACEMENTS_KEY).apply();
+    }
+
+    /** A scene-clock style is being left: the owner's own placements come back (nothing changes if none were set aside). */
+    void restoreAfterScene() {
+        if (!prefs.contains(BEFORE_SCENE_KEY)) return;
+        String text = prefs.getString(BEFORE_SCENE_KEY, "");
+        SharedPreferences.Editor edit = prefs.edit().remove(BEFORE_SCENE_KEY);
+        if (text == null || text.isEmpty()) edit.remove(PLACEMENTS_KEY);
+        else edit.putString(PLACEMENTS_KEY, text);
+        edit.apply();
     }
 
     void save(WidgetPlacements placements) {

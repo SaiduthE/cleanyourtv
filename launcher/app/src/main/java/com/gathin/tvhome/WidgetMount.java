@@ -11,13 +11,14 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 /**
- * One slot's place in Home's header layout: it adds a widget's view to the clock row or to the top bar, makes room
+ * One slot's place in Home's header layout: it adds a widget's view to the clock row or to the top bar (before the
+ * Inputs pill, before the network pill, or after the Settings gear), makes room
  * for it, and takes it out again. Every view it adds carries {@link #TAG}, so the top bar's own code (which looks
  * for "the first button") skips them.
  *
  * The two clock-row slots (Beside the clock, Beside weather) share one {@link ClockRow}: the divider and the compact
  * date are there while either has a widget, and the chips follow the clock block in slot order whichever was docked
- * first. The two top-bar slots share one {@link BarRow}, which hides a chip that would not leave the clock block
+ * first. The top-bar slots share one {@link BarRow}, which hides a chip that would not leave the clock block
  * its room.
  */
 final class WidgetMount {
@@ -35,7 +36,7 @@ final class WidgetMount {
     private ClockRow clock;
     private int ownMarginDp;
     private int heightDp;
-    // The top bar (TOP_BAR_START, TOP_BAR_END).
+    // The top bar (TOP_BAR_START, BESIDE_NETWORK, TOP_BAR_END).
     private ViewGroup bar;
     private BarRow barRow;
 
@@ -143,6 +144,15 @@ final class WidgetMount {
             clock.attach(this, view, lp);
         } else if (slot == WidgetSlot.TOP_BAR_START) {
             bar.addView(view, 0, lp);
+            apply();
+        } else if (slot == WidgetSlot.BESIDE_NETWORK) {
+            // Right before the network pill (a hidden pill keeps its place, so the chip then sits where it would be),
+            // after the Inputs pill and any top_bar_apps buttons, which are put in before the pill too.
+            View network = activity.findViewById(R.id.btnWifi);
+            int at = network == null ? -1 : bar.indexOfChild(network);
+            lp.setMarginStart(dp(10));
+            if (at >= 0) bar.addView(view, at, lp);
+            else bar.addView(view, lp);
             apply();
         } else {
             lp.setMarginStart(dp(10));

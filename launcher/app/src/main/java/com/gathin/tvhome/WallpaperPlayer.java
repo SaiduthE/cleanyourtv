@@ -133,6 +133,11 @@ final class WallpaperPlayer {
         return sceneClock != null && current != null;
     }
 
+    /** A show's backdrop covers the screen: the scene clock fades out (true) and comes back with the scene (false). */
+    void setSceneSuppressed(boolean on) {
+        if (sceneClock != null) sceneClock.setSuppressed(on);
+    }
+
     /** {@code listener} runs (on the main thread) whenever a picture is shown or none could be, so the header can follow. */
     void setSceneListener(Runnable listener) {
         sceneListener = listener;

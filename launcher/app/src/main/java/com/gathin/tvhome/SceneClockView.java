@@ -80,6 +80,8 @@ final class SceneClockView extends View {
     private String time = "", date = "";
     private WeatherData reading;
     private boolean running;
+    /** A show's backdrop is on screen: the clock stays faded out, whatever scene arrives. */
+    private boolean suppressed;
     private int builtFor;
     private float textX, baseline, dateBaseline;
 
@@ -161,7 +163,29 @@ final class SceneClockView extends View {
         }).start();
     }
 
+    /**
+     * A show's backdrop covers the screen above this view's layer: fade out while it does (true), and return with the
+     * scene when it goes (false). A scene change that was waiting on the fade-out is applied at once.
+     */
+    void setSuppressed(boolean on) {
+        if (suppressed == on) return;
+        suppressed = on;
+        animate().cancel();
+        Scene queued = pending;
+        if (queued != null) {
+            pending = null;
+            apply(queued, scene);
+        }
+        if (on) {
+            if (fade) animate().alpha(0f).setDuration(FADE_OUT_MS).start();
+            else setAlpha(0f);
+        } else if (scene != null) {
+            fadeIn();
+        }
+    }
+
     private void fadeIn() {
+        if (suppressed) return;
         if (fade) animate().alpha(1f).setDuration(FADE_IN_MS).start();
         else setAlpha(1f);
     }
@@ -333,7 +357,7 @@ final class SceneClockView extends View {
         dateInk.setTextAlign(align);
         dateInk.setColor(l.dateColor != 0 ? l.dateColor : l.dark ? 0xFF16201D : 0xEBFFFFFF);
         if (l.dark) dateInk.clearShadowLayer();
-        else dateInk.setShadowLayer(9f * scale, 0f, 1f * scale, 0x40000000);
+        else Legibility.shadow(dateInk, 34f, scale);   // the date and weather line: the same soft shadow as the header's text
         Paint.FontMetrics fm = dateInk.getFontMetrics();
         dateBaseline = l.dateY * h + 20f * scale - (fm.ascent + fm.descent) / 2f;
     }

@@ -35,8 +35,22 @@ final class WidgetRegistry {
 
     /** The slot each widget docks in until the owner chooses: the weather keeps its place beside the clock. */
     static Map<String, WidgetSlot> defaults() {
+        return defaults(false);
+    }
+
+    /**
+     * The same, for a look with the scene clock (Horizon): the clock already shows the weather, so the weather widget is
+     * not docked, and the brightness chip sits in the top bar right before the network pill. These are only defaults: a
+     * choice the owner saves in the Widgets manager beats them, and a bundled style set aside the owner's own placements
+     * when it was applied and puts them back when it is left (see {@link WidgetStore#setAsideForScene}).
+     */
+    static Map<String, WidgetSlot> defaults(boolean sceneClock) {
         Map<String, WidgetSlot> out = new LinkedHashMap<>();
         for (WidgetDef def : ALL) out.put(def.id, def.defaultSlot);
+        if (sceneClock) {
+            out.put(WEATHER, null);
+            out.put(BRIGHTNESS, WidgetSlot.BESIDE_NETWORK);
+        }
         return out;
     }
 

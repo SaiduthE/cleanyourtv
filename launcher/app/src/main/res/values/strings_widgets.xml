@@ -14,6 +14,7 @@
     <string name="widget_slot_clock_side" translatable="false">Beside the clock</string>
     <string name="widget_slot_beside_weather" translatable="false">Beside weather</string>
     <string name="widget_slot_top_bar_start" translatable="false">Top bar, before the buttons</string>
+    <string name="widget_slot_beside_network" translatable="false">Top bar, before the network pill</string>
     <string name="widget_slot_top_bar_end" translatable="false">Top bar, after the buttons</string>
 
     <string name="widget_slots_title" translatable="false">Where should %1$s go?</string>

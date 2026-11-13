@@ -1,0 +1,10 @@
+# Optional: tools/make-scene.py, which turns a photo into a Horizon wallpaper (docs/workflows/make-a-scene.md).
+# numpy and Pillow are needed for every run; scipy only for --depth, pymatting makes its edge exact (optional),
+# pillow-heif reads iPhone HEIC photos (optional). Not needed to clean a TV, and not in requirements.txt, so the
+# tests run without any of them.
+# tools/venv/bin/pip install -r tools/requirements-scenes.txt
+numpy>=1.26
+pillow>=10.3
+scipy>=1.11
+pymatting>=1.1.12
+pillow-heif>=0.16

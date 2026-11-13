@@ -568,7 +568,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (!cfg.dockTitle) hero.setVisibility(View.GONE);
         // scene_clock (Horizon): the scene is the background, so the shelf's resting pictures (the add-on's photos and
         // the other wallpapers) are not drawn at all, and neither fetched nor rotated: only a show's own backdrop covers it.
-        sceneBackground = cfg.sceneClock.enabled && wallpaperPlayer.sceneClockShown();
+        sceneBackground = wallpaperPlayer.hasSceneClock();
         if (layeredShelf) setUpTopShelf(cfg.dockTitle, cfg.wallpaperEnabled && !sceneBackground ? cfg.wallpapers : java.util.Collections.<java.io.File>emptyList(), cfg.dockOpacity, cfg.dockBand, !sceneBackground);
         reorderIndicator.attach(root, animations, reducedMotion);
         greeting = findViewById(R.id.greeting);
@@ -2137,9 +2137,10 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             }
 
             @Override
-            public void onBackdropCover(boolean covers) {
-                // The scene clock is drawn above the shelf, so a backdrop would sit under it: it fades out and the
-                // normal header comes back while the backdrop is up, and the other way round when it goes.
+            public void onResumeShown(boolean covers) {
+                // The scene clock is under the shelf (so its text and cards are in front), but it is big and would run
+                // into the Resume block: it fades out and the normal header comes back while that is up, and the other
+                // way round when it goes.
                 shelfCovers = covers;
                 applySceneClockHeader();
                 wallpaperPlayer.setSceneSuppressed(covers);
